@@ -4088,10 +4088,6 @@ func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictio
 		"effects": effects
 	}
 
-func _on_opponent_disconnected() -> void:
-	# Show disconnect message and offer to claim victory
-	_show_disconnect_popup()
-
 func _execute_opponent_card(card_id: String, target_hero_id: String) -> void:
 	# Find the card in enemy hand and play it
 	var card_data: Dictionary = {}
