@@ -636,10 +636,20 @@ func _add_card_to_stack(card: Card) -> void:
 	# HOST-AUTHORITATIVE MULTIPLAYER
 	if is_multiplayer and network_manager:
 		var source_hero = _get_source_hero(card.card_data)
+		var role = "[HOST]" if is_host else "[GUEST]"
+		
+		print("\n--- CARD PLAY: ", role, " _add_card_to_stack ---")
+		print("  card_name: ", card.card_data.get("name", "?"))
+		print("  card_type: ", card_type)
+		print("  card_id: ", card_id)
+		print("  cost: ", this_cost, " mana: ", GameManager.current_mana)
+		print("  source_hero: ", source_hero.hero_id if source_hero else "null")
+		print("  auto_target: ", auto_target.hero_id if auto_target else "null", " is_enemy: ", auto_target_is_enemy)
 		
 		if is_host:
 			# HOST: Execute locally, then send RESULTS to Guest
 			# (Results will be sent after execution in _play_queued_card_multiplayer)
+			print("  → HOST will execute locally and send results")
 			pass  # Continue to normal execution below
 		else:
 			# GUEST: Send REQUEST to Host, do NOT execute locally
@@ -651,6 +661,7 @@ func _add_card_to_stack(card: Card) -> void:
 				"target_is_enemy": auto_target_is_enemy,
 				"timestamp": Time.get_unix_time_from_system()
 			}
+			print("  → GUEST sending request to Host")
 			network_manager.send_action_request(request)
 			
 			# Guest: Spend mana locally for UI feedback, remove card from hand
@@ -668,7 +679,8 @@ func _add_card_to_stack(card: Card) -> void:
 			_refresh_hand()
 			
 			# Guest does NOT execute the card - wait for Host's result
-			print("Battle: [GUEST] Sent card request, waiting for Host result...")
+			print("  → GUEST waiting for Host result...")
+			print("---\n")
 			return
 	
 	# SPEND MANA IMMEDIATELY (Host or single-player)
@@ -2749,8 +2761,15 @@ func _on_end_turn_pressed() -> void:
 		
 		# HOST-AUTHORITATIVE: Handle turn end
 		if is_multiplayer and network_manager:
+			var role = "[HOST]" if is_host else "[GUEST]"
+			print("\n=== TURN END: ", role, " ===")
+			print("  current_phase: ", current_phase)
+			print("  GameManager.is_player_turn: ", GameManager.is_player_turn)
+			print("  GameManager.turn_number: ", GameManager.turn_number)
+			
 			if is_host:
 				# Host ending turn: notify Guest via result
+				print("  → HOST sending end_turn result to Guest")
 				var result = {
 					"action_type": "end_turn",
 					"success": true,
@@ -2759,6 +2778,7 @@ func _on_end_turn_pressed() -> void:
 				network_manager.send_action_result(result)
 			else:
 				# Guest ending turn: send request to Host
+				print("  → GUEST sending end_turn request to Host")
 				var request = {
 					"action_type": "end_turn",
 					"timestamp": Time.get_unix_time_from_system()
@@ -2766,8 +2786,10 @@ func _on_end_turn_pressed() -> void:
 				network_manager.send_action_request(request)
 				# Guest waits for Host to process - don't continue locally
 				waiting_for_opponent = true
-				print("Battle: [GUEST] Sent end turn request, waiting for Host...")
+				print("  → GUEST waiting for Host to process turn end...")
+				print("===\n")
 				return  # Don't execute turn end logic locally
+			print("===\n")
 		
 		# Trigger Thunder damage on ALL heroes at end of player turn
 		await _trigger_thunder_damage(enemy_heroes)
@@ -2789,6 +2811,14 @@ func _wait_for_queue_to_finish() -> void:
 		await get_tree().create_timer(0.1).timeout
 
 func _on_turn_started(is_player: bool) -> void:
+	var role = "[HOST]" if is_host else "[GUEST]"
+	print("\n=== TURN STARTED: ", role, " ===")
+	print("  is_player_turn: ", is_player)
+	print("  is_multiplayer: ", is_multiplayer)
+	print("  waiting_for_opponent: ", waiting_for_opponent)
+	print("  GameManager.turn_number: ", GameManager.turn_number)
+	print("===\n")
+	
 	_force_hide_card_display()
 	_update_turn_display()
 	_update_deck_display()
@@ -3484,17 +3514,24 @@ func _on_action_request_received(request: Dictionary) -> void:
 		push_warning("Battle: Guest received action request - should not happen!")
 		return
 	
-	print("Battle: [HOST] Processing guest action request: ", request.get("action_type", "unknown"))
-	
 	var action_type = request.get("action_type", "")
+	print("\n>>> HOST: _on_action_request_received <<<")
+	print("  action_type: ", action_type)
+	print("  current_phase: ", current_phase)
+	print("  waiting_for_opponent: ", waiting_for_opponent)
 	
 	match action_type:
 		"play_card":
+			print("  → Calling _host_execute_card_request")
 			await _host_execute_card_request(request)
 		"use_ex_skill":
+			print("  → Calling _host_execute_ex_skill_request")
 			await _host_execute_ex_skill_request(request)
 		"end_turn":
+			print("  → Calling _host_execute_end_turn_request")
 			_host_execute_end_turn_request(request)
+		_:
+			print("  → UNKNOWN action_type: ", action_type)
 
 func _host_execute_card_request(request: Dictionary) -> void:
 	## HOST: Execute a card play request from Guest and send results
@@ -3503,6 +3540,15 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	var target_hero_id = request.get("target_hero_id", "")
 	var is_guest_targeting_enemy = request.get("target_is_enemy", false)
 	
+	print("\n--- HOST: _host_execute_card_request ---")
+	print("  card_name: ", card_data.get("name", "?"))
+	print("  card_type: ", card_data.get("type", "?"))
+	print("  source_hero_id: ", source_hero_id)
+	print("  target_hero_id: ", target_hero_id)
+	print("  is_guest_targeting_enemy: ", is_guest_targeting_enemy)
+	print("  Host player_heroes: ", player_heroes.map(func(h): return h.hero_id))
+	print("  Host enemy_heroes: ", enemy_heroes.map(func(h): return h.hero_id))
+	
 	# From Host's perspective: Guest's "enemy" is Host's player heroes
 	# Guest's "ally" is Host's enemy heroes
 	var target: Hero = null
@@ -3510,12 +3556,14 @@ func _host_execute_card_request(request: Dictionary) -> void:
 		# Guest targeting their enemy = Host's player heroes
 		# Guest targeting their ally = Host's enemy heroes
 		var search_array = player_heroes if is_guest_targeting_enemy else enemy_heroes
+		print("  Searching for target in: ", "player_heroes" if is_guest_targeting_enemy else "enemy_heroes")
 		for hero in search_array:
 			if hero.hero_id == target_hero_id:
 				target = hero
 				break
 		# Fallback search
 		if target == null:
+			print("  WARNING: Target not found in primary array, trying fallback...")
 			for hero in player_heroes + enemy_heroes:
 				if hero.hero_id == target_hero_id:
 					target = hero
@@ -3528,7 +3576,20 @@ func _host_execute_card_request(request: Dictionary) -> void:
 			source = hero
 			break
 	
+	print("  Found source: ", source.hero_id if source else "NULL!", " (is_player=", source.is_player_hero if source else "?", ")")
+	print("  Found target: ", target.hero_id if target else "NULL!", " (is_player=", target.is_player_hero if target else "?", ")")
+	
+	if source == null:
+		print("  ERROR: Source hero not found! Cannot execute card.")
+		print("---\n")
+		return
+	if target == null:
+		print("  ERROR: Target hero not found! Cannot execute card.")
+		print("---\n")
+		return
+	
 	# Execute the card and collect results
+	print("  → Executing card...")
 	var result = await _execute_card_and_collect_results(card_data, source, target)
 	
 	# Send results to Guest
@@ -3603,17 +3664,24 @@ func _on_action_result_received(result: Dictionary) -> void:
 		push_warning("Battle: Host received action result - should not happen!")
 		return
 	
-	print("Battle: [GUEST] Applying action result: ", result.get("action_type", "unknown"))
-	
 	var action_type = result.get("action_type", "")
+	print("\n>>> GUEST: _on_action_result_received <<<")
+	print("  action_type: ", action_type)
+	print("  current_phase: ", current_phase)
+	print("  is_casting: ", is_casting)
 	
 	match action_type:
 		"play_card":
+			print("  → Calling _guest_apply_card_result")
 			await _guest_apply_card_result(result)
 		"use_ex_skill":
+			print("  → Calling _guest_apply_ex_skill_result")
 			await _guest_apply_ex_skill_result(result)
 		"end_turn":
+			print("  → Calling _guest_apply_end_turn_result")
 			_guest_apply_end_turn_result(result)
+		_:
+			print("  → UNKNOWN action_type: ", action_type)
 
 func _guest_apply_card_result(result: Dictionary) -> void:
 	## GUEST: Apply card play results from Host with animations
@@ -3664,7 +3732,10 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 				source = h
 				break
 	
-	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "null", " target: ", target.hero_id if target else "null")
+	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "NULL!", " (is_player=", source.is_player_hero if source else "?", ")")
+	print("Battle: [GUEST]   Found target: ", target.hero_id if target else "NULL!", " (is_player=", target.is_player_hero if target else "?", ")")
+	print("Battle: [GUEST]   Player heroes: ", player_heroes.map(func(h): return h.hero_id))
+	print("Battle: [GUEST]   Enemy heroes: ", enemy_heroes.map(func(h): return h.hero_id))
 	
 	# Play animation based on card type
 	if card_type in ["attack", "basic_attack"] and source and target:
@@ -3673,29 +3744,48 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 			if effect.get("type", "") == "damage":
 				damage = int(effect.get("amount", 0))
 				break
+		print("Battle: [GUEST] ANIM: attack - source=", source.hero_id, " target=", target.hero_id, " damage=", damage)
 		await _show_card_display({"name": card_name, "type": card_type})
 		if damage > 0:
 			await _animate_attack(source, target, damage)
 		await _hide_card_display()
+		print("Battle: [GUEST] ANIM: attack animation complete")
 	elif card_type == "heal" and source and target:
+		print("Battle: [GUEST] ANIM: heal - source=", source.hero_id, " target=", target.hero_id)
 		await _show_card_display({"name": card_name, "type": card_type})
 		await _animate_cast_heal(source, target)
 		await _hide_card_display()
+		print("Battle: [GUEST] ANIM: heal animation complete")
 	elif card_type == "buff" and source and target:
+		print("Battle: [GUEST] ANIM: buff - source=", source.hero_id, " target=", target.hero_id)
 		await _show_card_display({"name": card_name, "type": card_type})
 		await _animate_cast_buff(source, target)
 		await _hide_card_display()
+		print("Battle: [GUEST] ANIM: buff animation complete")
 	elif card_type == "debuff" and source and target:
+		print("Battle: [GUEST] ANIM: debuff - source=", source.hero_id, " target=", target.hero_id)
 		await _show_card_display({"name": card_name, "type": card_type})
 		await _animate_cast_debuff(source, target)
 		await _hide_card_display()
+		print("Battle: [GUEST] ANIM: debuff animation complete")
+	else:
+		print("Battle: [GUEST] ANIM: SKIPPED! card_type='", card_type, "' source=", source != null, " target=", target != null)
+		if card_type.is_empty():
+			print("Battle: [GUEST] WARNING: card_type is EMPTY - animation will not play!")
+		if source == null:
+			print("Battle: [GUEST] WARNING: source hero NOT FOUND for id '", source_hero_id, "'")
+		if target == null:
+			print("Battle: [GUEST] WARNING: target hero NOT FOUND for id '", target_hero_id, "'")
 	
 	# Apply each effect (set final values after animation)
-	for effect in effects:
+	print("Battle: [GUEST] Applying ", effects.size(), " effects...")
+	for i in range(effects.size()):
+		var effect = effects[i]
+		print("Battle: [GUEST]   Applying effect[", i, "]: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"))
 		_apply_effect(effect)
 	
 	_refresh_enemy_hand_display()
-	print("Battle: [GUEST] Card result applied")
+	print("Battle: [GUEST] Card result fully applied\n")
 
 func _guest_apply_ex_skill_result(result: Dictionary) -> void:
 	## GUEST: Apply EX skill results from Host

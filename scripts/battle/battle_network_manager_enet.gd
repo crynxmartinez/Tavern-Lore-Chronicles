@@ -99,7 +99,20 @@ func send_action_request(request: Dictionary) -> void:
 		push_warning("BattleNetworkManagerENet: Host should not send action requests!")
 		return
 	
-	print("BattleNetworkManagerENet: [GUEST] Sending action request: ", request.get("action_type", "unknown"))
+	var action = request.get("action_type", "unknown")
+	print("\n=== NET [GUEST→HOST] ACTION REQUEST ===")
+	print("  action_type: ", action)
+	if action == "play_card":
+		print("  card_name: ", request.get("card_data", {}).get("name", "?"))
+		print("  card_type: ", request.get("card_data", {}).get("type", "?"))
+		print("  source_hero_id: ", request.get("source_hero_id", "?"))
+		print("  target_hero_id: ", request.get("target_hero_id", "?"))
+		print("  target_is_enemy: ", request.get("target_is_enemy", "?"))
+	elif action == "use_ex_skill":
+		print("  source_hero_id: ", request.get("source_hero_id", "?"))
+		print("  target_hero_id: ", request.get("target_hero_id", "?"))
+		print("  target_is_enemy: ", request.get("target_is_enemy", "?"))
+	print("==================================\n")
 	
 	# Convert to JSON for reliable serialization
 	var json_str = JSON.stringify(request)
@@ -114,9 +127,24 @@ func _receive_action_request(json_str: String) -> void:
 	
 	var request = JSON.parse_string(json_str)
 	if request == null:
+		print("BattleNetworkManagerENet: [HOST] ERROR - Failed to parse action request JSON!")
+		print("  Raw JSON: ", json_str.substr(0, 200))
 		request = {}
+		return
 	
-	print("BattleNetworkManagerENet: [HOST] Received action request: ", request.get("action_type", "unknown"))
+	var action = request.get("action_type", "unknown")
+	print("\n=== NET [HOST←GUEST] ACTION REQUEST RECEIVED ===")
+	print("  action_type: ", action)
+	if action == "play_card":
+		print("  card_name: ", request.get("card_data", {}).get("name", "?"))
+		print("  card_type: ", request.get("card_data", {}).get("type", "?"))
+		print("  source_hero_id: ", request.get("source_hero_id", "?"))
+		print("  target_hero_id: ", request.get("target_hero_id", "?"))
+		print("  target_is_enemy: ", request.get("target_is_enemy", "?"))
+	elif action == "use_ex_skill":
+		print("  source_hero_id: ", request.get("source_hero_id", "?"))
+		print("  target_hero_id: ", request.get("target_hero_id", "?"))
+	print("================================================\n")
 	action_request_received.emit(request)
 
 # ============================================
@@ -132,7 +160,26 @@ func send_action_result(result: Dictionary) -> void:
 		push_warning("BattleNetworkManagerENet: Guest should not send action results!")
 		return
 	
-	print("BattleNetworkManagerENet: [HOST] Sending action result: ", result.get("action_type", "unknown"))
+	var action = result.get("action_type", "unknown")
+	var effects = result.get("effects", [])
+	print("\n=== NET [HOST→GUEST] ACTION RESULT ===")
+	print("  action_type: ", action)
+	print("  success: ", result.get("success", "?"))
+	if action == "play_card":
+		print("  card_name: ", result.get("card_name", "MISSING!"))
+		print("  card_type: ", result.get("card_type", "MISSING!"))
+		print("  source_hero_id: ", result.get("source_hero_id", "MISSING!"))
+		print("  target_hero_id: ", result.get("target_hero_id", "MISSING!"))
+		print("  target_is_enemy: ", result.get("target_is_enemy", "MISSING!"))
+	print("  effects_count: ", effects.size())
+	for i in range(effects.size()):
+		var e = effects[i]
+		print("    effect[", i, "]: type=", e.get("type", "?"), " hero_id=", e.get("hero_id", "?"), " is_host_hero=", e.get("is_host_hero", "MISSING!"))
+		if e.get("type", "") == "damage":
+			print("      amount=", e.get("amount", "?"), " new_hp=", e.get("new_hp", "?"))
+		elif e.get("type", "") == "heal":
+			print("      amount=", e.get("amount", "?"), " new_hp=", e.get("new_hp", "?"))
+	print("======================================\n")
 	
 	# Convert to JSON for reliable serialization
 	var json_str = JSON.stringify(result)
@@ -147,9 +194,31 @@ func _receive_action_result(json_str: String) -> void:
 	
 	var result = JSON.parse_string(json_str)
 	if result == null:
+		print("BattleNetworkManagerENet: [GUEST] ERROR - Failed to parse action result JSON!")
+		print("  Raw JSON: ", json_str.substr(0, 200))
 		result = {}
+		return
 	
-	print("BattleNetworkManagerENet: [GUEST] Received action result: ", result.get("action_type", "unknown"))
+	var action = result.get("action_type", "unknown")
+	var effects = result.get("effects", [])
+	print("\n=== NET [GUEST←HOST] ACTION RESULT RECEIVED ===")
+	print("  action_type: ", action)
+	print("  success: ", result.get("success", "?"))
+	if action == "play_card":
+		print("  card_name: ", result.get("card_name", "MISSING!"))
+		print("  card_type: ", result.get("card_type", "MISSING!"))
+		print("  source_hero_id: ", result.get("source_hero_id", "MISSING!"))
+		print("  target_hero_id: ", result.get("target_hero_id", "MISSING!"))
+		print("  target_is_enemy: ", result.get("target_is_enemy", "MISSING!"))
+	print("  effects_count: ", effects.size())
+	for i in range(effects.size()):
+		var e = effects[i]
+		print("    effect[", i, "]: type=", e.get("type", "?"), " hero_id=", e.get("hero_id", "?"), " is_host_hero=", e.get("is_host_hero", "MISSING!"))
+		if e.get("type", "") == "damage":
+			print("      amount=", e.get("amount", "?"), " new_hp=", e.get("new_hp", "?"))
+		elif e.get("type", "") == "heal":
+			print("      amount=", e.get("amount", "?"), " new_hp=", e.get("new_hp", "?"))
+	print("================================================\n")
 	action_result_received.emit(result)
 
 # ============================================
