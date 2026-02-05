@@ -2269,6 +2269,46 @@ func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 	
 	await get_tree().create_timer(0.5).timeout
 
+func _guest_animate_attack(source: Hero, target: Hero, damage: int) -> void:
+	## GUEST ONLY: Visual-only attack animation. Does NOT apply damage or trigger equipment.
+	## _apply_effect will set authoritative HP values from Host afterward.
+	print("Battle: [GUEST] _guest_animate_attack - source=", source.hero_id if source else "null", " target=", target.hero_id if target else "null", " damage=", damage)
+	
+	if source == null or not is_instance_valid(source):
+		# No source — just play hit anim visually, no damage
+		if target and is_instance_valid(target):
+			target.play_hit_anim()
+		return
+	
+	# Play attack animation first
+	source.play_attack_anim_with_callback(func(): pass)
+	
+	# Delay before hit lands (let attack animation play)
+	await get_tree().create_timer(0.35).timeout
+	
+	# Spawn attack effect on target based on attacker type
+	if target and is_instance_valid(target):
+		var attacker_id = source.hero_id
+		var attacker_color = source.get_color()
+		target.spawn_attack_effect(attacker_id, attacker_color)
+		
+		# VFX Library: spawn sparks on target sprite
+		if VFX and target.sprite:
+			var sprite_center = target.sprite.global_position + target.sprite.size / 2
+			VFX.spawn_particles(sprite_center, Color(1.0, 0.6, 0.2), 8)
+		
+		# Play hit animation (visual only, no take_damage)
+		target.play_hit_anim()
+		
+		# Spawn damage number and play sound
+		if target.sprite:
+			var sprite_center = target.sprite.global_position + target.sprite.size / 2
+			_play_vfx("spawn_damage", [self, sprite_center, damage])
+			_play_vfx("flash_damage", [target.sprite])
+	
+	_play_audio("play_attack")
+	await get_tree().create_timer(0.5).timeout
+
 func _animate_cast(source: Hero, target: Hero, damage: int) -> void:
 	# Cast animation for spells that deal damage (like Turret Deploy)
 	if source == null or not is_instance_valid(source):
@@ -3510,6 +3550,8 @@ func _setup_multiplayer() -> void:
 
 func _on_action_request_received(request: Dictionary) -> void:
 	## HOST ONLY: Guest sent us an action request. Execute it and send results back.
+	## IMPORTANT: This is called from a signal callback (RPC → signal → here).
+	## We must NOT use await directly — use call_deferred instead.
 	if not is_host:
 		push_warning("Battle: Guest received action request - should not happen!")
 		return
@@ -3519,6 +3561,14 @@ func _on_action_request_received(request: Dictionary) -> void:
 	print("  action_type: ", action_type)
 	print("  current_phase: ", current_phase)
 	print("  waiting_for_opponent: ", waiting_for_opponent)
+	
+	# Defer processing to avoid await-in-signal-callback issues
+	_deferred_process_action_request.call_deferred(request)
+
+func _deferred_process_action_request(request: Dictionary) -> void:
+	## Process action requests in a deferred context so await works properly
+	var action_type = request.get("action_type", "")
+	print("  → Deferred processing request action_type: ", action_type)
 	
 	match action_type:
 		"play_card":
@@ -3660,6 +3710,9 @@ func _host_execute_end_turn_request(request: Dictionary) -> void:
 
 func _on_action_result_received(result: Dictionary) -> void:
 	## GUEST ONLY: Host sent us action results. Apply them directly (no game logic).
+	## IMPORTANT: This is called from a signal callback (RPC → signal → here).
+	## We must NOT use await directly in signal callbacks in Godot 4 — it can silently fail.
+	## Instead, we use call_deferred to process results in the next frame.
 	if is_host:
 		push_warning("Battle: Host received action result - should not happen!")
 		return
@@ -3669,6 +3722,14 @@ func _on_action_result_received(result: Dictionary) -> void:
 	print("  action_type: ", action_type)
 	print("  current_phase: ", current_phase)
 	print("  is_casting: ", is_casting)
+	
+	# Defer processing to avoid await-in-signal-callback issues
+	_deferred_process_action_result.call_deferred(result)
+
+func _deferred_process_action_result(result: Dictionary) -> void:
+	## Process action results in a deferred context so await works properly
+	var action_type = result.get("action_type", "")
+	print("  → Deferred processing action_type: ", action_type)
 	
 	match action_type:
 		"play_card":
@@ -3737,7 +3798,10 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	print("Battle: [GUEST]   Player heroes: ", player_heroes.map(func(h): return h.hero_id))
 	print("Battle: [GUEST]   Enemy heroes: ", enemy_heroes.map(func(h): return h.hero_id))
 	
-	# Play animation based on card type
+	# Play VISUAL-ONLY animation based on card type
+	# Guest must NOT call _animate_attack (it applies damage via take_damage).
+	# Instead, use _guest_animate_attack which is visual-only.
+	# _apply_effect will set the authoritative HP values from Host afterward.
 	if card_type in ["attack", "basic_attack"] and source and target:
 		var damage = 0
 		for effect in effects:
@@ -3747,7 +3811,7 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 		print("Battle: [GUEST] ANIM: attack - source=", source.hero_id, " target=", target.hero_id, " damage=", damage)
 		await _show_card_display({"name": card_name, "type": card_type})
 		if damage > 0:
-			await _animate_attack(source, target, damage)
+			await _guest_animate_attack(source, target, damage)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: attack animation complete")
 	elif card_type == "heal" and source and target:
@@ -3777,7 +3841,7 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 		if target == null:
 			print("Battle: [GUEST] WARNING: target hero NOT FOUND for id '", target_hero_id, "'")
 	
-	# Apply each effect (set final values after animation)
+	# Apply each effect (set authoritative values from Host after animation)
 	print("Battle: [GUEST] Applying ", effects.size(), " effects...")
 	for i in range(effects.size()):
 		var effect = effects[i]
