@@ -1,0 +1,258 @@
+[gd_scene load_steps=2 format=3 uid="uid://battle_pos_editor2"]
+
+[ext_resource type="Script" path="res://scenes/battle/battle_position_editor.gd" id="1_script"]
+
+[node name="BattlePositionEditor" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.3, 0.25, 0.2, 1)
+
+[node name="Board" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="P1" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 40.0
+offset_top = 285.0
+offset_right = 240.0
+offset_bottom = 485.0
+color = Color(0.2, 0.6, 1, 0.7)
+
+[node name="Label" type="Label" parent="Board/P1"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "P1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="P2" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 240.0
+offset_top = 285.0
+offset_right = 440.0
+offset_bottom = 485.0
+color = Color(0.2, 0.6, 1, 0.7)
+
+[node name="Label" type="Label" parent="Board/P2"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "P2"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="P3" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 440.0
+offset_top = 285.0
+offset_right = 640.0
+offset_bottom = 485.0
+color = Color(0.2, 0.6, 1, 0.7)
+
+[node name="Label" type="Label" parent="Board/P3"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "P3"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="P4" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 640.0
+offset_top = 285.0
+offset_right = 840.0
+offset_bottom = 485.0
+color = Color(0.2, 0.6, 1, 0.7)
+
+[node name="Label" type="Label" parent="Board/P4"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "P4"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="E1" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 1080.0
+offset_top = 285.0
+offset_right = 1280.0
+offset_bottom = 485.0
+color = Color(1, 0.3, 0.2, 0.7)
+
+[node name="Label" type="Label" parent="Board/E1"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "E1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="E2" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 1280.0
+offset_top = 285.0
+offset_right = 1480.0
+offset_bottom = 485.0
+color = Color(1, 0.3, 0.2, 0.7)
+
+[node name="Label" type="Label" parent="Board/E2"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "E2"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="E3" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 1480.0
+offset_top = 285.0
+offset_right = 1680.0
+offset_bottom = 485.0
+color = Color(1, 0.3, 0.2, 0.7)
+
+[node name="Label" type="Label" parent="Board/E3"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "E3"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="E4" type="ColorRect" parent="Board"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 0
+offset_left = 1680.0
+offset_top = 285.0
+offset_right = 1880.0
+offset_bottom = 485.0
+color = Color(1, 0.3, 0.2, 0.7)
+
+[node name="Label" type="Label" parent="Board/E4"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "E4"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Instructions" type="Label" parent="."]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 600.0
+offset_bottom = 80.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "BATTLE POSITION EDITOR
+1. Select and drag the colored boxes (P1-P4 = Player, E1-E4 = Enemy)
+2. In Inspector, check 'Print Positions Button' to output code
+3. Copy the output from Output panel into battle.gd"

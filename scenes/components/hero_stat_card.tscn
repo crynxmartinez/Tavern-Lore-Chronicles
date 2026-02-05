@@ -1,0 +1,87 @@
+[gd_scene load_steps=2 format=3 uid="uid://hero_stat_card"]
+
+[ext_resource type="Script" path="res://scripts/components/hero_stat_card.gd" id="1_script"]
+
+[node name="HeroStatCard" type="VBoxContainer"]
+custom_minimum_size = Vector2(100, 180)
+script = ExtResource("1_script")
+theme_override_constants/separation = 4
+
+[node name="Portrait" type="TextureRect" parent="."]
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+size_flags_horizontal = 4
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StatsContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="DamageRow" type="HBoxContainer" parent="StatsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DamageIcon" type="Label" parent="StatsContainer/DamageRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 14
+text = "⚔"
+
+[node name="DamageValue" type="Label" parent="StatsContainer/DamageRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "0"
+
+[node name="ShieldRow" type="HBoxContainer" parent="StatsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ShieldIcon" type="Label" parent="StatsContainer/ShieldRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.7, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "🛡"
+
+[node name="ShieldValue" type="Label" parent="StatsContainer/ShieldRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "0"
+
+[node name="HealRow" type="HBoxContainer" parent="StatsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HealIcon" type="Label" parent="StatsContainer/HealRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 14
+text = "💚"
+
+[node name="HealValue" type="Label" parent="StatsContainer/HealRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "0"
+
+[node name="EXRow" type="HBoxContainer" parent="StatsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="EXIcon" type="Label" parent="StatsContainer/EXRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_font_sizes/font_size = 14
+text = "⚡"
+
+[node name="EXValue" type="Label" parent="StatsContainer/EXRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "0"

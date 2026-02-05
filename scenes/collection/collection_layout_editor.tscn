@@ -1,0 +1,153 @@
+[gd_scene load_steps=3 format=3 uid="uid://dh4hy1hpefqai"]
+
+[ext_resource type="Texture2D" uid="uid://kp6t7ne5ydbj" path="res://asset/Others/stage.png" id="1_stage"]
+[ext_resource type="Script" uid="uid://chol1otdb63uv" path="res://scenes/collection/collection_layout_editor.gd" id="2_script"]
+
+[node name="CollectionLayoutEditor" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_script")
+
+[node name="Background" type="TextureRect" parent="."]
+modulate = Color(0.6, 0.6, 0.6, 1)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_stage")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 0
+offset_left = 350.0
+offset_top = 10.0
+offset_right = 750.0
+offset_bottom = 40.0
+text = "COLLECTION LAYOUT EDITOR"
+horizontal_alignment = 1
+
+[node name="BackButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 15.0
+offset_right = 100.0
+offset_bottom = 45.0
+text = "← BACK"
+
+[node name="LeftMenu" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 110.0
+offset_top = 158.0
+offset_right = 307.0
+offset_bottom = 704.0
+
+[node name="Label" type="Label" parent="LeftMenu"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 110.0
+offset_bottom = 30.0
+text = "LEFT MENU"
+horizontal_alignment = 1
+
+[node name="HeroRoster" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 712.0
+offset_top = 68.0
+offset_right = 1240.0
+offset_bottom = 254.0
+
+[node name="Label" type="Label" parent="HeroRoster"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 200.0
+offset_bottom = 30.0
+text = "HERO ROSTER"
+
+[node name="Pose_IDLE" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 547.0
+offset_top = 541.0
+offset_right = 707.0
+offset_bottom = 821.0
+
+[node name="Label" type="Label" parent="Pose_IDLE"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 150.0
+offset_bottom = 30.0
+text = "IDLE"
+horizontal_alignment = 1
+
+[node name="Pose_HIT" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 812.0
+offset_top = 541.0
+offset_right = 972.0
+offset_bottom = 821.0
+
+[node name="Label" type="Label" parent="Pose_HIT"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 150.0
+offset_bottom = 30.0
+text = "HIT"
+horizontal_alignment = 1
+
+[node name="Pose_CAST" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 1103.0
+offset_top = 541.0
+offset_right = 1263.0
+offset_bottom = 821.0
+
+[node name="Label" type="Label" parent="Pose_CAST"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 150.0
+offset_bottom = 30.0
+text = "CAST"
+horizontal_alignment = 1
+
+[node name="Pose_ATTACK" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 1362.0
+offset_top = 541.0
+offset_right = 1522.0
+offset_bottom = 821.0
+
+[node name="Label" type="Label" parent="Pose_ATTACK"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 150.0
+offset_bottom = 30.0
+text = "ATTACK"
+horizontal_alignment = 1
+
+[node name="SkinsMenu" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 1659.0
+offset_top = 143.0
+offset_right = 1856.0
+offset_bottom = 689.0
+
+[node name="Label" type="Label" parent="SkinsMenu"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 110.0
+offset_bottom = 30.0
+text = "SKINS"
+horizontal_alignment = 1

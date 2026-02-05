@@ -1,0 +1,165 @@
+[gd_scene load_steps=6 format=3 uid="uid://hero_scene"]
+
+[ext_resource type="Script" path="res://scripts/components/hero.gd" id="1_hero"]
+[ext_resource type="Shader" path="res://shaders/ex_aura_glow.gdshader" id="2_aura_shader"]
+[ext_resource type="Texture2D" path="res://asset/Others/shield.webp" id="3_shield"]
+[ext_resource type="Texture2D" path="res://asset/Others/Exe Aura.png" id="4_exaura"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_aura"]
+shader = ExtResource("2_aura_shader")
+shader_parameter/glow_color = Color(1, 0.9, 0.3, 1)
+shader_parameter/pulse_speed = 2.5
+shader_parameter/glow_intensity = 0.6
+shader_parameter/ring_radius = 0.42
+shader_parameter/ring_width = 0.15
+
+[node name="Hero" type="Control"]
+custom_minimum_size = Vector2(200, 450)
+layout_mode = 0
+anchors_preset = 0
+offset_right = 200.0
+offset_bottom = 450.0
+script = ExtResource("1_hero")
+
+[node name="ExAuraImage" type="TextureRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -180.0
+offset_right = 150.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 0
+texture = ExtResource("4_exaura")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Sprite" type="TextureRect" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 50.0
+offset_right = 400.0
+offset_bottom = 400.0
+expand_mode = 3
+stretch_mode = 4
+
+[node name="StatsContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -60.0
+offset_right = -20.0
+mouse_filter = 1
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="HPBar" type="ProgressBar" parent="StatsContainer"]
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+max_value = 200.0
+value = 162.0
+show_percentage = false
+
+[node name="ShieldOverlay" type="ProgressBar" parent="StatsContainer/HPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+max_value = 200.0
+value = 0.0
+show_percentage = false
+
+[node name="HPLabel" type="Label" parent="StatsContainer/HPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "162"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EnergyBar" type="ProgressBar" parent="StatsContainer"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 100.0
+value = 0.0
+show_percentage = false
+
+[node name="EnergyLabel" type="Label" parent="StatsContainer/EnergyBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "0/100"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Aura" type="ColorRect" parent="."]
+visible = false
+material = SubResource("ShaderMaterial_aura")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset = Vector2(140, 265)
+color = Color(1, 1, 1, 1)
+
+[node name="ShieldEffect" type="TextureRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = 20.0
+offset_right = -40.0
+offset_bottom = -100.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_shield")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ClickArea" type="Button" parent="."]
+modulate = Color(1, 1, 1, 0)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+flat = true
+
+[node name="BuffContainerOverlay" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -22.0
+offset_right = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 1
+alignment = 1

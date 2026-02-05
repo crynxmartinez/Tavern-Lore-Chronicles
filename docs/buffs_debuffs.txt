@@ -1,0 +1,286 @@
+================================================================================
+                        MY TURN - BUFFS & DEBUFFS GUIDE
+================================================================================
+
+================================================================================
+                            TURN COUNTING SYSTEM
+================================================================================
+
+All buffs/debuffs use "Option A" turn counting:
+- Effect is applied immediately when cast
+- Effect expires at the END of the affected unit's next turn
+- Default duration is 1 turn unless specified otherwise
+
+Example (1 turn Stun):
+  Turn 1: You use Stun on enemy Markswoman
+          → Markswoman is Stunned
+  Turn 2: Opponent's turn - Markswoman CANNOT act (stunned)
+          → At END of opponent's turn, Stun expires
+  Turn 3: Your turn
+  Turn 4: Opponent's turn - Markswoman CAN act normally
+
+================================================================================
+                            TARGETING SYSTEM
+================================================================================
+
+- "target" in skill description = Player chooses the target
+- No "target" keyword = Auto-targets front-most unit
+  - Damage skills → front-most enemy
+  - Healing skills → front-most ally (or lowest HP ally)
+
+================================================================================
+                                  BUFFS
+================================================================================
+
+SHIELD
+--------------------------------------------------------------------------------
+Description: Creates a protective barrier that absorbs damage before HP.
+Duration: 1 turn OR until depleted (whichever comes first)
+Stacking: Yes (shield values stack)
+
+How it works:
+- When a unit with Shield takes damage, the Shield absorbs it first
+- Remaining damage (if any) is dealt to HP
+- Shield does not regenerate naturally
+- Shield expires at end of unit's turn if not depleted
+
+Example:
+  Unit has 100 HP and 30 Shield
+  Takes 50 damage
+  → Shield absorbs 30, HP takes 20
+  → Result: 80 HP, 0 Shield
+
+--------------------------------------------------------------------------------
+
+TAUNT
+--------------------------------------------------------------------------------
+Description: Forces opponent's normal attacks to target this unit.
+Duration: 1 turn (default)
+Stacking: No (only one unit can have Taunt active)
+
+How it works:
+- When a unit has Taunt, enemy normal attacks MUST target this unit
+- Acts as if this unit is always the "front" unit for targeting
+- Skill cards that say "target" can still choose other targets
+- Only affects auto-target attacks (not skills with "target")
+
+Example:
+  Makash (Position 4) has Taunt
+  Enemy tries to attack Squire (Position 1)
+  → Attack is redirected to Makash instead
+
+--------------------------------------------------------------------------------
+
+EMPOWER
+--------------------------------------------------------------------------------
+Description: Increases all damage dealt by 50%.
+Duration: 1 turn (default)
+Stacking: No (refreshes duration)
+
+How it works:
+- All attack damage from this unit is multiplied by 1.5
+- Applies to both normal attacks and skill cards
+- Calculated after ATK multiplier
+
+Damage Formula with Empower:
+  Final Damage = Base ATK × Card Multiplier × 1.5
+
+Example:
+  Hero with 10 ATK + Empower uses 100% ATK card
+  → 10 × 1.0 × 1.5 = 15 damage
+
+--------------------------------------------------------------------------------
+
+REGENERATION
+--------------------------------------------------------------------------------
+Description: Heals the unit over time.
+Duration: 1 turn (default, unless specified)
+Stacking: No (refreshes duration)
+
+How it works:
+- Heals (50% ATK) of the caster at the start of the unit's turn
+- ATK used is from the unit who applied the regeneration
+- Healing happens before the unit takes their action
+
+Example:
+  Priest (10 ATK) applies Regeneration to Squire
+  → At start of Squire's turn, Squire heals 5 HP (50% of 10)
+
+--------------------------------------------------------------------------------
+
+================================================================================
+                                 DEBUFFS
+================================================================================
+
+STUN
+--------------------------------------------------------------------------------
+Description: Target cannot make a move on the next turn.
+Duration: 1 turn
+Stacking: No (refreshes duration)
+Applied by: Squire's EX Skill (Guardian's Oath)
+
+How it works:
+- Stunned hero cannot use any cards or EX skill
+- Player cannot play any of that hero's cards from hand
+- Stun wears off at the start of the stunned hero's next turn
+- Does not prevent the hero from being targeted by allies
+
+Example:
+  Squire uses Guardian's Oath on Enemy Markswoman
+  → Markswoman takes 20 damage and is Stunned
+  → Next turn, opponent cannot play Markswoman's cards or EX skill
+
+--------------------------------------------------------------------------------
+
+WEAK
+--------------------------------------------------------------------------------
+Description: Reduces all damage dealt by 50%.
+Duration: 1 turn (or as specified)
+Stacking: No (refreshes duration)
+
+How it works:
+- All attack damage from this unit is multiplied by 0.5
+- Applies to both normal attacks and skill cards
+- Calculated after ATK multiplier
+
+Damage Formula with Weak:
+  Final Damage = Base ATK × Card Multiplier × 0.5
+
+Example:
+  Hero with 10 ATK + Weak uses 100% ATK card
+  → 10 × 1.0 × 0.5 = 5 damage
+
+--------------------------------------------------------------------------------
+
+================================================================================
+                            SPECIAL MECHANICS
+================================================================================
+
+PENETRATE
+--------------------------------------------------------------------------------
+Description: Attack hits the primary target AND the hero directly behind them.
+Applied by: Makash's EX Skill (Fallen Strike)
+
+How it works:
+- Deals damage to the targeted enemy
+- Also deals the same damage to the enemy behind the target
+- If the target is in the back position, only hits that target
+- Any status effects (like Weak) are applied to BOTH targets
+
+Example:
+  Makash uses Fallen Strike on Enemy Position 1
+  → Enemy 1 takes 20 damage + Weak
+  → Enemy 2 takes 20 damage + Weak
+
+--------------------------------------------------------------------------------
+
+FRONT ENEMY (Auto-Target)
+--------------------------------------------------------------------------------
+Description: Automatically targets the front-most living enemy.
+Applied by: Makash's Killing Chop
+
+How it works:
+- No target selection needed
+- Always hits the enemy in Position 1
+- If Position 1 is dead, hits Position 2, etc.
+- Respects Taunt (if enemy has Taunt, hits that unit instead)
+
+--------------------------------------------------------------------------------
+
+UPGRADE & SHUFFLE
+--------------------------------------------------------------------------------
+Description: Permanently upgrades the card and shuffles it back into the deck.
+Applied by: Makash's War Stomp
+
+How it works:
+- After playing the card, it gains bonus stats
+- War Stomp: +20% ATK multiplier per use
+- Card is shuffled back into the deck (not discarded)
+- Upgrades persist for the entire battle
+
+Example:
+  Play War Stomp (50% ATK) → deals damage, gains Taunt
+  → Card becomes 70% ATK and shuffles into deck
+  Play again → deals more damage
+  → Card becomes 90% ATK and shuffles into deck
+
+--------------------------------------------------------------------------------
+
+================================================================================
+                          BUFF/DEBUFF INTERACTIONS
+================================================================================
+
+EMPOWER + WEAK
+- If a unit has both Empower and Weak, they cancel out (1.5 × 0.5 = 0.75)
+- Net result: 25% damage reduction
+
+MULTIPLE BUFFS
+- Shield stacks additively (10 Shield + 15 Shield = 25 Shield)
+- Taunt does not stack (only one Taunt active at a time)
+- Empower does not stack (refreshes duration)
+
+BUFF REMOVAL
+- Currently no cards remove buffs/debuffs
+- Buffs/debuffs expire based on their duration
+- Death removes all buffs/debuffs from that unit
+
+================================================================================
+                              FUTURE MECHANICS
+================================================================================
+
+POISON
+--------------------------------------------------------------------------------
+Description: Deals damage each time the hero makes an action.
+Duration: Until cleansed or hero dies
+Stacking: No (refreshes)
+
+How it works:
+- Deals (50% ATK) damage of the caster each time the poisoned hero plays a card
+- Damage triggers AFTER the card is played
+- Does not trigger on EX skills
+
+Example:
+  Makash (10 ATK) poisons enemy Priest
+  → Priest plays Heal card
+  → After Heal resolves, Priest takes 5 damage (50% of 10)
+
+--------------------------------------------------------------------------------
+
+BURN
+--------------------------------------------------------------------------------
+Description: Deals damage at the end of each player's turn.
+Duration: Until cleansed or hero dies
+Stacking: YES (burn damage stacks additively)
+
+How it works:
+- Deals burn damage at the END of each player's turn
+- Multiple burn applications ADD together
+- Burn damage is fixed (not ATK-based)
+
+Example:
+  Hero has 10 Burn stacks
+  → At end of Player 1's turn: takes 10 damage
+  → At end of Player 2's turn: takes 10 damage
+  → If another 5 Burn is applied: now has 15 Burn stacks
+
+--------------------------------------------------------------------------------
+
+FREEZE
+--------------------------------------------------------------------------------
+Description: Increases card cost for the affected hero.
+Duration: 1 turn (default)
+Stacking: YES (up to 3 stacks)
+
+How it works:
+- Each stack of Freeze increases that hero's card costs by +1 mana
+- Maximum 3 stacks
+- Affects all cards from that hero in hand
+
+Example:
+  Markswoman has 2 Freeze stacks
+  → Aimed Shot normally costs 3 mana, now costs 5 mana
+  → Focus normally costs 2 mana, now costs 4 mana
+
+--------------------------------------------------------------------------------
+
+================================================================================

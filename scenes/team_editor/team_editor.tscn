@@ -1,0 +1,211 @@
+[gd_scene load_steps=4 format=3 uid="uid://c4ybpmkkc5m53"]
+
+[ext_resource type="Script" uid="uid://bpu2ea7gqq2q8" path="res://scenes/team_editor/team_editor.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://kp6t7ne5ydbj" path="res://asset/Others/stage.png" id="2_stage"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_hidden_scroll"]
+
+[node name="TeamEditor" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_stage")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="UI" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 15
+
+[node name="MainLayout" type="HBoxContainer" parent="UI"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="LeftMenu" type="Panel" parent="UI/MainLayout"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainLayout/LeftMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="UI/MainLayout/LeftMenu/VBox"]
+layout_mode = 2
+text = "MENU"
+horizontal_alignment = 1
+
+[node name="ContentArea" type="VBoxContainer" parent="UI/MainLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 15
+
+[node name="TopBar" type="HBoxContainer" parent="UI/MainLayout/ContentArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+
+[node name="BackButton" type="Button" parent="UI/MainLayout/ContentArea/TopBar"]
+layout_mode = 2
+text = "← BACK"
+
+[node name="Title" type="Label" parent="UI/MainLayout/ContentArea/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "EDIT TEAM"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="UI/MainLayout/ContentArea/TopBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+
+[node name="HeroSection" type="VBoxContainer" parent="UI/MainLayout/ContentArea"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="HeroRoster" type="Panel" parent="UI/MainLayout/ContentArea/HeroSection"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 140)
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainLayout/ContentArea/HeroSection/HeroRoster"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 15.0
+offset_top = 8.0
+offset_right = -15.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 5
+
+[node name="RosterLabel" type="Label" parent="UI/MainLayout/ContentArea/HeroSection/HeroRoster/VBox"]
+layout_mode = 2
+text = "HERO ROSTER"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/MainLayout/ContentArea/HeroSection/HeroRoster/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 2
+vertical_scroll_mode = 0
+theme_override_styles/h_scrollbar = SubResource("StyleBoxEmpty_hidden_scroll")
+
+[node name="HeroContainer" type="HBoxContainer" parent="UI/MainLayout/ContentArea/HeroSection/HeroRoster/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="SlotsArea" type="Control" parent="UI/MainLayout/ContentArea/HeroSection"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TeamContainer" type="HBoxContainer" parent="UI/MainLayout/ContentArea/HeroSection/SlotsArea"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -450.0
+offset_top = -140.0
+offset_right = 450.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="EquipmentSection" type="VBoxContainer" parent="UI/MainLayout/ContentArea"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="EquipmentRoster" type="Panel" parent="UI/MainLayout/ContentArea/EquipmentSection"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 140)
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainLayout/ContentArea/EquipmentSection/EquipmentRoster"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 15.0
+offset_top = 8.0
+offset_right = -15.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 5
+
+[node name="RosterLabel" type="Label" parent="UI/MainLayout/ContentArea/EquipmentSection/EquipmentRoster/VBox"]
+layout_mode = 2
+text = "EQUIPMENT ROSTER"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/MainLayout/ContentArea/EquipmentSection/EquipmentRoster/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 2
+vertical_scroll_mode = 0
+theme_override_styles/h_scrollbar = SubResource("StyleBoxEmpty_hidden_scroll")
+
+[node name="EquipmentContainer" type="HBoxContainer" parent="UI/MainLayout/ContentArea/EquipmentSection/EquipmentRoster/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="SlotsArea" type="Control" parent="UI/MainLayout/ContentArea/EquipmentSection"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SlotsContainer" type="HBoxContainer" parent="UI/MainLayout/ContentArea/EquipmentSection/SlotsArea"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -350.0
+offset_top = -130.0
+offset_right = 350.0
+offset_bottom = 130.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="ConfirmButton" type="Button" parent="UI/MainLayout/ContentArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 40)
+size_flags_horizontal = 4
+text = "CONFIRM"

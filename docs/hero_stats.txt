@@ -1,0 +1,237 @@
+================================================================================
+                           MY TURN - HERO STATS & SKILLS
+================================================================================
+
+DAMAGE FORMULA:
+  Final Damage = Hero Base ATK × Card ATK Multiplier × Buff/Debuff Modifiers
+  
+  Example: Hero with 10 ATK using 100% ATK card = 10 damage
+  Example: Hero with 10 ATK using 50% ATK card = 5 damage
+  Example: Hero with 10 ATK + Empower (50%) using 100% ATK card = 15 damage
+
+================================================================================
+SQUIRE (Tank)
+================================================================================
+Color: Yellow
+Role: Tank
+HP: 162
+Base Attack: 10
+
+EX SKILL: Guardian's Oath
+- Deal (200% ATK) damage to target enemy. Stun the target.
+
+SKILL CARDS:
+1. Shield Bash (2 Mana)
+   - Type: Attack
+   - Deal (100% ATK) damage to target enemy. Stun it.
+
+2. Rally (2 Mana)
+   - Type: Buff
+   - Empower target ally.
+
+3. Fortify (2 Mana)
+   - Type: Buff
+   - All allies gain (100% ATK) Shield.
+
+================================================================================
+PRIEST (Support)
+================================================================================
+Color: Green
+Role: Support
+HP: 136
+Base Attack: 10
+
+EX SKILL: Divine Light
+- Revive target ally and heal for (400% ATK) HP.
+
+SKILL CARDS:
+1. Heal (1 Mana)
+   - Type: Heal
+   - Restore (200% ATK) HP to target ally.
+
+2. Blessing (2 Mana)
+   - Type: Heal
+   - Restore (100% ATK) HP to all allies.
+
+3. Purify (2 Mana)
+   - Type: Heal
+   - Restore (100% ATK) HP to target ally. Remove all debuffs.
+
+================================================================================
+MARKSWOMAN (DPS)
+================================================================================
+Color: Red
+Role: DPS
+HP: 168
+Base Attack: 10
+
+EX SKILL: Sniper Shot
+- Deal (500% ATK) damage to target enemy.
+
+SKILL CARDS:
+1. Aimed Shot (3 Mana)
+   - Type: Attack
+   - Deal (300% ATK) damage to target enemy.
+
+2. Rapid Shot (2 Mana)
+   - Type: Attack
+   - Deal (100% ATK) damage to all enemies.
+
+3. Focus (2 Mana)
+   - Type: Buff
+   - Gain Empower.
+
+================================================================================
+CRAFTSWOMAN (Scientist)
+================================================================================
+Color: Purple
+Role: Scientist
+HP: 108
+Base Attack: 10
+
+EX SKILL: Mech Overdrive
+- Deal (200% ATK) damage to target enemy. Empower All allies.
+- Effects: Empower All (1 turn)
+
+SKILL CARDS:
+1. Dig (3 Mana)
+   - Type: Dig (Deck Manipulation)
+   - Check the top 3 cards of your deck. Add 1 equipment to your hand.
+   - If no equipment found, cards are shown but nothing is added.
+   - Unpicked cards are shuffled back into deck.
+
+2. Repair (2 Mana)
+   - Type: Heal
+   - Restore (200% ATK) HP to target ally.
+   - If target has equipment attached, also apply Empower (2 turns).
+
+3. Barrier (2 Mana)
+   - Type: Buff
+   - Give target ally (200% ATK) Shield.
+
+================================================================================
+MAKASH (Tank)
+================================================================================
+Color: Yellow
+Role: Tank
+HP: 183
+Base Attack: 10
+
+EX SKILL: Fallen Strike
+- Deal (100% ATK) damage, apply Weak to target. Penetrates to hit the hero behind.
+- Effects: Weak, Penetrate
+
+SKILL CARDS:
+1. Killing Chop (1 Mana)
+   - Type: Attack
+   - Deal (100% ATK) damage to the front enemy.
+
+2. Bull Rage (2 Mana)
+   - Type: Energy
+   - Gain 40 Energy (EX gauge).
+
+3. Bull Taunt (2 Mana)
+   - Type: Buff
+   - Gain (200% ATK) Shield and Taunt.
+
+
+================================================================================
+STONY (Tank)
+================================================================================
+Color: Yellow
+Role: Tank
+HP: 182
+Base Attack: 10
+
+EX SKILL: Goliath Strength
+- Gain Taunt. Stoney Gain Shield equal to it's current HP.
+- Effects: Taunt, Shield (Current HP)
+
+SKILL CARDS:
+1. Stone Call (1 Mana)
+   - Type: Buff
+   - Gain Taunt.
+   - Effects: Taunt
+
+2. Stone Punch (1 Mana)
+   - Type: Attack
+   - Deal (200% ATK) damage to the nearest enemy.
+
+3. Stone Armor (3 Mana)
+   - Type: Buff
+   - Stony gains (400% ATK) Shield.
+
+================================================================================
+CAELUM (Mage)
+================================================================================
+Color: Purple
+Role: Mage
+HP: 140
+Base Attack: 10
+
+EX SKILL: Arcane Break
+- Deal (200% ATK) damage to target enemy. Apply Break (+50% damage taken).
+- Effects: Break (2 turns)
+
+SKILL CARDS:
+1. Mana Surge (X Mana - uses ALL mana)
+   - Type: Attack
+   - Deal (X × 100% ATK) damage where X = mana spent.
+
+2. Arcane Bolt (2 Mana)
+   - Type: Attack
+   - Deal (200% ATK) damage to target enemy.
+
+3. Future Sight (0 Mana)
+   - Type: Buff
+   - Draw 1 card.
+
+================================================================================
+RAIZEL (Mage)
+================================================================================
+Color: Blue
+Role: Mage
+HP: 145
+Base Attack: 10
+
+EX SKILL: Storm Judgment
+- Apply Thunder (1 stack) to ALL enemies. Lightning strikes at turn end.
+- Effects: Thunder (all enemies)
+
+SKILL CARDS:
+1. Thunder Strike (2 Mana)
+   - Type: Attack
+   - Deal (100% ATK) damage to target enemy. Apply Thunder (1 stack).
+
+2. Thunder Punish (3 Mana)
+   - Type: Debuff
+   - Apply Thunder (1 stack) to ALL enemies.
+
+3. Thunder Stack (1 Mana)
+   - Type: Debuff
+   - Target with Thunder: +2 stacks. No effect if no Thunder.
+
+THUNDER DEBUFF:
+- Stacks accumulate on target
+- At turn end: Lightning strikes dealing (Stacks × 100% ATK) damage
+- Stacks are consumed after triggering
+- Visual: Dark cloud appears above afflicted heroes
+
+================================================================================
+                              ROLE COLORS
+================================================================================
+Tank:     Yellow/Gold  (Color: 1.0, 0.85, 0.0)
+Support:  Green        (Color: 0.2, 0.8, 0.2)
+DPS:      Red          (Color: 0.9, 0.2, 0.2)
+Mage:     Purple       (Color: 0.6, 0.2, 0.8)
+Assassin: Blue         (Color: 0.2, 0.6, 1.0)
+
+================================================================================
+                              DEBUFFS
+================================================================================
+Break:    +50% damage taken (2 turns)
+Thunder:  Stacks, triggers at turn end for (Stacks × 200% ATK) damage
+Stun:     Cannot act for 1 turn
+Weak:     -50% damage dealt
+
+================================================================================

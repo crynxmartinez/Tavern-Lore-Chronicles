@@ -1,0 +1,318 @@
+================================================================================
+                         MY TURN - SKILL REFERENCE
+================================================================================
+
+This document defines the standardized format for creating skills in the game.
+
+================================================================================
+                            TARGET TYPES
+================================================================================
+
+| Target Type    | Behavior                              | Auto-Cast? |
+|----------------|---------------------------------------|------------|
+| single_enemy   | Click to select an enemy              | No         |
+| single_ally    | Click to select an ally               | No         |
+| front_enemy    | Auto-targets nearest enemy            | Yes        |
+| all_enemy      | Auto-targets all enemies              | Yes        |
+| all_ally       | Auto-targets all allies               | Yes        |
+| self           | Auto-targets the card's owner hero    | Yes        |
+| none           | No target needed (e.g., Manastone)    | Yes        |
+
+================================================================================
+                            CARD TYPES
+================================================================================
+
+| Type    | Description                                    |
+|---------|------------------------------------------------|
+| attack  | Deals damage to enemies                        |
+| heal    | Restores HP to allies                          |
+| buff    | Applies positive effects to allies             |
+| energy  | Grants EX gauge energy to source hero          |
+| mana    | Grants mana for the current turn               |
+
+================================================================================
+                         SKILL CARD FORMAT
+================================================================================
+
+{
+    "id": "hero_sk#",           # Unique identifier
+    "name": "Skill Name",       # Display name
+    "cost": 2,                  # Mana cost (0-5)
+    "type": "attack",           # Card type (see above)
+    "target": "single_enemy",   # Target type (see above)
+    
+    # DAMAGE (for attack cards)
+    "atk_multiplier": 1.0,      # Damage = base_attack * multiplier
+    
+    # HEALING (for heal cards)
+    "heal_multiplier": 2.0,     # Heal = base_attack * multiplier
+    
+    # SHIELD (for buff/heal cards)
+    "shield_multiplier": 2.0,   # Shield = base_attack * multiplier
+    
+    # ENERGY (for energy cards)
+    "energy_gain": 40,          # Flat energy amount
+    
+    # STATUS EFFECTS
+    "effects": ["stun"],        # List of effects to apply
+    
+    # METADATA
+    "hero_color": "yellow",     # Hero's color theme
+    "description": "...",       # Card description text
+    "image": "res://..."        # Card art path
+}
+
+================================================================================
+                          AVAILABLE EFFECTS
+================================================================================
+
+BUFFS (positive, applied to allies):
+-------------------------------------
+| Effect         | Duration | Description                          |
+|----------------|----------|--------------------------------------|
+| empower        | 2 turns  | +50% damage dealt                    |
+| empower_target | 2 turns  | +50% damage (applied to target)      |
+| taunt          | 2 turns  | Enemies must target this hero        |
+| regen          | 2 turns  | Heals 50% ATK at turn start          |
+| shield         | 1 turn   | Absorbs damage (via shield_multiplier)|
+
+DEBUFFS (negative, applied to enemies):
+---------------------------------------
+| Effect    | Duration | Description                          |
+|-----------|----------|--------------------------------------|
+| stun      | 2 turns  | Cannot act next turn                 |
+| weak      | 2 turns  | -50% damage dealt                    |
+| burn      | 2 turns  | Takes damage at turn end             |
+| poison    | 2 turns  | Takes damage at turn start           |
+
+SPECIAL EFFECTS:
+----------------
+| Effect           | Description                                  |
+|------------------|----------------------------------------------|
+| cleanse          | Remove all debuffs from target               |
+| penetrate        | Also hits the hero behind target             |
+| shield_current_hp| Gain shield equal to current HP              |
+
+================================================================================
+                         ALL SKILL CARDS
+================================================================================
+
+--------------------------------------------------------------------------------
+SQUIRE (Tank - Yellow)
+--------------------------------------------------------------------------------
+
+1. Shield Bash
+   - Cost: 2 Mana
+   - Type: attack
+   - Target: single_enemy
+   - Damage: 100% ATK
+   - Effects: stun
+   - Description: Deal 10 damage to target enemy. Stun it.
+
+2. Rally
+   - Cost: 2 Mana
+   - Type: buff
+   - Target: single_ally
+   - Effects: empower_target
+   - Description: Empower target ally.
+
+3. Fortify
+   - Cost: 2 Mana
+   - Type: buff
+   - Target: all_ally
+   - Shield: 100% ATK
+   - Description: All allies gain 10 Shield.
+
+EX: Guardian's Oath
+   - Type: attack
+   - Target: single_enemy
+   - Damage: 200% ATK
+   - Effects: stun
+   - Description: Deal 20 damage to target enemy. Stun the target.
+
+--------------------------------------------------------------------------------
+PRIEST (Support - Green)
+--------------------------------------------------------------------------------
+
+1. Heal
+   - Cost: 1 Mana
+   - Type: heal
+   - Target: single_ally
+   - Heal: 200% ATK
+   - Description: Restore 20 HP to target ally.
+
+2. Blessing
+   - Cost: 2 Mana
+   - Type: heal
+   - Target: all_ally
+   - Heal: 100% ATK
+   - Description: Restore 10 HP to all allies.
+
+3. Purify
+   - Cost: 2 Mana
+   - Type: heal
+   - Target: single_ally
+   - Heal: 100% ATK
+   - Effects: cleanse
+   - Description: Restore 10 HP to target ally. Remove all debuffs.
+
+EX: Divine Light
+   - Type: revive
+   - Target: single_ally (dead)
+   - Heal: 400% ATK
+   - Description: Revive target ally and heal for 40 HP.
+
+--------------------------------------------------------------------------------
+MARKSWOMAN (DPS - Red)
+--------------------------------------------------------------------------------
+
+1. Aimed Shot
+   - Cost: 3 Mana
+   - Type: attack
+   - Target: single_enemy
+   - Damage: 300% ATK
+   - Description: Deal 30 damage to target enemy.
+
+2. Rapid Shot
+   - Cost: 2 Mana
+   - Type: attack
+   - Target: all_enemy
+   - Damage: 100% ATK
+   - Description: Deal 10 damage to all enemies.
+
+3. Focus
+   - Cost: 2 Mana
+   - Type: buff
+   - Target: self
+   - Effects: empower
+   - Description: Gain Empower.
+
+EX: Sniper Shot
+   - Type: attack
+   - Target: single_enemy
+   - Damage: 500% ATK
+   - Description: Deal 50 damage to target enemy.
+
+--------------------------------------------------------------------------------
+CRAFTSWOMAN (Mage - Purple)
+--------------------------------------------------------------------------------
+
+1. Turret Deploy
+   - Cost: 3 Mana
+   - Type: attack
+   - Target: single_enemy
+   - Damage: 100% ATK
+   - Description: Deal 10 damage to target enemy.
+
+2. Repair
+   - Cost: 2 Mana
+   - Type: heal
+   - Target: single_ally
+   - Heal: 200% ATK
+   - Shield: 150% ATK
+   - Description: Restore 20 HP to target ally. Give 15 Shield.
+
+3. Barrier
+   - Cost: 3 Mana
+   - Type: buff
+   - Target: single_ally
+   - Shield: 300% ATK
+   - Description: Give target ally 30 Shield.
+
+EX: Mech Overdrive
+   - Type: attack
+   - Target: single_enemy
+   - Damage: 200% ATK
+   - Effects: empower_all
+   - Description: Deal 20 damage to target enemy. Empower all allies.
+
+--------------------------------------------------------------------------------
+MAKASH (Tank - Yellow)
+--------------------------------------------------------------------------------
+
+1. Killing Chop
+   - Cost: 1 Mana
+   - Type: attack
+   - Target: front_enemy
+   - Damage: 100% ATK
+   - Description: Deal 10 damage to the front enemy.
+
+2. Bull Rage
+   - Cost: 2 Mana
+   - Type: energy
+   - Target: self
+   - Energy: 40
+   - Description: Gain 40 Energy (EX gauge).
+
+3. Bull Taunt
+   - Cost: 2 Mana
+   - Type: buff
+   - Target: self
+   - Shield: 200% ATK
+   - Effects: taunt
+   - Description: Gain 20 Shield and Taunt.
+
+EX: Fallen Strike
+   - Type: attack
+   - Target: single_enemy
+   - Damage: 100% ATK
+   - Effects: weak, penetrate
+   - Description: Deal 10 damage, apply Weak. Penetrates to hit hero behind.
+
+--------------------------------------------------------------------------------
+STONY (Tank - Yellow)
+--------------------------------------------------------------------------------
+
+1. Stone Call
+   - Cost: 1 Mana
+   - Type: buff
+   - Target: self
+   - Effects: taunt
+   - Description: Gain Taunt.
+
+2. Stone Punch
+   - Cost: 1 Mana
+   - Type: attack
+   - Target: front_enemy
+   - Damage: 200% ATK
+   - Description: Deal 20 damage to the nearest enemy.
+
+3. Stone Armor
+   - Cost: 3 Mana
+   - Type: buff
+   - Target: self
+   - Shield: 400% ATK
+   - Description: Stony gains 40 Shield.
+
+EX: Goliath Strength
+   - Type: self_buff
+   - Target: self
+   - Effects: taunt, shield_current_hp
+   - Description: Gain Taunt. Gain Shield equal to current HP.
+
+================================================================================
+                      CREATING NEW SKILLS - TEMPLATE
+================================================================================
+
+Copy this template when creating new skills:
+
+{
+    "id": "[hero]_sk[#]",
+    "name": "[Skill Name]",
+    "cost": [0-5],
+    "type": "[attack/heal/buff/energy]",
+    "target": "[target_type]",
+    
+    # Include only what's needed:
+    "atk_multiplier": [0.0-5.0],      # For attack
+    "heal_multiplier": [0.0-5.0],     # For heal
+    "shield_multiplier": [0.0-5.0],   # For shield
+    "energy_gain": [0-100],           # For energy
+    "effects": ["effect1", "effect2"], # Status effects
+    
+    "hero_color": "[color]",
+    "description": "[Description text]",
+    "image": "res://asset/Hero/[Hero]/[image].png"
+}
+
+================================================================================

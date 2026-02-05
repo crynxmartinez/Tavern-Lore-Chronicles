@@ -1,0 +1,95 @@
+{
+	"default": {
+		"id": "default",
+		"name": "Default",
+		"type": "global",
+		"rarity": "common",
+		"frame": "res://asset/card template/new template grey.png",
+		"art_region": {"x": 12, "y": 25, "width": 136, "height": 95},
+		"mana_position": {"x": 2, "y": 2},
+		"text_style": {
+			"name_color": "#FFFFFF",
+			"desc_color": "#CCCCCC",
+			"name_shadow": false,
+			"glow": false
+		}
+	},
+	"yellow": {
+		"id": "yellow",
+		"name": "Golden",
+		"type": "global",
+		"rarity": "common",
+		"frame": "res://asset/card template/new template yellow.png",
+		"art_region": {"x": 12, "y": 25, "width": 136, "height": 95},
+		"mana_position": {"x": 2, "y": 2},
+		"text_style": {
+			"name_color": "#FFD700",
+			"desc_color": "#EEEEEE",
+			"name_shadow": true,
+			"glow": false
+		}
+	},
+	"blue": {
+		"id": "blue",
+		"name": "Frost",
+		"type": "global",
+		"rarity": "rare",
+		"frame": "res://asset/card template/new template blue.png",
+		"art_region": {"x": 12, "y": 25, "width": 136, "height": 95},
+		"mana_position": {"x": 2, "y": 2},
+		"text_style": {
+			"name_color": "#87CEEB",
+			"desc_color": "#DDDDFF",
+			"name_shadow": true,
+			"glow": true,
+			"glow_color": "#4488FF"
+		}
+	},
+	"green": {
+		"id": "green",
+		"name": "Nature",
+		"type": "global",
+		"rarity": "rare",
+		"frame": "res://asset/card template/new template green.png",
+		"art_region": {"x": 12, "y": 25, "width": 136, "height": 95},
+		"mana_position": {"x": 2, "y": 2},
+		"text_style": {
+			"name_color": "#90EE90",
+			"desc_color": "#DDFFDD",
+			"name_shadow": true,
+			"glow": false
+		}
+	},
+	"red": {
+		"id": "red",
+		"name": "Inferno",
+		"type": "global",
+		"rarity": "rare",
+		"frame": "res://asset/card template/new template red.png",
+		"art_region": {"x": 12, "y": 25, "width": 136, "height": 95},
+		"mana_position": {"x": 2, "y": 2},
+		"text_style": {
+			"name_color": "#FF6B6B",
+			"desc_color": "#FFDDDD",
+			"name_shadow": true,
+			"glow": true,
+			"glow_color": "#FF4444"
+		}
+	},
+	"violet": {
+		"id": "violet",
+		"name": "Arcane",
+		"type": "global",
+		"rarity": "epic",
+		"frame": "res://asset/card template/new template violet.png",
+		"art_region": {"x": 8, "y": 18, "width": 144, "height": 88},
+		"mana_position": {"x": 2, "y": 2},
+		"text_style": {
+			"name_color": "#DDA0DD",
+			"desc_color": "#EEDDFF",
+			"name_shadow": true,
+			"glow": true,
+			"glow_color": "#9932CC"
+		}
+	}
+}

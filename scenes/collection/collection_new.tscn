@@ -1,0 +1,180 @@
+[gd_scene load_steps=4 format=3 uid="uid://cf6ubhqpqvyan"]
+
+[ext_resource type="Texture2D" uid="uid://kp6t7ne5ydbj" path="res://asset/Others/stage.png" id="1_stage"]
+[ext_resource type="Script" path="res://scenes/collection/collection_new.gd" id="2_script"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_hidden_scroll"]
+
+[node name="Collection" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_script")
+
+[node name="Background" type="TextureRect" parent="."]
+modulate = Color(0.6, 0.6, 0.6, 1)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_stage")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="UI" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 15
+
+[node name="MainLayout" type="HBoxContainer" parent="UI"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="LeftMenu" type="Panel" parent="UI/MainLayout"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 0)
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainLayout/LeftMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="UI/MainLayout/LeftMenu/VBox"]
+layout_mode = 2
+text = "MENU"
+horizontal_alignment = 1
+
+[node name="ContentArea" type="VBoxContainer" parent="UI/MainLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 15
+
+[node name="TopBar" type="HBoxContainer" parent="UI/MainLayout/ContentArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 35)
+
+[node name="BackButton" type="Button" parent="UI/MainLayout/ContentArea/TopBar"]
+layout_mode = 2
+text = "← BACK"
+
+[node name="Title" type="Label" parent="UI/MainLayout/ContentArea/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "COLLECTION"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="UI/MainLayout/ContentArea/TopBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+
+[node name="HeroRoster" type="Panel" parent="UI/MainLayout/ContentArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 120)
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainLayout/ContentArea/HeroRoster"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 6.0
+offset_right = -12.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 4
+
+[node name="RosterLabel" type="Label" parent="UI/MainLayout/ContentArea/HeroRoster/VBox"]
+layout_mode = 2
+text = "SELECT HERO"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/MainLayout/ContentArea/HeroRoster/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 2
+vertical_scroll_mode = 0
+theme_override_styles/h_scrollbar = SubResource("StyleBoxEmpty_hidden_scroll")
+
+[node name="HeroContainer" type="HBoxContainer" parent="UI/MainLayout/ContentArea/HeroRoster/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="PosesArea" type="Control" parent="UI/MainLayout/ContentArea"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PosesContainer" type="HBoxContainer" parent="UI/MainLayout/ContentArea/PosesArea"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -450.0
+offset_top = -140.0
+offset_right = 450.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="Pose_IDLE" type="Panel" parent="UI/MainLayout/ContentArea/PosesArea/PosesContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 255)
+
+[node name="Pose_HIT" type="Panel" parent="UI/MainLayout/ContentArea/PosesArea/PosesContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 255)
+
+[node name="Pose_CAST" type="Panel" parent="UI/MainLayout/ContentArea/PosesArea/PosesContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 255)
+
+[node name="Pose_ATTACK" type="Panel" parent="UI/MainLayout/ContentArea/PosesArea/PosesContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 255)
+
+[node name="RightMenu" type="Panel" parent="UI/MainLayout"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainLayout/RightMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="UI/MainLayout/RightMenu/VBox"]
+layout_mode = 2
+text = "SKINS"
+horizontal_alignment = 1

@@ -1,0 +1,81 @@
+[gd_scene load_steps=3 format=3 uid="uid://cabw2sd3hva1w"]
+
+[ext_resource type="Texture2D" uid="uid://o5vx5c1cxu74" path="res://asset/Squire/Splash art - Squire.webp" id="1_splash"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stripe"]
+bg_color = Color(1, 0.9, 0.3, 0.85)
+
+[node name="ExCutinTestRight" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.15, 0.15, 0.2, 1)
+
+[node name="DarkOverlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.5)
+
+[node name="DiagonalStripe" type="Panel" parent="."]
+clip_contents = true
+layout_mode = 0
+offset_left = 1048.0002
+offset_top = -144.0
+offset_right = 1938.0002
+offset_bottom = 1387.0
+rotation = 0.523599
+scale = Vector2(-1, 1)
+pivot_offset = Vector2(490, 700)
+theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
+
+[node name="SplashArt" type="TextureRect" parent="DiagonalStripe"]
+layout_mode = 0
+offset_left = 109.6609
+offset_top = -181.23251
+offset_right = 1441.6609
+offset_bottom = 1637.7675
+rotation = 0.523599
+texture = ExtResource("1_splash")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SkillNameLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 840.0
+offset_top = 985.0
+offset_right = 1340.0
+offset_bottom = 1052.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 48
+text = "Guardian's Oath"
+
+[node name="Instructions" type="Label" parent="."]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 800.0
+offset_bottom = 120.0
+theme_override_colors/font_color = Color(1, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 16
+text = "RIGHT SIDE (Enemy) - Mirrored version
+1. DiagonalStripe has scale=(-1, 1) to flip horizontally
+2. Rotation is +30 degrees (opposite of left side)
+3. Position is on the right side of screen
+4. Adjust as needed and tell me the values!"

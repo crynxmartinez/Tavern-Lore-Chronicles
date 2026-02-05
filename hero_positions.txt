@@ -1,0 +1,14 @@
+# Hero Positions - Copy these values
+Position 1: x=165, y=287, z_index=0
+Position 2: x=377, y=289, z_index=1
+Position 3: x=577, y=289, z_index=2
+Position 4: x=779, y=289, z_index=3
+Position 5: x=1073, y=291, z_index=3
+Position 6: x=1275, y=290, z_index=2
+Position 7: x=1474, y=287, z_index=1
+Position 8: x=1669, y=286, z_index=0
+Position 9: x=717, y=870, z_index=0
+Position 10: x=837, y=870, z_index=0
+Position 11: x=957, y=870, z_index=0
+Position 12: x=1077, y=870, z_index=0
+Position 13: x=1197, y=870, z_index=0

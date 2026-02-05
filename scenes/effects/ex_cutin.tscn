@@ -1,0 +1,56 @@
+[gd_scene load_steps=3 format=3 uid="uid://b83kej3a61crp"]
+
+[ext_resource type="Script" uid="uid://b6j81mkvnqbqb" path="res://scripts/effects/ex_cutin.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stripe"]
+bg_color = Color(1, 0.9, 0.3, 0.85)
+
+[node name="ExCutin" type="CanvasLayer"]
+layer = 100
+script = ExtResource("1_script")
+
+[node name="DarkOverlay" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.5)
+
+[node name="WhiteFlash" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DiagonalStripe" type="Panel" parent="."]
+clip_contents = true
+offset_left = -87.0
+offset_top = -89.0
+offset_right = 803.22
+offset_bottom = 1442.2
+rotation = -0.523599
+pivot_offset = Vector2(400, 700)
+theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
+
+[node name="SplashArt" type="TextureRect" parent="DiagonalStripe"]
+layout_mode = 0
+offset_left = 136.71
+offset_top = -96.77
+offset_right = 1468.71
+offset_bottom = 1722.23
+rotation = 0.523599
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SkillNameLabel" type="Label" parent="."]
+offset_left = 680.0
+offset_top = 944.0
+offset_right = 1180.0
+offset_bottom = 1011.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 48
+text = "EX SKILL"

@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://card_particles"]
+
+[ext_resource type="Script" path="res://scripts/effects/card_particles.gd" id="1_script"]
+
+[node name="CardParticles" type="GPUParticles2D"]
+emitting = false
+amount = 20
+lifetime = 0.8
+one_shot = true
+explosiveness = 0.9
+script = ExtResource("1_script")

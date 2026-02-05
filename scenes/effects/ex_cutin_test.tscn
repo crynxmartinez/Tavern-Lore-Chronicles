@@ -1,0 +1,80 @@
+[gd_scene load_steps=3 format=3 uid="uid://db1er6g3qjxqh"]
+
+[ext_resource type="Texture2D" uid="uid://o5vx5c1cxu74" path="res://asset/Squire/Splash art - Squire.webp" id="1_splash"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stripe"]
+bg_color = Color(1, 0.9, 0.3, 0.85)
+
+[node name="ExCutinTest" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.15, 0.15, 0.2, 1)
+
+[node name="DarkOverlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.5)
+
+[node name="DiagonalStripe" type="Panel" parent="."]
+clip_contents = true
+layout_mode = 0
+offset_left = -86.99997
+offset_top = -89.000015
+offset_right = 803.22046
+offset_bottom = 1442.2031
+rotation = -0.523599
+pivot_offset = Vector2(400, 700)
+theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
+
+[node name="SplashArt" type="TextureRect" parent="DiagonalStripe"]
+layout_mode = 0
+offset_left = 136.71066
+offset_top = -96.76604
+offset_right = 1468.7107
+offset_bottom = 1722.234
+rotation = 0.523599
+texture = ExtResource("1_splash")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SkillNameLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 680.0
+offset_top = 944.0
+offset_right = 1180.0
+offset_bottom = 1011.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 48
+text = "Guardian's Oath"
+
+[node name="Instructions" type="Label" parent="."]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 800.0
+offset_bottom = 120.0
+theme_override_colors/font_color = Color(1, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 16
+text = "INSTRUCTIONS:
+1. Select 'DiagonalStripe' and adjust position/rotation/size
+2. Select 'SplashArt' inside it and adjust position/size/rotation
+3. The stripe clips (masks) the splash art
+4. When happy, tell me the values and I'll update the code!"

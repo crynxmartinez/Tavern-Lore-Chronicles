@@ -1,0 +1,250 @@
+[gd_scene load_steps=11 format=3 uid="uid://dashboard001"]
+
+[ext_resource type="Script" uid="uid://beo1snnxe60cr" path="res://scenes/dashboard/dashboard.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://c60j25cfdakja" path="res://asset/Others/Dashboard/dashboard UI.png" id="2_bg"]
+[ext_resource type="Texture2D" uid="uid://dbwxouxmtb4fu" path="res://asset/Others/Dashboard/topnavigation.png" id="3_topnav"]
+[ext_resource type="Texture2D" uid="uid://cdjcm4yluo177" path="res://asset/Others/Dashboard/VS AI.png" id="4_vs_ai"]
+[ext_resource type="Texture2D" uid="uid://j2qc41bjde58" path="res://asset/Others/Dashboard/Start.png" id="5_start"]
+[ext_resource type="Texture2D" uid="uid://bqwaitualanvr" path="res://asset/Others/Dashboard/Shop.png" id="6_shop"]
+[ext_resource type="Texture2D" uid="uid://pdhnqnkbtyg1" path="res://asset/Others/Dashboard/Team.png" id="7_team"]
+[ext_resource type="Texture2D" uid="uid://chrwasdf6mmdp" path="res://asset/Others/Dashboard/collection.png" id="8_collection"]
+[ext_resource type="Texture2D" uid="uid://bhacoea51008j" path="res://asset/Others/Dashboard/profile_pic.png" id="9_profile_pic"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_mode"]
+font_size = 24
+font_color = Color(1, 0.9, 0.5, 1)
+outline_size = 3
+outline_color = Color(0.2, 0.1, 0, 1)
+
+[node name="Dashboard" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="ProfileContainer" type="Control" parent="."]
+clip_contents = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -515.0
+offset_top = 14.0
+offset_right = -451.0
+offset_bottom = 78.0
+grow_horizontal = 2
+
+[node name="ProfilePic" type="TextureRect" parent="ProfileContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("9_profile_pic")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="TopNavigation" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 84.0
+grow_horizontal = 2
+texture = ExtResource("3_topnav")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="UsernameLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -443.0
+offset_top = 31.0
+offset_right = -293.0
+offset_bottom = 54.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.8, 1)
+theme_override_font_sizes/font_size = 16
+text = "Player"
+
+[node name="StatsLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -443.0
+offset_top = 56.0
+offset_right = -293.0
+offset_bottom = 76.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+text = "W: 0 | L: 0 | 0%"
+
+[node name="ModeDiamond" type="TextureButton" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 764.0
+offset_top = 204.0
+offset_right = 914.0
+offset_bottom = 354.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset = Vector2(75, 75)
+texture_normal = ExtResource("4_vs_ai")
+ignore_texture_size = true
+stretch_mode = 5
+
+[node name="FindMatchButton" type="TextureButton" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 688.0
+offset_top = 349.0
+offset_right = 991.0
+offset_bottom = 417.0
+grow_horizontal = 2
+grow_vertical = 2
+texture_normal = ExtResource("5_start")
+ignore_texture_size = true
+stretch_mode = 5
+
+[node name="ModeLabel" type="Label" parent="FindMatchButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "TRAIN"
+label_settings = SubResource("LabelSettings_mode")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LeftMenu" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 20.0
+offset_top = -330.0
+offset_right = 250.0
+offset_bottom = 330.0
+grow_vertical = 2
+theme_override_constants/separation = -20
+
+[node name="ShopButton" type="TextureButton" parent="LeftMenu"]
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("6_shop")
+ignore_texture_size = true
+stretch_mode = 5
+
+[node name="TeamButton" type="TextureButton" parent="LeftMenu"]
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("7_team")
+ignore_texture_size = true
+stretch_mode = 5
+
+[node name="CollectionButton" type="TextureButton" parent="LeftMenu"]
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("8_collection")
+ignore_texture_size = true
+stretch_mode = 5
+
+[node name="LogoutButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -100.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 40.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(1, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 14
+text = "Logout"
+
+[node name="MatchmakingOverlay" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="CenterContainer" type="CenterContainer" parent="MatchmakingOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="MatchmakingOverlay/CenterContainer"]
+custom_minimum_size = Vector2(400, 200)
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MatchmakingOverlay/CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="SearchingLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.5, 1)
+theme_override_font_sizes/font_size = 24
+text = "Searching for opponent..."
+horizontal_alignment = 1
+
+[node name="TimerLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "0:00"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Looking for available matches..."
+horizontal_alignment = 1
+
+[node name="CancelButton" type="Button" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+custom_minimum_size = Vector2(150, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 16
+text = "Cancel"

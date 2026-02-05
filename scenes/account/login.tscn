@@ -1,0 +1,230 @@
+[gd_scene load_steps=4 format=3 uid="uid://login_scene"]
+
+[ext_resource type="Script" path="res://scripts/account/login.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://c60j25cfdakja" path="res://asset/Others/Dashboard/dashboard UI.png" id="2_bg"]
+
+[sub_resource type="Shader" id="Shader_blur"]
+code = "shader_type canvas_item;
+
+uniform float blur_amount : hint_range(0.0, 5.0) = 2.0;
+
+void fragment() {
+	vec2 ps = TEXTURE_PIXEL_SIZE;
+	vec4 color = vec4(0.0);
+	float total = 0.0;
+	
+	for (float x = -4.0; x <= 4.0; x += 1.0) {
+		for (float y = -4.0; y <= 4.0; y += 1.0) {
+			float weight = 1.0 - length(vec2(x, y)) / 6.0;
+			weight = max(weight, 0.0);
+			color += texture(TEXTURE, UV + vec2(x, y) * ps * blur_amount) * weight;
+			total += weight;
+		}
+	}
+	
+	COLOR = color / total;
+	COLOR.rgb *= 0.6; // Darken slightly
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_blur"]
+shader = SubResource("Shader_blur")
+
+[node name="Login" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="TextureRect" parent="."]
+material = SubResource("ShaderMaterial_blur")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="LoginPanel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(450, 0)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/LoginPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="GameTitle" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0.3, 0.2, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 36
+text = "MY TURN"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 24
+text = "LOGIN"
+horizontal_alignment = 1
+
+[node name="EmailContainer" type="HBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="EmailLabel" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/EmailContainer"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Email:"
+
+[node name="EmailInput" type="LineEdit" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/EmailContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Enter email"
+max_length = 50
+
+[node name="UsernameContainer" type="HBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+visible = false
+layout_mode = 2
+
+[node name="UsernameLabel" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/UsernameContainer"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Username:"
+
+[node name="UsernameInput" type="LineEdit" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/UsernameContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Enter username"
+max_length = 20
+
+[node name="PasswordContainer" type="HBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="PasswordLabel" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/PasswordContainer"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Password:"
+
+[node name="PasswordInput" type="LineEdit" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/PasswordContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Enter password"
+max_length = 30
+
+[node name="ConfirmPasswordContainer" type="HBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+visible = false
+layout_mode = 2
+
+[node name="ConfirmLabel" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/ConfirmPasswordContainer"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Confirm:"
+
+[node name="ConfirmPasswordInput" type="LineEdit" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/ConfirmPasswordContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Confirm password"
+max_length = 30
+
+[node name="VerificationContainer" type="HBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+visible = false
+layout_mode = 2
+
+[node name="VerificationLabel" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/VerificationContainer"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Code:"
+
+[node name="VerificationInput" type="LineEdit" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/VerificationContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Enter verification code"
+max_length = 10
+
+[node name="VerifyButton" type="Button" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(150, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 18
+text = "VERIFY"
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 14
+text = "Error message here"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RememberMeContainer" type="HBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="RememberMeCheck" type="CheckBox" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/RememberMeContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Remember Me"
+
+[node name="ButtonsContainer" type="HBoxContainer" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="LoginButton" type="Button" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/ButtonsContainer"]
+custom_minimum_size = Vector2(150, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "LOGIN"
+
+[node name="RegisterButton" type="Button" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer/ButtonsContainer"]
+visible = false
+custom_minimum_size = Vector2(150, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "REGISTER"
+
+[node name="HSeparator2" type="HSeparator" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="GuestButton" type="Button" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "  Play as Guest  "
+
+[node name="ToggleModeButton" type="Button" parent="CenterContainer/LoginPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+flat = true
+theme_override_colors/font_color = Color(0.5, 0.7, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Need an account? Register"

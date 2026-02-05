@@ -1,0 +1,174 @@
+================================================================================
+                         MY TURN - EQUIPMENT SYSTEM
+================================================================================
+
+OVERVIEW:
+  - 10 unique equipment cards available in the game
+  - Player selects 4 equipment cards to add to their deck before battle
+  - Each hero can equip 1 equipment at a time
+  - Equipment provides passive auto-skills (no stat boosts)
+  - Auto-skills trigger automatically when conditions are met
+
+================================================================================
+                            EQUIPMENT RULES
+================================================================================
+
+DECK BUILDING:
+  - Choose 4 equipment cards from the 10 available
+  - Equipment cards are shuffled into your deck with hero cards
+
+EQUIPPING:
+  - Play equipment card by targeting an ally hero
+  - Costs mana to equip (varies per equipment)
+  - Hero can only hold 1 equipment at a time
+  - Cannot equip if hero already has equipment
+
+EQUIPMENT PERSISTENCE:
+  - Equipment stays on hero until hero dies
+  - When hero dies: equipment goes to DISCARD PILE
+  - If hero is revived: they have NO equipment (can equip new one)
+  - Discard pile reshuffles into deck when deck is empty
+
+CANNOT:
+  - Move equipment between heroes
+  - Stack multiple equipment on one hero
+  - Unequip voluntarily (only lost on death)
+
+================================================================================
+                          EQUIPMENT CARDS (10)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. VAMPIRIC BLADE
+--------------------------------------------------------------------------------
+   Mana Cost: 1
+   Trigger: On dealing damage
+   Effect: Heal 10% of damage dealt (minimum 1 HP)
+   
+   Best For: DPS heroes who attack frequently
+   Strategy: Sustain through combat without needing healer
+
+--------------------------------------------------------------------------------
+2. THORNED ARMOR
+--------------------------------------------------------------------------------
+   Mana Cost: 1
+   Trigger: On taking damage
+   Effect: Reflect 20% damage back to attacker (minimum 1)
+   
+   Best For: Tanks with Taunt who take lots of hits
+   Strategy: Punish enemies for attacking your tank
+
+--------------------------------------------------------------------------------
+3. PHOENIX FEATHER
+--------------------------------------------------------------------------------
+   Mana Cost: 2
+   Trigger: On death (once per battle)
+   Effect: Immediately revive with 30% max HP
+   Note: After triggering, equipment is consumed (not sent to discard)
+   
+   Best For: Key heroes you can't afford to lose
+   Strategy: Insurance for your carry or healer
+
+--------------------------------------------------------------------------------
+4. BERSERKER'S AXE
+--------------------------------------------------------------------------------
+   Mana Cost: 1
+   Trigger: When HP drops below 50% (once per equip)
+   Effect: Gain Empower buff
+   
+   Best For: DPS heroes who can survive at low HP
+   Strategy: Risk/reward - more damage when in danger
+
+--------------------------------------------------------------------------------
+5. GUARDIAN'S SHIELD
+--------------------------------------------------------------------------------
+   Mana Cost: 2
+   Trigger: When an adjacent ally takes damage
+   Effect: Reduce that damage by 5
+   
+   Best For: Tanks positioned next to squishy allies
+   Strategy: Protect your backline from AoE damage
+   Note: "Adjacent" = hero in position directly next to this hero
+
+--------------------------------------------------------------------------------
+6. MANA SIPHON
+--------------------------------------------------------------------------------
+   Mana Cost: 0
+   Trigger: On killing an enemy
+   Effect: Gain +1 mana this turn
+   
+   Best For: Heroes who secure kills
+   Strategy: Snowball advantage by chaining kills into more plays
+
+--------------------------------------------------------------------------------
+7. ENERGY PENDANT
+--------------------------------------------------------------------------------
+   Mana Cost: 1
+   Trigger: On dealing damage
+   Effect: Gain +5 extra energy (EX gauge)
+   
+   Best For: Heroes with powerful EX skills
+   Strategy: Rush to EX skill faster for big plays
+
+--------------------------------------------------------------------------------
+8. CLEANSING CHARM
+--------------------------------------------------------------------------------
+   Mana Cost: 1
+   Trigger: On turn start
+   Effect: Remove 1 debuff from this hero
+   
+   Best For: Key heroes vulnerable to stun/weak
+   Strategy: Counter debuff-heavy enemy teams
+
+--------------------------------------------------------------------------------
+9. FROST GAUNTLET
+--------------------------------------------------------------------------------
+   Mana Cost: 1
+   Trigger: On dealing damage
+   Effect: Apply Weak to the target
+   
+   Best For: Heroes who attack frequently or hit multiple targets
+   Strategy: Reduce enemy damage output through constant Weak application
+
+--------------------------------------------------------------------------------
+10. BATTLE HORN
+--------------------------------------------------------------------------------
+   Mana Cost: 2
+   Trigger: On killing an enemy
+   Effect: Empower ALL allies
+   
+   Best For: Heroes who secure kills
+   Strategy: Turn kills into team-wide damage boost
+
+================================================================================
+                         EQUIPMENT MANA COST SUMMARY
+================================================================================
+
+   0 Mana: Mana Siphon
+   1 Mana: Vampiric Blade, Thorned Armor, Berserker's Axe, 
+           Energy Pendant, Cleansing Charm, Frost Gauntlet
+   2 Mana: Phoenix Feather, Guardian's Shield, Battle Horn
+
+================================================================================
+                            DESIGN NOTES
+================================================================================
+
+BALANCE PHILOSOPHY:
+  - Higher impact effects = higher mana cost
+  - "On kill" effects are powerful but conditional
+  - "On damage" effects are consistent but weaker per trigger
+  - "On death" effects are insurance (you hope not to use them)
+
+SYNERGIES TO CONSIDER:
+  - Vampiric Blade + Markswoman (high damage = high sustain)
+  - Thorned Armor + Stony with Taunt (reflect while tanking)
+  - Phoenix Feather + Priest (backup if healer dies)
+  - Berserker's Axe + Tank (low HP but high shield)
+  - Guardian's Shield + Front Tank (protect position 2-4)
+  - Mana Siphon + DPS (kill = more cards = more kills)
+  - Energy Pendant + Makash (rush to Fallen Strike)
+  - Cleansing Charm + Any (anti-stun insurance)
+  - Frost Gauntlet + AoE attacker (Weak entire enemy team)
+  - Battle Horn + Assassin/DPS (team Empower on kills)
+
+================================================================================
