@@ -249,15 +249,23 @@ func _spawn_heroes(team: Array, is_player: bool) -> void:
 	var positions = PLAYER_HERO_POSITIONS if is_player else ENEMY_HERO_POSITIONS
 	var z_indices = PLAYER_HERO_Z_INDEX if is_player else ENEMY_HERO_Z_INDEX
 	
+	# In multiplayer, reverse enemy hero order so positions mirror correctly:
+	# Opponent's hero[0] (their back) → our furthest enemy position
+	# Opponent's hero[3] (their front/nearest) → our nearest enemy position
+	var spawn_team = team.duplicate()
+	if is_multiplayer and not is_player:
+		spawn_team.reverse()
+		print("Battle: Reversed enemy team order for multiplayer mirroring: ", spawn_team)
+	
 	# Clear the appropriate array directly (not via reference)
 	if is_player:
 		player_heroes.clear()
 	else:
 		enemy_heroes.clear()
 	
-	var hero_count = team.size()
+	var hero_count = spawn_team.size()
 	for i in range(hero_count):
-		var hero_id = team[i]
+		var hero_id = spawn_team[i]
 		var hero_instance = hero_scene.instantiate()
 		# Add directly to Board instead of HBoxContainer for absolute positioning
 		$Board.add_child(hero_instance)
@@ -3242,7 +3250,7 @@ func _on_game_over(player_won: bool) -> void:
 	
 	# In multiplayer, notify opponent of game over
 	if is_multiplayer and network_manager:
-		network_manager.send_game_over(is_host == player_won)
+		network_manager.send_concede()  # Notify opponent the game ended
 		
 		# Leave the matchmaking lobby
 		if has_node("/root/MatchmakingManager"):
@@ -3285,6 +3293,10 @@ func _on_concede_pressed() -> void:
 	# Player gives up - show summary with defeat
 	current_phase = BattlePhase.GAME_OVER
 	
+	# Notify opponent in multiplayer
+	if is_multiplayer and network_manager:
+		network_manager.send_concede()
+	
 	# Record loss to PlayerData
 	_record_battle_result(false)
 	
@@ -3295,6 +3307,38 @@ func _on_concede_pressed() -> void:
 	# Show battle summary
 	await get_tree().create_timer(0.5).timeout
 	_show_battle_summary(false)
+
+func _on_opponent_conceded() -> void:
+	# Opponent gave up - we win!
+	print("Battle: Opponent conceded! We win!")
+	current_phase = BattlePhase.GAME_OVER
+	
+	# Record win
+	_record_battle_result(true)
+	
+	# Hide old game over panel
+	if game_over_panel:
+		game_over_panel.visible = false
+	
+	# Show battle summary with victory
+	await get_tree().create_timer(0.5).timeout
+	_show_battle_summary(true)
+
+func _on_opponent_disconnected() -> void:
+	# Opponent disconnected - we win!
+	print("Battle: Opponent disconnected! We win!")
+	current_phase = BattlePhase.GAME_OVER
+	
+	# Record win
+	_record_battle_result(true)
+	
+	# Hide old game over panel
+	if game_over_panel:
+		game_over_panel.visible = false
+	
+	# Show battle summary with victory
+	await get_tree().create_timer(0.5).timeout
+	_show_battle_summary(true)
 	
 func _setup_button_hover(button: Button) -> void:
 	if not button:
@@ -3419,6 +3463,7 @@ func _setup_multiplayer() -> void:
 			# Connect network signals
 			network_manager.opponent_turn_ended.connect(_on_opponent_turn_ended)
 			network_manager.opponent_disconnected.connect(_on_opponent_disconnected)
+			network_manager.opponent_conceded.connect(_on_opponent_conceded)
 			network_manager.action_request_received.connect(_on_action_request_received)
 			network_manager.action_result_received.connect(_on_action_result_received)
 			network_manager.opponent_team_received.connect(_on_opponent_team_received)
@@ -3488,9 +3533,21 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	
 	# Send results to Guest
 	result["action_type"] = "play_card"
-	result["card_data"] = card_data
+	result["card_name"] = card_data.get("name", "Unknown")
+	result["card_type"] = card_data.get("type", "")
 	result["source_hero_id"] = source_hero_id
 	result["target_hero_id"] = target_hero_id
+	# target_is_enemy from HOST's perspective for consistency with _play_queued_card_as_host:
+	# Host's target_is_enemy=true means "target is Host's enemy" = Guest's player_heroes
+	# For Guest-initiated cards: Guest targeted their enemy (is_guest_targeting_enemy=true)
+	#   → On Host, that target is in Host's player_heroes (Host's own heroes)
+	#   → From Host's perspective, that's NOT enemy → target_is_enemy=false
+	#   → Guest reads false → searches enemy_heroes → finds their enemy ✓
+	# Guest targeted their ally (is_guest_targeting_enemy=false)
+	#   → On Host, that target is in Host's enemy_heroes
+	#   → From Host's perspective, that IS enemy → target_is_enemy=true
+	#   → Guest reads true → searches player_heroes → finds their ally ✓
+	result["target_is_enemy"] = not is_guest_targeting_enemy
 	network_manager.send_action_result(result)
 
 func _host_execute_ex_skill_request(request: Dictionary) -> void:
@@ -3568,17 +3625,15 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	var target_is_enemy = result.get("target_is_enemy", false)
 	
 	print("Battle: [GUEST] Applying card result - name: ", card_name, " type: ", card_type, " effects: ", effects.size())
+	print("Battle: [GUEST]   source_hero_id: ", source_hero_id, " target_hero_id: ", target_hero_id, " target_is_enemy(host perspective): ", target_is_enemy)
 	
-	# Find source and target heroes for animations using is_host_hero from effects
-	# On Guest: Host's player heroes (is_host_hero=true) are our enemy_heroes
-	#           Host's enemy heroes (is_host_hero=false) are our player_heroes
+	# Find source and target heroes for animations
+	# target_is_enemy is from HOST's perspective:
+	#   true = Host targeted their enemy = Guest's player_heroes
+	#   false = Host targeted their ally = Guest's enemy_heroes
 	var source: Hero = null
 	var target: Hero = null
 	
-	# Determine source side from effects - if first effect's is_host_hero matches source, source is host's hero
-	# Simpler: use target_is_enemy from Host's perspective to determine target side
-	# target_is_enemy=true from Host means Host targeted their enemy = Guest's player heroes
-	# target_is_enemy=false from Host means Host targeted their ally = Guest's enemy heroes
 	var target_search = player_heroes if target_is_enemy else enemy_heroes
 	for h in target_search:
 		if h.hero_id == target_hero_id:
@@ -3591,10 +3646,14 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 				target = h
 				break
 	
-	# Source: if target_is_enemy, Host attacked their enemy, so source is Host's player hero = Guest's enemy hero
-	# If not target_is_enemy, Host healed/buffed their ally, so source is also Host's player hero = Guest's enemy hero
-	# But if it was Guest's card request being executed, source is Host's enemy hero = Guest's player hero
-	# Use source_hero_id to find in both arrays with preference based on context
+	# Source: Use is_host_hero from effects to determine which side the source is on
+	# If first effect's target is_host_hero=true, the Host executed on their own hero
+	# For source, check if source matches a player or enemy hero
+	# Since both teams can have same hero_ids, use context:
+	#   If target_is_enemy=true (Host attacked their enemy), source is Host's player = Guest's enemy
+	#   If target_is_enemy=false (Host buffed/healed their ally), source is Host's player = Guest's enemy
+	#   UNLESS it was a Guest-initiated card, then source is Guest's player = Guest's player
+	# Simplest: check both arrays, prefer the one that makes sense for the card direction
 	for h in enemy_heroes:
 		if h.hero_id == source_hero_id:
 			source = h
@@ -3604,6 +3663,8 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 			if h.hero_id == source_hero_id:
 				source = h
 				break
+	
+	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "null", " target: ", target.hero_id if target else "null")
 	
 	# Play animation based on card type
 	if card_type in ["attack", "basic_attack"] and source and target:

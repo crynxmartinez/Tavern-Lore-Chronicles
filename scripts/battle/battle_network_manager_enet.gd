@@ -16,6 +16,7 @@ signal action_result_received(result: Dictionary)
 signal opponent_mulligan_done(discarded_indices: Array)
 signal opponent_turn_ended()
 signal opponent_disconnected()
+signal opponent_conceded()
 
 var battle_scene = null
 var is_multiplayer: bool = false
@@ -182,3 +183,19 @@ func send_turn_end() -> void:
 func _receive_turn_end() -> void:
 	print("BattleNetworkManagerENet: Received turn end")
 	opponent_turn_ended.emit()
+
+# ============================================
+# CONCEDE / GAME OVER
+# ============================================
+
+func send_concede() -> void:
+	if not is_multiplayer:
+		return
+	
+	print("BattleNetworkManagerENet: Sending concede to opponent")
+	_receive_concede.rpc_id(opponent_id)
+
+@rpc("any_peer", "reliable")
+func _receive_concede() -> void:
+	print("BattleNetworkManagerENet: Opponent conceded!")
+	opponent_conceded.emit()
