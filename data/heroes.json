@@ -62,9 +62,9 @@
 		],
 		"ex_skill": {
 			"name": "Divine Light",
-			"description": "Revive target ally and heal for (400% ATK) HP.",
+			"description": "Revive target ally and heal for (30% max HP).",
 			"type": "revive",
-			"heal_multiplier": 4.0,
+			"hp_multiplier": 0.30,
 			"image": "res://asset/Hero/Priest/Priest_EX.png"
 		},
 		"ex_card": "priest_ex",
@@ -97,9 +97,9 @@
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "Markswoman"}
 		],
 		"ex_skill": {
-			"name": "Sniper Shot",
-			"description": "Deal (500% ATK) damage to target enemy.",
-			"atk_multiplier": 5.0,
+			"name": "Bullseye",
+			"description": "Deal (300% ATK) damage to target enemy.",
+			"atk_multiplier": 3.0,
 			"image": "res://asset/Hero/Markswoman/Markswoman_EX.png"
 		},
 		"ex_card": "markswoman_ex",
@@ -133,8 +133,8 @@
 		],
 		"ex_skill": {
 			"name": "Mech Overdrive",
-			"description": "Deal (200% ATK) damage to target enemy. Empower all allies.",
-			"atk_multiplier": 2.0,
+			"description": "Deal (150% ATK) damage to target enemy. Empower all allies.",
+			"atk_multiplier": 1.5,
 			"effects": ["empower_all"],
 			"image": "res://asset/Hero/Craftswoman/CraftswomanEX.png"
 		},
@@ -168,9 +168,9 @@
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "makash"}
 		],
 		"ex_skill": {
-			"name": "Fallen Strike",
-			"description": "Deal (100% ATK) damage, apply Weak to target. Penetrates to hit the hero behind.",
-			"atk_multiplier": 1.0,
+			"name": "Rampage",
+			"description": "Deal (300% ATK) damage to all enemies.",
+			"atk_multiplier": 3.0,
 			"effects": ["weak", "penetrate"],
 			"image": "res://asset/Hero/Makash/AssaulterEX.png"
 		},
@@ -240,9 +240,9 @@
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "mage"}
 		],
 		"ex_skill": {
-			"name": "Arcane Break",
-			"description": "Deal (200% ATK) damage to target enemy. Apply Break (+50% damage taken).",
-			"atk_multiplier": 2.0,
+			"name": "Arcane Storm",
+			"description": "Deal (160% ATK) damage to all enemies.",
+			"atk_multiplier": 1.6,
 			"effects": ["break"],
 			"image": "res://asset/Hero/Caelum/ex.png"
 		},
@@ -276,8 +276,8 @@
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "raizel"}
 		],
 		"ex_skill": {
-			"name": "Storm Judgment",
-			"description": "Apply Thunder (1 stack) to ALL enemies. Lightning strikes at turn end.",
+			"name": "Thunder God",
+			"description": "Detonate all Thunder stacks on all enemies.",
 			"type": "thunder_all",
 			"effects": ["thunder_all"],
 			"image": "res://asset/Hero/Raizel/ex.png"

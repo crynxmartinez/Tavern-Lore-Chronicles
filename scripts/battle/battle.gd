@@ -1055,8 +1055,13 @@ func _play_queued_heal_all(card_data: Dictionary, visual: Card) -> void:
 		await _animate_cast_heal(source_hero, source_hero)
 	
 	var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
-	var heal_mult = card_data.get("heal_multiplier", 1.0)
-	var heal_amount = int(base_atk * heal_mult)
+	var hp_mult = card_data.get("hp_multiplier", 0.0)
+	var heal_amount: int
+	if hp_mult > 0 and source_hero:
+		heal_amount = source_hero.calculate_heal(hp_mult)
+	else:
+		var heal_mult = card_data.get("heal_multiplier", 1.0)
+		heal_amount = int(base_atk * heal_mult)
 	var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
 	var total_heal = 0
 	
@@ -1082,14 +1087,25 @@ func _play_queued_heal(card_data: Dictionary, visual: Card, target: Hero) -> voi
 		await _animate_cast_heal(source_hero, target)
 	
 	var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
-	var heal_mult = card_data.get("heal_multiplier", 1.0)
-	var heal_amount = int(base_atk * heal_mult)
+	var hp_mult = card_data.get("hp_multiplier", 0.0)
+	var heal_amount: int
+	if hp_mult > 0 and source_hero:
+		heal_amount = source_hero.calculate_heal(hp_mult)
+	else:
+		var heal_mult = card_data.get("heal_multiplier", 1.0)
+		heal_amount = int(base_atk * heal_mult)
 	target.heal(heal_amount)
 	
-	# Check if card also gives shield (like Repair)
+	# Check if card also gives shield
+	var card_base_shield = card_data.get("base_shield", 0)
+	var def_mult = card_data.get("def_multiplier", 0.0)
 	var shield_mult = card_data.get("shield_multiplier", 0.0)
-	if shield_mult > 0:
-		var shield_amount = int(base_atk * shield_mult)
+	var shield_amount = 0
+	if card_base_shield > 0 or def_mult > 0:
+		shield_amount = source_hero.calculate_shield(card_base_shield, def_mult) if source_hero else card_base_shield
+	elif shield_mult > 0:
+		shield_amount = int(base_atk * shield_mult)
+	if shield_amount > 0:
 		target.add_block(shield_amount)
 		if source_hero:
 			GameManager.add_shield_given(source_hero.hero_id, shield_amount)
@@ -1113,8 +1129,14 @@ func _play_queued_buff_all(card_data: Dictionary, visual: Card) -> void:
 		await _animate_cast_buff(source_hero, source_hero)
 	
 	var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
-	var shield_mult = card_data.get("shield_multiplier", 0.0)
-	var shield_amount = int(base_atk * shield_mult)
+	var card_base_shield = card_data.get("base_shield", 0)
+	var def_mult = card_data.get("def_multiplier", 0.0)
+	var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
+	var shield_amount = 0
+	if card_base_shield > 0 or def_mult > 0:
+		shield_amount = source_hero.calculate_shield(card_base_shield, def_mult) if source_hero else card_base_shield
+	elif shield_mult_legacy > 0:
+		shield_amount = int(base_atk * shield_mult_legacy)
 	var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
 	var total_shield = 0
 	
@@ -1188,8 +1210,14 @@ func _play_queued_buff(card_data: Dictionary, visual: Card, target: Hero) -> voi
 		await _animate_cast_buff(source_hero, target)
 	
 	var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
-	var shield_mult = card_data.get("shield_multiplier", 0.0)
-	var shield_amount = int(base_atk * shield_mult)
+	var card_base_shield = card_data.get("base_shield", 0)
+	var def_mult = card_data.get("def_multiplier", 0.0)
+	var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
+	var shield_amount = 0
+	if card_base_shield > 0 or def_mult > 0:
+		shield_amount = source_hero.calculate_shield(card_base_shield, def_mult) if source_hero else card_base_shield
+	elif shield_mult_legacy > 0:
+		shield_amount = int(base_atk * shield_mult_legacy)
 	if shield_amount > 0:
 		target.add_block(shield_amount)
 		if source_hero:
@@ -1628,14 +1656,25 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			# Play cast animation for heals
 			if source:
 				await _animate_cast_heal(source, target)
-			var heal_mult = card_data.get("heal_multiplier", 1.0)
-			var heal_amount = int(base_atk * heal_mult)
+			var hp_mult = card_data.get("hp_multiplier", 0.0)
+			var heal_amount: int
+			if hp_mult > 0 and source:
+				heal_amount = source.calculate_heal(hp_mult)
+			else:
+				var heal_mult = card_data.get("heal_multiplier", 1.0)
+				heal_amount = int(base_atk * heal_mult)
 			target.heal(heal_amount)
 			GameManager.add_healing_done(source_id, heal_amount)
-			# Check if card also gives shield (like Repair)
+			# Check if card also gives shield
+			var card_base_shield = card_data.get("base_shield", 0)
+			var def_mult = card_data.get("def_multiplier", 0.0)
 			var shield_mult = card_data.get("shield_multiplier", 0.0)
-			if shield_mult > 0:
-				var shield_amount = int(base_atk * shield_mult)
+			var shield_amount = 0
+			if card_base_shield > 0 or def_mult > 0:
+				shield_amount = source.calculate_shield(card_base_shield, def_mult) if source else card_base_shield
+			elif shield_mult > 0:
+				shield_amount = int(base_atk * shield_mult)
+			if shield_amount > 0:
 				target.add_block(shield_amount)
 				GameManager.add_shield_given(source_id, shield_amount)
 			# Check for conditional empower if target has equipment (Repair card)
@@ -1647,8 +1686,14 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			# Play cast animation for buffs
 			if source:
 				await _animate_cast_buff(source, target)
-			var shield_mult = card_data.get("shield_multiplier", 0.0)
-			var shield_amount = int(base_atk * shield_mult)
+			var card_base_shield = card_data.get("base_shield", 0)
+			var def_mult = card_data.get("def_multiplier", 0.0)
+			var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
+			var shield_amount = 0
+			if card_base_shield > 0 or def_mult > 0:
+				shield_amount = source.calculate_shield(card_base_shield, def_mult) if source else card_base_shield
+			elif shield_mult_legacy > 0:
+				shield_amount = int(base_atk * shield_mult_legacy)
 			if shield_amount > 0:
 				target.add_block(shield_amount)
 				GameManager.add_shield_given(source_id, shield_amount)
@@ -2133,8 +2178,13 @@ func _play_heal_on_all_allies(card: Card) -> void:
 		await _show_card_display(card_data_copy)
 		
 		var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
-		var heal_mult = card_data_copy.get("heal_multiplier", 1.0)
-		var heal_amount = int(base_atk * heal_mult)
+		var hp_mult = card_data_copy.get("hp_multiplier", 0.0)
+		var heal_amount: int
+		if hp_mult > 0 and source_hero:
+			heal_amount = source_hero.calculate_heal(hp_mult)
+		else:
+			var heal_mult = card_data_copy.get("heal_multiplier", 1.0)
+			heal_amount = int(base_atk * heal_mult)
 		var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
 		var total_heal = 0
 		
@@ -2161,8 +2211,14 @@ func _play_buff_on_all_allies(card: Card) -> void:
 		await _show_card_display(card_data_copy)
 		
 		var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
-		var shield_mult = card_data_copy.get("shield_multiplier", 0.0)
-		var shield_amount = int(base_atk * shield_mult)
+		var card_base_shield = card_data_copy.get("base_shield", 0)
+		var def_mult = card_data_copy.get("def_multiplier", 0.0)
+		var shield_mult_legacy = card_data_copy.get("shield_multiplier", 0.0)
+		var shield_amount = 0
+		if card_base_shield > 0 or def_mult > 0:
+			shield_amount = source_hero.calculate_shield(card_base_shield, def_mult) if source_hero else card_base_shield
+		elif shield_mult_legacy > 0:
+			shield_amount = int(base_atk * shield_mult_legacy)
 		var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
 		var total_shield = 0
 		
@@ -2635,8 +2691,13 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 	var base_atk = hero.hero_data.get("base_attack", 10)
 	
 	if ex_type == "revive":
-		var heal_mult = ex_data.get("heal_multiplier", 5.0)
-		var heal_amount = int(base_atk * heal_mult)
+		var hp_mult = ex_data.get("hp_multiplier", 0.0)
+		var heal_amount: int
+		if hp_mult > 0:
+			heal_amount = hero.calculate_heal(hp_mult)
+		else:
+			var heal_mult = ex_data.get("heal_multiplier", 5.0)
+			heal_amount = int(base_atk * heal_mult)
 		hero.play_ex_skill_anim(func():
 			if not done:
 				target.revive(heal_amount)
@@ -3295,8 +3356,13 @@ func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	await _show_card_display(card)
 	
 	var base_atk = attacker.hero_data.get("base_attack", 10)
-	var heal_mult = card.get("heal_multiplier", 1.0)
-	var heal_amount = int(base_atk * heal_mult)
+	var hp_mult = card.get("hp_multiplier", 0.0)
+	var heal_amount: int
+	if hp_mult > 0:
+		heal_amount = attacker.calculate_heal(hp_mult)
+	else:
+		var heal_mult = card.get("heal_multiplier", 1.0)
+		heal_amount = int(base_atk * heal_mult)
 	var target_type = card.get("target", "single")
 	var enemy_stat_id = "enemy_" + attacker.hero_id
 	
@@ -3310,10 +3376,16 @@ func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	else:
 		target.heal(heal_amount)
 		GameManager.add_healing_done(enemy_stat_id, heal_amount)
-		# Check if card also gives shield (like Repair)
+		# Check if card also gives shield
+		var card_base_shield = card.get("base_shield", 0)
+		var def_mult = card.get("def_multiplier", 0.0)
 		var shield_mult = card.get("shield_multiplier", 0.0)
-		if shield_mult > 0:
-			var shield_amount = int(base_atk * shield_mult)
+		var shield_amount = 0
+		if card_base_shield > 0 or def_mult > 0:
+			shield_amount = attacker.calculate_shield(card_base_shield, def_mult)
+		elif shield_mult > 0:
+			shield_amount = int(base_atk * shield_mult)
+		if shield_amount > 0:
 			target.add_block(shield_amount)
 			GameManager.add_shield_given(enemy_stat_id, shield_amount)
 	
@@ -3326,8 +3398,14 @@ func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	await _show_card_display(card)
 	
 	var base_atk = attacker.hero_data.get("base_attack", 10)
-	var shield_mult = card.get("shield_multiplier", 0.0)
-	var shield = int(base_atk * shield_mult)
+	var card_base_shield = card.get("base_shield", 0)
+	var def_mult = card.get("def_multiplier", 0.0)
+	var shield_mult_legacy = card.get("shield_multiplier", 0.0)
+	var shield = 0
+	if card_base_shield > 0 or def_mult > 0:
+		shield = attacker.calculate_shield(card_base_shield, def_mult)
+	elif shield_mult_legacy > 0:
+		shield = int(base_atk * shield_mult_legacy)
 	var target_type = card.get("target", "single")
 	var enemy_stat_id = "enemy_" + attacker.hero_id
 	
@@ -4180,8 +4258,15 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"heal":
-			var heal_mult = card_data.get("heal_multiplier", card_data.get("atk_multiplier", 1.0))
-			var heal_amount = int(base_atk * heal_mult)
+			# New stat system: heals scale off caster's max HP via hp_multiplier
+			var hp_mult = card_data.get("hp_multiplier", 0.0)
+			var heal_amount: int
+			if hp_mult > 0 and source:
+				heal_amount = source.calculate_heal(hp_mult)
+			else:
+				# Fallback for old cards still using heal_multiplier/atk_multiplier
+				var heal_mult = card_data.get("heal_multiplier", card_data.get("atk_multiplier", 1.0))
+				heal_amount = int(base_atk * heal_mult)
 			
 			for t in targets:
 				t.heal(heal_amount)
@@ -4205,13 +4290,22 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"buff":
-			var shield_mult = card_data.get("shield_multiplier", 0.0)
+			# New stat system: shields scale off caster's DEF via base_shield + def_multiplier
+			var card_base_shield = card_data.get("base_shield", 0)
+			var def_mult = card_data.get("def_multiplier", 0.0)
+			var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
 			var buff_type = card_data.get("buff_type", "")
 			var duration = card_data.get("duration", 1)
 			
 			for t in targets:
-				if shield_mult > 0:
-					var shield_amount = int(base_atk * shield_mult)
+				var shield_amount = 0
+				if card_base_shield > 0 or def_mult > 0:
+					# New formula: base_shield + DEF × def_multiplier
+					shield_amount = source.calculate_shield(card_base_shield, def_mult) if source else card_base_shield
+				elif shield_mult_legacy > 0:
+					# Fallback for old cards still using shield_multiplier
+					shield_amount = int(base_atk * shield_mult_legacy)
+				if shield_amount > 0:
 					t.add_block(shield_amount)
 					effects.append({
 						"type": "block",
@@ -4284,16 +4378,23 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					"equipment_data": card_data
 				})
 				
-				var shield_mult = card_data.get("shield_multiplier", 0.0)
-				if shield_mult > 0:
-					var shield_amount = int(base_atk * shield_mult)
-					target.add_block(shield_amount)
+				# Shield from equipment
+				var eq_base_shield = card_data.get("base_shield", 0)
+				var eq_def_mult = card_data.get("def_multiplier", 0.0)
+				var eq_shield_legacy = card_data.get("shield_multiplier", 0.0)
+				var eq_shield_amount = 0
+				if eq_base_shield > 0 or eq_def_mult > 0:
+					eq_shield_amount = target.calculate_shield(eq_base_shield, eq_def_mult)
+				elif eq_shield_legacy > 0:
+					eq_shield_amount = int(base_atk * eq_shield_legacy)
+				if eq_shield_amount > 0:
+					target.add_block(eq_shield_amount)
 					effects.append({
 						"type": "block",
 						"hero_id": target.hero_id,
 						"instance_id": target.instance_id,
 						"is_host_hero": target.is_player_hero,
-						"amount": shield_amount,
+						"amount": eq_shield_amount,
 						"new_block": target.block
 					})
 				
@@ -4754,16 +4855,27 @@ func _resolve_opponent_card_effect(card_data: Dictionary, source: Hero, target: 
 					target.take_damage(damage)
 		"heal":
 			if target:
-				var heal_mult = card_data.get("heal_multiplier", card_data.get("atk_multiplier", 1.0))
-				var heal_amount = int(base_atk * heal_mult)
+				var hp_mult = card_data.get("hp_multiplier", 0.0)
+				var heal_amount: int
+				if hp_mult > 0 and source:
+					heal_amount = source.calculate_heal(hp_mult)
+				else:
+					var heal_mult = card_data.get("heal_multiplier", card_data.get("atk_multiplier", 1.0))
+					heal_amount = int(base_atk * heal_mult)
 				target.heal(heal_amount)
 				if source:
 					await _animate_cast_heal(source, target)
 		"buff":
 			if target:
-				var shield_mult = card_data.get("shield_multiplier", 0.0)
-				if shield_mult > 0:
-					var shield_amount = int(base_atk * shield_mult)
+				var card_base_shield = card_data.get("base_shield", 0)
+				var def_mult = card_data.get("def_multiplier", 0.0)
+				var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
+				var shield_amount = 0
+				if card_base_shield > 0 or def_mult > 0:
+					shield_amount = source.calculate_shield(card_base_shield, def_mult) if source else card_base_shield
+				elif shield_mult_legacy > 0:
+					shield_amount = int(base_atk * shield_mult_legacy)
+				if shield_amount > 0:
 					target.add_block(shield_amount)
 				var buff_type = card_data.get("buff_type", "")
 				var duration = card_data.get("duration", 1)
@@ -4783,10 +4895,16 @@ func _resolve_opponent_card_effect(card_data: Dictionary, source: Hero, target: 
 			if target:
 				# Apply equipment to target
 				target.add_equipment(card_data)
-				var shield_mult = card_data.get("shield_multiplier", 0.0)
-				if shield_mult > 0:
-					var shield_amount = int(base_atk * shield_mult)
-					target.add_block(shield_amount)
+				var eq_base_shield = card_data.get("base_shield", 0)
+				var eq_def_mult = card_data.get("def_multiplier", 0.0)
+				var eq_shield_legacy = card_data.get("shield_multiplier", 0.0)
+				var eq_shield_amount = 0
+				if eq_base_shield > 0 or eq_def_mult > 0:
+					eq_shield_amount = target.calculate_shield(eq_base_shield, eq_def_mult)
+				elif eq_shield_legacy > 0:
+					eq_shield_amount = int(base_atk * eq_shield_legacy)
+				if eq_shield_amount > 0:
+					target.add_block(eq_shield_amount)
 				var buff_type = card_data.get("buff_type", "")
 				var duration = card_data.get("duration", -1)  # Equipment buffs are usually permanent
 				if not buff_type.is_empty():
@@ -4812,16 +4930,27 @@ func _animate_opponent_card_play(card_data: Dictionary, target: Hero) -> void:
 					await _animate_attack(source_hero, target, damage)
 		"heal":
 			if target:
-				var heal_mult = card_data.get("heal_multiplier", 1.0)
-				var heal_amount = int(base_atk * heal_mult)
+				var hp_mult = card_data.get("hp_multiplier", 0.0)
+				var heal_amount: int
+				if hp_mult > 0 and source_hero:
+					heal_amount = source_hero.calculate_heal(hp_mult)
+				else:
+					var heal_mult = card_data.get("heal_multiplier", 1.0)
+					heal_amount = int(base_atk * heal_mult)
 				target.heal(heal_amount)
 				if source_hero:
 					await _animate_cast_heal(source_hero, target)
 		"buff":
 			if target:
-				var shield_mult = card_data.get("shield_multiplier", 0.0)
-				if shield_mult > 0:
-					var shield_amount = int(base_atk * shield_mult)
+				var card_base_shield = card_data.get("base_shield", 0)
+				var def_mult = card_data.get("def_multiplier", 0.0)
+				var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
+				var shield_amount = 0
+				if card_base_shield > 0 or def_mult > 0:
+					shield_amount = source_hero.calculate_shield(card_base_shield, def_mult) if source_hero else card_base_shield
+				elif shield_mult_legacy > 0:
+					shield_amount = int(base_atk * shield_mult_legacy)
+				if shield_amount > 0:
 					target.add_block(shield_amount)
 				if source_hero:
 					await _animate_cast_buff(source_hero, target)

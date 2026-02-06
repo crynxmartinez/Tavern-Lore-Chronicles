@@ -11,10 +11,14 @@ var instance_id: String = ""  # Globally unique instance ID (e.g. "host_priest_0
 var owner_id: String = ""  # player_id of the player who owns this hero
 
 var hero_data: Dictionary = {}
+var base_hp: int = 10
+var hp_multiplier: int = 10
 var max_hp: int = GameConstants.DEFAULT_MAX_HP
 var current_hp: int = GameConstants.DEFAULT_MAX_HP
 var base_attack: int = GameConstants.DEFAULT_BASE_ATTACK
 var current_attack: int = GameConstants.DEFAULT_BASE_ATTACK
+var base_def: int = 0
+var current_def: int = 0  # base_def + item/buff bonuses
 var energy: int = 0
 var max_energy: int = GameConstants.MAX_ENERGY
 var block: int = 0
@@ -138,10 +142,14 @@ func setup(id: String) -> void:
 		push_error("Hero not found: " + id)
 		return
 	
-	max_hp = hero_data.get("max_hp", 100)
+	base_hp = hero_data.get("base_hp", 10)
+	hp_multiplier = hero_data.get("hp_multiplier", 10)
+	max_hp = hero_data.get("max_hp", base_hp * hp_multiplier)
 	current_hp = max_hp
 	base_attack = hero_data.get("base_attack", 10)
 	current_attack = base_attack
+	base_def = hero_data.get("base_def", 0)
+	current_def = base_def
 	energy = 0
 	
 	_load_sprite(hero_data.get("idle_sprite", ""))
@@ -212,12 +220,35 @@ func _update_ui() -> void:
 	if energy_label:
 		energy_label.text = str(energy) + "/" + str(max_energy)
 
+func get_def() -> int:
+	## Returns current effective DEF (base + items/buffs)
+	return current_def
+
+func get_damage_reduction_percent() -> float:
+	## DEF damage reduction: every 1 DEF = 2%, max 30%
+	return min(get_def() * 2.0, 30.0)
+
+func apply_def_reduction(raw_damage: int) -> int:
+	## Apply DEF-based damage reduction to raw damage
+	var reduction = get_damage_reduction_percent() / 100.0
+	return max(1, int(raw_damage * (1.0 - reduction)))
+
+func calculate_heal(hp_mult: float) -> int:
+	## Heal scales off caster's max HP
+	return max(1, int(max_hp * hp_mult))
+
+func calculate_shield(card_base_shield: int, def_mult: float) -> int:
+	## Shield = card_base + (DEF × def_multiplier)
+	return max(0, card_base_shield + int(get_def() * def_mult))
+
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
 	
+	# Apply DEF damage reduction first
+	var after_def = apply_def_reduction(amount)
 	# Apply Break debuff multiplier (increases damage taken)
-	var modified_amount = int(amount * get_damage_taken_multiplier())
+	var modified_amount = int(after_def * get_damage_taken_multiplier())
 	
 	var actual_damage = modified_amount
 	var shield_absorbed = 0
