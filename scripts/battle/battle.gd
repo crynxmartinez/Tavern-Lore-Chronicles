@@ -952,31 +952,29 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 		target_is_enemy = false
 		print("Battle: [HOST] energy card - self-target: ", target.hero_id if target else "null")
 	
-	# Execute and collect results (NO animations yet)
-	var result = _execute_card_and_collect_results(card_data, source_hero, target)
+	# Build send callback that adds metadata and sends result before animations
+	var _src_hero = source_hero
+	var _tgt = target
+	var _tgt_is_enemy = target_is_enemy
+	var _nm = network_manager
+	var _pid = my_player_id
+	var _cd = card_data
+	var send_cb = func(res: Dictionary) -> void:
+		res["action_type"] = "play_card"
+		res["played_by"] = _pid
+		res["card_name"] = _cd.get("name", "Unknown")
+		res["card_type"] = _cd.get("type", "")
+		res["source_hero_id"] = _src_hero.hero_id if _src_hero else ""
+		res["source_instance_id"] = _src_hero.instance_id if _src_hero else ""
+		res["target_hero_id"] = _tgt.hero_id if _tgt else ""
+		res["target_instance_id"] = _tgt.instance_id if _tgt else ""
+		res["target_is_enemy"] = _tgt_is_enemy
+		print("Battle: [HOST] Sending result with ", res.get("effects", []).size(), " effects")
+		_nm.send_action_result(res)
+		print("Battle: [HOST] Sent results to Guest BEFORE animations")
 	
-	# Add action info to result
-	result["action_type"] = "play_card"
-	result["played_by"] = my_player_id  # Host played this card
-	result["card_name"] = card_data.get("name", "Unknown")
-	result["card_type"] = card_data.get("type", "")
-	result["source_hero_id"] = source_hero.hero_id if source_hero else ""
-	result["source_instance_id"] = source_hero.instance_id if source_hero else ""
-	result["target_hero_id"] = target.hero_id if target else ""
-	result["target_instance_id"] = target.instance_id if target else ""
-	result["target_is_enemy"] = target_is_enemy
-	
-	# Debug: Print what we're sending
-	print("Battle: [HOST] Sending result with ", result.get("effects", []).size(), " effects")
-	for effect in result.get("effects", []):
-		print("  - Effect: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"), " iid=", effect.get("instance_id", "?"))
-	
-	# Send results to Guest IMMEDIATELY (before animations)
-	network_manager.send_action_result(result)
-	print("Battle: [HOST] Sent results to Guest, now animating...")
-	
-	# Play animations on Host (Guest animates in parallel)
-	await _play_card_animations(result, card_data, source_hero, target)
+	# Execute: pre-compute → send via callback → animate on Host
+	var result = await _execute_card_and_collect_results(card_data, source_hero, target, send_cb)
 	
 	# Finish card play
 	await _fade_out_visual(visual)
@@ -1593,24 +1591,28 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 			selected_card = null
 			_play_audio("play_card_play")
 			
-			# Spend mana and compute effects FIRST (no animations)
 			if GameManager.play_card(card_data_copy, source_hero, target):
-				var host_result = _execute_card_and_collect_results(card_data_copy, source_hero, target)
-				host_result["action_type"] = "play_card"
-				host_result["played_by"] = my_player_id
-				host_result["card_name"] = card_data_copy.get("name", "Unknown")
-				host_result["card_type"] = card_data_copy.get("type", "")
-				host_result["source_hero_id"] = source_hero.hero_id if source_hero else ""
-				host_result["source_instance_id"] = source_hero.instance_id if source_hero else ""
-				host_result["target_hero_id"] = target.hero_id if target else ""
-				host_result["target_instance_id"] = target.instance_id if target else ""
-				host_result["target_is_enemy"] = not target.is_player_hero if target else false
-				# Send result IMMEDIATELY before animations
-				network_manager.send_action_result(host_result)
-				print("Battle: [HOST] Sent targeted card results to Guest, now animating...")
-				# Animate card to display then play card animations
+				# Build send callback
+				var _sh = source_hero
+				var _tg = target
+				var _nm = network_manager
+				var _pid = my_player_id
+				var _cdc = card_data_copy
+				var send_cb = func(res: Dictionary) -> void:
+					res["action_type"] = "play_card"
+					res["played_by"] = _pid
+					res["card_name"] = _cdc.get("name", "Unknown")
+					res["card_type"] = _cdc.get("type", "")
+					res["source_hero_id"] = _sh.hero_id if _sh else ""
+					res["source_instance_id"] = _sh.instance_id if _sh else ""
+					res["target_hero_id"] = _tg.hero_id if _tg else ""
+					res["target_instance_id"] = _tg.instance_id if _tg else ""
+					res["target_is_enemy"] = not _tg.is_player_hero if _tg else false
+					_nm.send_action_result(res)
+					print("Battle: [HOST] Sent targeted card results to Guest BEFORE animations")
+				# Animate card to display, then execute (pre-compute → send → animate)
 				await _animate_card_to_display(card)
-				await _play_card_animations(host_result, card_data_copy, source_hero, target)
+				await _execute_card_and_collect_results(card_data_copy, source_hero, target, send_cb)
 			else:
 				await _animate_card_to_display(card)
 			
@@ -3819,24 +3821,32 @@ func _host_execute_card_request(request: Dictionary) -> void:
 			print("---\n")
 			return
 	
-	# Execute the card and collect results (NO animations yet)
-	print("  → Executing card (compute only)...")
-	var result = _execute_card_and_collect_results(card_data, source, target)
+	# Build send callback that adds metadata and sends result before animations
+	var _src = source
+	var _src_hid = source_hero_id
+	var _src_iid = source.instance_id if source else source_instance_id
+	var _tgt_hid = target_hero_id
+	var _tgt_iid = target.instance_id if target else target_instance_id
+	var _tgt_is_enemy = not is_guest_targeting_enemy
+	var _nm = network_manager
+	var _opid = opponent_player_id
+	var _cd = card_data
+	var send_cb = func(res: Dictionary) -> void:
+		res["action_type"] = "play_card"
+		res["played_by"] = _opid
+		res["card_name"] = _cd.get("name", "Unknown")
+		res["card_type"] = _cd.get("type", "")
+		res["source_hero_id"] = _src_hid
+		res["source_instance_id"] = _src_iid
+		res["target_hero_id"] = _tgt_hid
+		res["target_instance_id"] = _tgt_iid
+		res["target_is_enemy"] = _tgt_is_enemy
+		_nm.send_action_result(res)
+		print("Battle: [HOST] Sent Guest card results BEFORE animations")
 	
-	# Send results to Guest IMMEDIATELY (before animations)
-	result["action_type"] = "play_card"
-	result["played_by"] = opponent_player_id  # Guest played this card
-	result["card_name"] = card_data.get("name", "Unknown")
-	result["card_type"] = card_data.get("type", "")
-	result["source_hero_id"] = source_hero_id
-	result["source_instance_id"] = source.instance_id if source else source_instance_id
-	result["target_hero_id"] = target_hero_id
-	result["target_instance_id"] = target.instance_id if target else target_instance_id
-	result["target_is_enemy"] = not is_guest_targeting_enemy
-	network_manager.send_action_result(result)
-	
-	# Now play animations on Host (Guest animates in parallel)
-	await _play_card_animations(result, card_data, source, target)
+	# Execute: pre-compute → send via callback → animate on Host
+	print("  → Executing card...")
+	await _execute_card_and_collect_results(card_data, source, target, send_cb)
 
 func _host_execute_ex_skill_request(request: Dictionary) -> void:
 	## HOST: Execute an EX skill request from Guest and send results
@@ -4200,10 +4210,11 @@ func _on_opponent_turn_ended() -> void:
 # HOST-AUTHORITATIVE: Execute and collect results
 # ============================================
 
-func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, target: Hero) -> Dictionary:
-	## HOST ONLY: Execute a card, collect results, then animate.
-	## Phase 1: Apply all effects and collect results (instant, no animations)
-	## Phase 2: Play animations on Host (while Guest receives results in parallel)
+func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, target: Hero, send_result_callback: Callable = Callable()) -> Dictionary:
+	## HOST ONLY: Execute a card and collect all effects as results.
+	## If send_result_callback is provided (multiplayer), it will be called with the
+	## result dictionary BEFORE animations play, so Guest receives results early.
+	## Supports multi-target (all_ally/all_enemy) and card effects array.
 	print("Battle: [HOST] _execute_card_and_collect_results")
 	print("  card: ", card_data.get("name", "?"))
 	print("  source: ", source.hero_id if source else "null")
@@ -4234,21 +4245,39 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 		targets.append(target)
 	
 	# ========================================
-	# PHASE 1: Apply effects and collect results (NO animations)
+	# PRE-COMPUTE: Calculate all effect values (NO animations, NO state changes yet)
+	# This lets us send results to Guest before animations play.
 	# ========================================
-	var _anim_data: Dictionary = {"type": card_type, "source": source, "targets": targets, "card_data": card_data}
+	var precomputed: Dictionary = {}
 	
 	match card_type:
 		"attack", "basic_attack":
 			var atk_mult = card_data.get("atk_multiplier", 1.0)
 			var damage = int(base_atk * atk_mult * damage_mult)
-			_anim_data["damage"] = damage
+			precomputed["damage"] = damage
 			
+			# Handle Mana Surge
+			if card_effects.has("mana_surge"):
+				var mana_spent = card_data.get("mana_spent", 1)
+				damage = int(base_atk * atk_mult * mana_spent * damage_mult)
+				precomputed["damage"] = damage
+			
+			# Pre-compute damage results for each target (before applying)
 			for t in targets:
 				var old_hp = t.current_hp
-				print("Battle: [HOST] Executing attack - damage: ", damage, " on ", t.hero_id)
-				t.take_damage(damage)
-				print("Battle: [HOST] After attack - ", t.hero_id, " HP: ", t.current_hp, " (was ", old_hp, ")")
+				var old_block = t.block
+				# Simulate take_damage to get final values
+				var after_def = t.apply_def_reduction(damage)
+				var modified = int(after_def * t.get_damage_taken_multiplier())
+				var actual_damage = modified
+				var sim_block = t.block
+				if sim_block >= modified:
+					actual_damage = 0
+					sim_block -= modified
+				elif sim_block > 0:
+					actual_damage = modified - sim_block
+					sim_block = 0
+				var new_hp = max(0, t.current_hp - actual_damage)
 				
 				effects.append({
 					"type": "damage",
@@ -4256,46 +4285,43 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					"instance_id": t.instance_id,
 					"is_host_hero": t.is_player_hero,
 					"amount": damage,
-					"new_hp": t.current_hp,
-					"new_block": t.block
+					"new_hp": new_hp,
+					"new_block": sim_block
 				})
 			
-			# Process card effects (stun, thunder, mana_surge, penetrate, etc.)
+			# Pre-compute card effects
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
 				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"heal":
-			# New stat system: heals scale off caster's max HP via hp_multiplier
 			var hp_mult = card_data.get("hp_multiplier", 0.0)
 			var heal_amount: int
 			if hp_mult > 0 and source:
 				heal_amount = source.calculate_heal(hp_mult)
 			else:
-				# Fallback for old cards still using heal_multiplier/atk_multiplier
 				var heal_mult = card_data.get("heal_multiplier", card_data.get("atk_multiplier", 1.0))
 				heal_amount = int(base_atk * heal_mult)
+			precomputed["heal_amount"] = heal_amount
 			
 			for t in targets:
-				t.heal(heal_amount)
+				var new_hp = min(t.max_hp, t.current_hp + heal_amount)
 				effects.append({
 					"type": "heal",
 					"hero_id": t.hero_id,
 					"instance_id": t.instance_id,
 					"is_host_hero": t.is_player_hero,
 					"amount": heal_amount,
-					"new_hp": t.current_hp
+					"new_hp": new_hp
 				})
 			
-			# Process card effects (cleanse, etc.)
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
 				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"buff":
-			# New stat system: shields scale off caster's DEF via base_shield + def_multiplier
 			var card_base_shield = card_data.get("base_shield", 0)
 			var def_mult = card_data.get("def_multiplier", 0.0)
 			var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
@@ -4305,24 +4331,19 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 			for t in targets:
 				var shield_amount = 0
 				if card_base_shield > 0 or def_mult > 0:
-					# New formula: base_shield + DEF × def_multiplier
 					shield_amount = source.calculate_shield(card_base_shield, def_mult) if source else card_base_shield
 				elif shield_mult_legacy > 0:
-					# Fallback for old cards still using shield_multiplier
 					shield_amount = int(base_atk * shield_mult_legacy)
 				if shield_amount > 0:
-					t.add_block(shield_amount)
 					effects.append({
 						"type": "block",
 						"hero_id": t.hero_id,
 						"instance_id": t.instance_id,
 						"is_host_hero": t.is_player_hero,
 						"amount": shield_amount,
-						"new_block": t.block
+						"new_block": t.block + shield_amount
 					})
-				
 				if not buff_type.is_empty():
-					t.apply_buff(buff_type, duration, base_atk)
 					effects.append({
 						"type": "buff",
 						"hero_id": t.hero_id,
@@ -4333,7 +4354,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 						"value": base_atk
 					})
 			
-			# Process card effects (empower_target, taunt, draw_1, etc.)
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
 				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
@@ -4342,10 +4362,8 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 		"debuff":
 			var debuff_type = card_data.get("debuff_type", "")
 			var duration = card_data.get("duration", 1)
-			
 			for t in targets:
 				if not debuff_type.is_empty():
-					t.apply_debuff(debuff_type, duration, base_atk)
 					effects.append({
 						"type": "debuff",
 						"hero_id": t.hero_id,
@@ -4355,8 +4373,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 						"duration": duration,
 						"value": base_atk
 					})
-			
-			# Process card effects (thunder_all, thunder_stack_2, etc.)
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
 				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
@@ -4364,7 +4380,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 		
 		"equipment":
 			if target:
-				target.add_equipment(card_data)
 				effects.append({
 					"type": "equipment",
 					"hero_id": target.hero_id,
@@ -4372,8 +4387,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					"is_host_hero": target.is_player_hero,
 					"equipment_data": card_data
 				})
-				
-				# Shield from equipment
 				var eq_base_shield = card_data.get("base_shield", 0)
 				var eq_def_mult = card_data.get("def_multiplier", 0.0)
 				var eq_shield_legacy = card_data.get("shield_multiplier", 0.0)
@@ -4383,20 +4396,17 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				elif eq_shield_legacy > 0:
 					eq_shield_amount = int(base_atk * eq_shield_legacy)
 				if eq_shield_amount > 0:
-					target.add_block(eq_shield_amount)
 					effects.append({
 						"type": "block",
 						"hero_id": target.hero_id,
 						"instance_id": target.instance_id,
 						"is_host_hero": target.is_player_hero,
 						"amount": eq_shield_amount,
-						"new_block": target.block
+						"new_block": target.block + eq_shield_amount
 					})
-				
 				var buff_type = card_data.get("buff_type", "")
 				var duration = card_data.get("duration", -1)
 				if not buff_type.is_empty():
-					target.apply_buff(buff_type, duration, base_atk)
 					effects.append({
 						"type": "buff",
 						"hero_id": target.hero_id,
@@ -4410,50 +4420,72 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 		"energy":
 			if source:
 				var energy_gain = card_data.get("energy_gain", 0)
-				source.add_energy(energy_gain)
 				effects.append({
 					"type": "energy",
 					"hero_id": source.hero_id,
 					"instance_id": source.instance_id,
 					"is_host_hero": source.is_player_hero,
 					"amount": energy_gain,
-					"new_energy": source.energy
+					"new_energy": source.energy + energy_gain
 				})
 	
-	# Results are now ready — caller can send to Guest before we animate
-	var result = {
-		"success": true,
-		"effects": effects,
-		"_anim_data": _anim_data
-	}
-	return result
-
-func _play_card_animations(result: Dictionary, card_data: Dictionary, source: Hero, target: Hero) -> void:
-	## HOST ONLY: Play card animations AFTER results have been sent to Guest.
-	## This runs in parallel with Guest receiving and processing results.
-	var _anim_data = result.get("_anim_data", {})
-	var card_type = _anim_data.get("type", card_data.get("type", ""))
-	var targets = _anim_data.get("targets", [target] if target else [])
+	# ========================================
+	# SEND RESULT TO GUEST (before animations)
+	# ========================================
+	var result = {"success": true, "effects": effects}
+	if send_result_callback.is_valid():
+		send_result_callback.call(result)
+		print("Battle: [HOST] Sent result to Guest via callback BEFORE animations")
 	
+	# ========================================
+	# PHASE 2: Actually apply effects + play animations (Host only)
+	# ========================================
 	await _show_card_display(card_data)
 	
 	match card_type:
 		"attack", "basic_attack":
-			var damage = _anim_data.get("damage", 10)
+			var damage = precomputed.get("damage", 10)
 			for t in targets:
-				if source and is_instance_valid(t):
-					# Visual-only attack animation (damage already applied)
-					await _guest_animate_attack(source, t, damage)
+				var old_hp = t.current_hp
+				print("Battle: [HOST] Executing attack - damage: ", damage, " on ", t.hero_id)
+				if source:
+					await _animate_attack(source, t, damage)
+				else:
+					t.take_damage(damage)
+				print("Battle: [HOST] After attack - ", t.hero_id, " HP: ", t.current_hp, " (was ", old_hp, ")")
 		
 		"heal":
-			if source and targets.size() > 0:
-				await _animate_cast_heal(source, targets[0])
+			var heal_amount = precomputed.get("heal_amount", 0)
+			for t in targets:
+				t.heal(heal_amount)
+				if source and t == targets[0]:
+					await _animate_cast_heal(source, t)
 		
 		"buff":
+			var card_base_shield = card_data.get("base_shield", 0)
+			var def_mult_val = card_data.get("def_multiplier", 0.0)
+			var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
+			var buff_type = card_data.get("buff_type", "")
+			var duration = card_data.get("duration", 1)
+			for t in targets:
+				var shield_amount = 0
+				if card_base_shield > 0 or def_mult_val > 0:
+					shield_amount = source.calculate_shield(card_base_shield, def_mult_val) if source else card_base_shield
+				elif shield_mult_legacy > 0:
+					shield_amount = int(base_atk * shield_mult_legacy)
+				if shield_amount > 0:
+					t.add_block(shield_amount)
+				if not buff_type.is_empty():
+					t.apply_buff(buff_type, duration, base_atk)
 			if source and targets.size() > 0:
 				await _animate_cast_buff(source, targets[0])
 		
 		"debuff":
+			var debuff_type = card_data.get("debuff_type", "")
+			var duration = card_data.get("duration", 1)
+			for t in targets:
+				if not debuff_type.is_empty():
+					t.apply_debuff(debuff_type, duration, base_atk)
 			if source and targets.size() > 0:
 				await _animate_cast_debuff(source, targets[0])
 		
@@ -4462,12 +4494,31 @@ func _play_card_animations(result: Dictionary, card_data: Dictionary, source: He
 				var caster = source if source else target
 				if caster:
 					await _animate_cast_buff(caster, target)
+				target.add_equipment(card_data)
+				var eq_base_shield = card_data.get("base_shield", 0)
+				var eq_def_mult = card_data.get("def_multiplier", 0.0)
+				var eq_shield_legacy = card_data.get("shield_multiplier", 0.0)
+				var eq_shield_amount = 0
+				if eq_base_shield > 0 or eq_def_mult > 0:
+					eq_shield_amount = target.calculate_shield(eq_base_shield, eq_def_mult)
+				elif eq_shield_legacy > 0:
+					eq_shield_amount = int(base_atk * eq_shield_legacy)
+				if eq_shield_amount > 0:
+					target.add_block(eq_shield_amount)
+				var buff_type = card_data.get("buff_type", "")
+				var duration = card_data.get("duration", -1)
+				if not buff_type.is_empty():
+					target.apply_buff(buff_type, duration, base_atk)
 		
 		"energy":
 			if source:
+				var energy_gain = card_data.get("energy_gain", 0)
+				source.add_energy(energy_gain)
 				await _animate_cast_buff(source, source)
 	
 	await _hide_card_display()
+	
+	return result
 
 func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero, primary_target: Hero, targets: Array) -> void:
 	## After _apply_effects has been called, snapshot any state changes caused by
