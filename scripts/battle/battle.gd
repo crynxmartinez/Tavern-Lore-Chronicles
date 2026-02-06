@@ -1690,7 +1690,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			# Check for conditional empower if target has equipment (Repair card)
 			var empower_if_equipped = card_data.get("empower_if_equipped", false)
 			if empower_if_equipped and target.has_equipment():
-				target.apply_buff("empower", 2, base_atk)
+				target.apply_buff("empower", 1, base_atk, "own_turn_end")
 				print("[Repair] Target has equipment - applying Empower!")
 		"buff":
 			# Play cast animation for buffs
@@ -1797,7 +1797,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				# Frost Gauntlet: Apply Weak to target
 				var target = context.get("target", null)
 				if target and is_instance_valid(target) and not target.is_dead:
-					target.apply_debuff("weak", int(value), 0)
+					target.apply_debuff("weak", 1, 0, "own_turn_end")
 					print("[Equipment] " + equip_name + ": Applied Weak to " + target.hero_data.get("name", ""))
 			
 			"reflect":
@@ -1819,9 +1819,10 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 			
 			"empower_all":
 				# Battle Horn: Empower all allies on kill
-				for ally in player_heroes:
+				var allies = player_heroes if hero.is_player_hero else enemy_heroes
+				for ally in allies:
 					if not ally.is_dead:
-						ally.apply_buff("empower", int(value), 0)
+						ally.apply_buff("empower", 1, 0, "own_turn_end")
 				print("[Equipment] " + equip_name + ": Empowered all allies!")
 			
 			"auto_revive":
@@ -1843,7 +1844,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				if hp_percent <= value:
 					# Check if already has this buff to avoid stacking
 					if not hero.has_buff("empower"):
-						hero.apply_buff("empower", 1, 0)
+						hero.apply_buff("empower", 1, 0, "own_turn_end")
 						print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " gained Empower (low HP)!")
 			
 			"cleanse":
@@ -2778,26 +2779,68 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 # BUFF/DEBUFF EFFECT PROCESSING
 # ============================================
 
+func _get_buff_expire_on(buff_type: String) -> String:
+	## Returns the correct expire_on for a given buff type.
+	match buff_type:
+		"empower":
+			return "own_turn_end"
+		"taunt":
+			return "opponent_turn_end"
+		"regen":
+			return "own_turn_end"
+		"equipped":
+			return "permanent"
+		_:
+			return "own_turn_end"  # Default: expires at end of own turn
+
+func _get_debuff_expire_on(debuff_type: String) -> String:
+	## Returns the correct expire_on for a given debuff type.
+	match debuff_type:
+		"stun":
+			return "own_turn_end"
+		"weak":
+			return "own_turn_end"
+		"frost":
+			return "own_turn_end"
+		"break":
+			return "own_turn_end"
+		"burn":
+			return "own_turn_end"
+		"poison":
+			return "own_turn_end"
+		"bleed":
+			return "own_turn_end"
+		"chain":
+			return "own_turn_end"
+		"entangle":
+			return "own_turn_end"
+		"marked":
+			return "own_turn_end"
+		"bomb":
+			return "own_turn_end"
+		_:
+			return "own_turn_end"  # Default: expires at end of own turn
+
 func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int, card_data: Dictionary = {}) -> void:
 	for effect in effects:
 		match effect:
 			"stun":
 				if target and not target.is_dead:
-					target.apply_debuff("stun", 2, source_atk)
+					target.apply_debuff("stun", 1, source_atk, "own_turn_end")
 			"weak":
 				if target and not target.is_dead:
-					target.apply_debuff("weak", 2, source_atk)
+					target.apply_debuff("weak", 1, source_atk, "own_turn_end")
 			"empower":
 				if source and not source.is_dead:
-					source.apply_buff("empower", 2, source_atk)
+					source.apply_buff("empower", 1, source_atk, "own_turn_end")
 			"empower_target":
 				if target and not target.is_dead:
-					target.apply_buff("empower", 2, source_atk)
+					target.apply_buff("empower", 1, source_atk, "own_turn_end")
 			"empower_all":
 				var allies = player_heroes if source.is_player_hero else enemy_heroes
 				for ally in allies:
 					if not ally.is_dead:
-						ally.apply_buff("empower", 2, source_atk)
+						ally.apply_buff("empower", 1, source_atk, "own_turn_end")
 			"taunt":
 				if source and not source.is_dead:
 					# Remove taunt from all other allies first
@@ -2805,10 +2848,10 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 					for ally in allies:
 						if ally != source:
 							ally.remove_buff("taunt")
-					source.apply_buff("taunt", 2, source_atk)
+					source.apply_buff("taunt", 1, source_atk, "opponent_turn_end")
 			"regen":
 				if target and not target.is_dead:
-					target.apply_buff("regen", 2, source_atk)
+					target.apply_buff("regen", 1, source_atk, "own_turn_end")
 			"cleanse":
 				if target and not target.is_dead:
 					target.clear_all_debuffs()
@@ -2828,7 +2871,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 							behind_target.take_damage(damage)
 							behind_target.play_hit_anim()
 							# Apply weak to behind target too
-							behind_target.apply_debuff("weak", 2, source_atk)
+							behind_target.apply_debuff("weak", 1, source_atk, "own_turn_end")
 			"upgrade_shuffle":
 				if not card_data.is_empty():
 					_apply_upgrade_shuffle(card_data)
@@ -2841,7 +2884,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 			"break":
 				# Caelum's EX: Apply Break debuff (+50% damage taken)
 				if target and not target.is_dead:
-					target.apply_debuff("break", 2, source_atk)
+					target.apply_debuff("break", 1, source_atk, "own_turn_end")
 			"thunder":
 				# Apply 1 Thunder stack to target
 				if target and not target.is_dead:
@@ -2971,6 +3014,16 @@ func _on_end_turn_pressed() -> void:
 				return  # Don't execute turn end logic locally
 			print("===\n")
 		
+		# === PLAYER TURN END: Expire buffs/debuffs ===
+		# Player's heroes: remove "own_turn_end" buffs/debuffs (empower, regen, etc.)
+		for hero in player_heroes:
+			if not hero.is_dead:
+				hero.on_own_turn_end()
+		# Enemy's heroes: remove "opponent_turn_end" buffs/debuffs (their shields, taunt, etc.)
+		for enemy in enemy_heroes:
+			if not enemy.is_dead:
+				enemy.on_opponent_turn_end()
+		
 		# Trigger Thunder damage on ALL heroes at end of player turn
 		await _trigger_thunder_damage(enemy_heroes)
 		await _trigger_thunder_damage(player_heroes)
@@ -3007,13 +3060,12 @@ func _on_turn_started(is_player: bool) -> void:
 	await _animate_turn_transition(is_player)
 	
 	if is_player:
-		# Tick down PLAYER buffs/debuffs at start of their turn
-		# This means effects applied last turn have now lasted through enemy's turn
+		# === PLAYER TURN START ===
+		# Buffs/debuffs already expired at end of previous turns.
+		# Just apply start-of-turn effects (regen, cleansing charm, etc.)
 		for hero in player_heroes:
 			if not hero.is_dead:
-				hero.on_turn_end()  # Tick down durations
-				hero.on_turn_start()  # Apply start-of-turn effects (regen, etc.)
-				# Trigger on_turn_start equipment effects (Cleansing Charm)
+				hero.on_turn_start()
 				_trigger_equipment_effects(hero, "on_turn_start", {})
 		
 		current_phase = BattlePhase.PLAYING
@@ -3023,12 +3075,21 @@ func _on_turn_started(is_player: bool) -> void:
 		_flip_to_player_turn()
 		_refresh_hand()
 	else:
-		# Tick down ENEMY buffs/debuffs at start of their turn
-		# This means effects applied last turn have now lasted through player's turn
+		# === ENEMY TURN START ===
+		# For single-player AI: the "enemy turn end" happens here since AI doesn't
+		# press end turn. Expire enemy's "own_turn_end" and player's "opponent_turn_end".
+		if not is_multiplayer:
+			for enemy in enemy_heroes:
+				if not enemy.is_dead:
+					enemy.on_own_turn_end()
+			for hero in player_heroes:
+				if not hero.is_dead:
+					hero.on_opponent_turn_end()
+		
+		# Apply start-of-turn effects for enemies
 		for enemy in enemy_heroes:
 			if not enemy.is_dead:
-				enemy.on_turn_end()  # Tick down durations
-				enemy.on_turn_start()  # Apply start-of-turn effects (regen, etc.)
+				enemy.on_turn_start()
 		
 		current_phase = BattlePhase.ENEMY_TURN
 		if turn_indicator:
@@ -4168,14 +4229,16 @@ func _apply_effect(effect: Dictionary) -> void:
 			var buff_type = effect.get("buff_type", "")
 			var duration = effect.get("duration", 1)
 			var value = effect.get("value", 0)
+			var expire_on = effect.get("expire_on", _get_buff_expire_on(buff_type))
 			if not buff_type.is_empty():
-				hero.apply_buff(buff_type, duration, value)
+				hero.apply_buff(buff_type, duration, value, expire_on)
 		"debuff":
 			var debuff_type = effect.get("debuff_type", "")
 			var duration = effect.get("duration", 1)
 			var value = effect.get("value", 0)
+			var expire_on = effect.get("expire_on", _get_debuff_expire_on(debuff_type))
 			if not debuff_type.is_empty():
-				hero.apply_debuff(debuff_type, duration, value)
+				hero.apply_debuff(debuff_type, duration, value, expire_on)
 		"energy":
 			var new_energy = effect.get("new_energy", hero.energy)
 			hero.energy = new_energy
@@ -4464,7 +4527,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 			var def_mult_val = card_data.get("def_multiplier", 0.0)
 			var shield_mult_legacy = card_data.get("shield_multiplier", 0.0)
 			var buff_type = card_data.get("buff_type", "")
-			var duration = card_data.get("duration", 1)
 			for t in targets:
 				var shield_amount = 0
 				if card_base_shield > 0 or def_mult_val > 0:
@@ -4474,16 +4536,17 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				if shield_amount > 0:
 					t.add_block(shield_amount)
 				if not buff_type.is_empty():
-					t.apply_buff(buff_type, duration, base_atk)
+					var buff_expire = _get_buff_expire_on(buff_type)
+					t.apply_buff(buff_type, 1, base_atk, buff_expire)
 			if source and targets.size() > 0:
 				await _animate_cast_buff(source, targets[0])
 		
 		"debuff":
 			var debuff_type = card_data.get("debuff_type", "")
-			var duration = card_data.get("duration", 1)
 			for t in targets:
 				if not debuff_type.is_empty():
-					t.apply_debuff(debuff_type, duration, base_atk)
+					var debuff_expire = _get_debuff_expire_on(debuff_type)
+					t.apply_debuff(debuff_type, 1, base_atk, debuff_expire)
 			if source and targets.size() > 0:
 				await _animate_cast_debuff(source, targets[0])
 		
@@ -4504,9 +4567,8 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				if eq_shield_amount > 0:
 					target.add_block(eq_shield_amount)
 				var buff_type = card_data.get("buff_type", "")
-				var duration = card_data.get("duration", -1)
 				if not buff_type.is_empty():
-					target.apply_buff(buff_type, duration, base_atk)
+					target.apply_buff(buff_type, -1, base_atk, "permanent")
 		
 		"energy":
 			if source:
@@ -4532,7 +4594,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": primary_target.instance_id,
 						"is_host_hero": primary_target.is_player_hero,
 						"debuff_type": "stun",
-						"duration": 2,
+						"duration": 1,
+						"expire_on": "own_turn_end",
 						"value": source.hero_data.get("base_attack", 10) if source else 10
 					})
 			"weak":
@@ -4543,7 +4606,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": primary_target.instance_id,
 						"is_host_hero": primary_target.is_player_hero,
 						"debuff_type": "weak",
-						"duration": 2,
+						"duration": 1,
+						"expire_on": "own_turn_end",
 						"value": source.hero_data.get("base_attack", 10) if source else 10
 					})
 			"empower":
@@ -4554,7 +4618,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": source.instance_id,
 						"is_host_hero": source.is_player_hero,
 						"buff_type": "empower",
-						"duration": 2,
+						"duration": 1,
+						"expire_on": "own_turn_end",
 						"value": source.hero_data.get("base_attack", 10)
 					})
 			"empower_target":
@@ -4565,7 +4630,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": primary_target.instance_id,
 						"is_host_hero": primary_target.is_player_hero,
 						"buff_type": "empower",
-						"duration": 2,
+						"duration": 1,
+						"expire_on": "own_turn_end",
 						"value": source.hero_data.get("base_attack", 10) if source else 10
 					})
 			"empower_all":
@@ -4578,7 +4644,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 							"instance_id": ally.instance_id,
 							"is_host_hero": ally.is_player_hero,
 							"buff_type": "empower",
-							"duration": 2,
+							"duration": 1,
+							"expire_on": "own_turn_end",
 							"value": source.hero_data.get("base_attack", 10) if source else 10
 						})
 			"taunt":
@@ -4589,7 +4656,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": source.instance_id,
 						"is_host_hero": source.is_player_hero,
 						"buff_type": "taunt",
-						"duration": 2,
+						"duration": 1,
+						"expire_on": "opponent_turn_end",
 						"value": source.hero_data.get("base_attack", 10)
 					})
 			"regen":
@@ -4600,7 +4668,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": primary_target.instance_id,
 						"is_host_hero": primary_target.is_player_hero,
 						"buff_type": "regen",
-						"duration": 2,
+						"duration": 1,
+						"expire_on": "own_turn_end",
 						"value": source.hero_data.get("base_attack", 10) if source else 10
 					})
 			"cleanse":
@@ -4681,7 +4750,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 								"instance_id": behind_target.instance_id,
 								"is_host_hero": behind_target.is_player_hero,
 								"debuff_type": "weak",
-								"duration": 2,
+								"duration": 1,
+								"expire_on": "own_turn_end",
 								"value": source.hero_data.get("base_attack", 10)
 							})
 			"shield_current_hp":
@@ -4702,7 +4772,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": primary_target.instance_id,
 						"is_host_hero": primary_target.is_player_hero,
 						"debuff_type": "break",
-						"duration": 2,
+						"duration": 1,
+						"expire_on": "own_turn_end",
 						"value": source.hero_data.get("base_attack", 10) if source else 10
 					})
 			"draw_1":
@@ -4963,17 +5034,17 @@ func _resolve_opponent_card_effect(card_data: Dictionary, source: Hero, target: 
 				if shield_amount > 0:
 					target.add_block(shield_amount)
 				var buff_type = card_data.get("buff_type", "")
-				var duration = card_data.get("duration", 1)
 				if not buff_type.is_empty():
-					target.apply_buff(buff_type, duration, base_atk)
+					var buff_expire = _get_buff_expire_on(buff_type)
+					target.apply_buff(buff_type, 1, base_atk, buff_expire)
 				if source:
 					await _animate_cast_buff(source, target)
 		"debuff":
 			if target:
 				var debuff_type = card_data.get("debuff_type", "")
-				var duration = card_data.get("duration", 1)
 				if not debuff_type.is_empty():
-					target.apply_debuff(debuff_type, duration, base_atk)
+					var debuff_expire = _get_debuff_expire_on(debuff_type)
+					target.apply_debuff(debuff_type, 1, base_atk, debuff_expire)
 				if source:
 					await _animate_cast_debuff(source, target)
 		"equipment":
@@ -4991,9 +5062,8 @@ func _resolve_opponent_card_effect(card_data: Dictionary, source: Hero, target: 
 				if eq_shield_amount > 0:
 					target.add_block(eq_shield_amount)
 				var buff_type = card_data.get("buff_type", "")
-				var duration = card_data.get("duration", -1)  # Equipment buffs are usually permanent
 				if not buff_type.is_empty():
-					target.apply_buff(buff_type, duration, base_atk)
+					target.apply_buff(buff_type, -1, base_atk, "permanent")
 				if source:
 					await _animate_cast_buff(source, target)
 				print(target.hero_data.get("name", "Hero"), " equipped: ", card_data.get("name", "Unknown"))

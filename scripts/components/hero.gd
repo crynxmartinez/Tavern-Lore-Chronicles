@@ -363,24 +363,48 @@ func on_turn_start() -> void:
 		heal(heal_amount)
 
 func on_turn_end() -> void:
-	# Tick down buff durations (skip permanent buffs with duration < 0)
+	# DEPRECATED - use on_own_turn_end() and on_opponent_turn_end() instead
+	# Kept for backwards compatibility, calls own_turn_end
+	on_own_turn_end()
+
+func on_own_turn_end() -> void:
+	## Called when THIS hero's owner ends their turn.
+	## Removes buffs/debuffs with expire_on = "own_turn_end"
 	var buffs_to_remove = []
 	for buff_name in active_buffs:
-		if active_buffs[buff_name].duration < 0:
-			continue  # Permanent buff (e.g. equipment "equipped" indicator)
-		active_buffs[buff_name].duration -= 1
-		if active_buffs[buff_name].duration <= 0:
+		var expire_on = active_buffs[buff_name].get("expire_on", "")
+		if expire_on == "own_turn_end":
 			buffs_to_remove.append(buff_name)
 	for buff_name in buffs_to_remove:
 		remove_buff(buff_name)
 	
-	# Tick down debuff durations (skip Thunder - it uses turns_remaining instead)
 	var debuffs_to_remove = []
 	for debuff_name in active_debuffs:
 		if debuff_name == "thunder":
 			continue  # Thunder is handled separately via tick_thunder()
-		active_debuffs[debuff_name].duration -= 1
-		if active_debuffs[debuff_name].duration <= 0:
+		var expire_on = active_debuffs[debuff_name].get("expire_on", "")
+		if expire_on == "own_turn_end":
+			debuffs_to_remove.append(debuff_name)
+	for debuff_name in debuffs_to_remove:
+		remove_debuff(debuff_name)
+
+func on_opponent_turn_end() -> void:
+	## Called when the OPPONENT of this hero's owner ends their turn.
+	## Removes buffs/debuffs with expire_on = "opponent_turn_end"
+	var buffs_to_remove = []
+	for buff_name in active_buffs:
+		var expire_on = active_buffs[buff_name].get("expire_on", "")
+		if expire_on == "opponent_turn_end":
+			buffs_to_remove.append(buff_name)
+	for buff_name in buffs_to_remove:
+		remove_buff(buff_name)
+	
+	var debuffs_to_remove = []
+	for debuff_name in active_debuffs:
+		if debuff_name == "thunder":
+			continue
+		var expire_on = active_debuffs[debuff_name].get("expire_on", "")
+		if expire_on == "opponent_turn_end":
 			debuffs_to_remove.append(debuff_name)
 	for debuff_name in debuffs_to_remove:
 		remove_debuff(debuff_name)
@@ -393,14 +417,24 @@ func _generate_buff_instance_id(name: String) -> String:
 	_buff_counter += 1
 	return instance_id + "_" + name + "_" + str(_buff_counter)
 
-func apply_buff(buff_name: String, duration: int = 1, source_atk: int = 10) -> void:
+func apply_buff(buff_name: String, duration: int = 1, source_atk: int = 10, expire_on: String = "") -> void:
+	## Apply a buff. expire_on can be:
+	##   "own_turn_end" - removed when this hero's owner ends their turn
+	##   "opponent_turn_end" - removed when the opponent ends their turn
+	##   "permanent" or duration < 0 - never expires
+	##   "" (empty) - uses legacy duration countdown (deprecated)
+	var resolved_expire = expire_on
+	if resolved_expire.is_empty() and duration < 0:
+		resolved_expire = "permanent"
 	active_buffs[buff_name] = {
 		"duration": duration,
+		"expire_on": resolved_expire,
 		"source_atk": source_atk,
 		"instance_id": _generate_buff_instance_id(buff_name)
 	}
 	_update_buff_icons()
-	print(hero_data.get("name", "Hero") + " gained buff: " + buff_name + " for " + str(duration) + " turn(s)")
+	var expire_str = resolved_expire if not resolved_expire.is_empty() else str(duration) + " turn(s)"
+	print(hero_data.get("name", "Hero") + " gained buff: " + buff_name + " (" + expire_str + ")")
 
 func remove_buff(buff_name: String) -> void:
 	if active_buffs.has(buff_name):
@@ -411,32 +445,43 @@ func remove_buff(buff_name: String) -> void:
 func has_buff(buff_name: String) -> bool:
 	return active_buffs.has(buff_name)
 
-func apply_debuff(debuff_name: String, duration: int = 1, source_atk: int = 10) -> void:
+func apply_debuff(debuff_name: String, duration: int = 1, source_atk: int = 10, expire_on: String = "") -> void:
+	## Apply a debuff. expire_on can be:
+	##   "own_turn_end" - removed when this hero's owner ends their turn
+	##   "opponent_turn_end" - removed when the opponent ends their turn
+	##   "permanent" or duration < 0 - never expires (until triggered)
+	##   "" (empty) - uses legacy duration countdown (deprecated)
 	# Thunder stacks instead of refreshing
 	if debuff_name == "thunder":
 		if active_debuffs.has("thunder"):
 			active_debuffs["thunder"]["stacks"] += 1
-			active_debuffs["thunder"]["source_atk"] = source_atk  # Update source ATK
-			active_debuffs["thunder"]["turns_remaining"] = 2  # Reset timer
+			active_debuffs["thunder"]["source_atk"] = source_atk
+			active_debuffs["thunder"]["turns_remaining"] = 2
 		else:
 			active_debuffs["thunder"] = {
-				"duration": -1,  # Thunder doesn't expire by duration, only by triggering
+				"duration": -1,
+				"expire_on": "permanent",
 				"source_atk": source_atk,
 				"stacks": 1,
-				"turns_remaining": 2,  # Triggers after 2 turns
+				"turns_remaining": 2,
 				"instance_id": _generate_buff_instance_id("thunder")
 			}
 		_update_buff_icons()
 		print(hero_data.get("name", "Hero") + " gained Thunder stack (total: " + str(active_debuffs["thunder"]["stacks"]) + ")")
 		return
 	
+	var resolved_expire = expire_on
+	if resolved_expire.is_empty() and duration < 0:
+		resolved_expire = "permanent"
 	active_debuffs[debuff_name] = {
 		"duration": duration,
+		"expire_on": resolved_expire,
 		"source_atk": source_atk,
 		"instance_id": _generate_buff_instance_id(debuff_name)
 	}
 	_update_buff_icons()
-	print(hero_data.get("name", "Hero") + " gained debuff: " + debuff_name + " for " + str(duration) + " turn(s)")
+	var expire_str = resolved_expire if not resolved_expire.is_empty() else str(duration) + " turn(s)"
+	print(hero_data.get("name", "Hero") + " gained debuff: " + debuff_name + " (" + expire_str + ")")
 
 func remove_debuff(debuff_name: String) -> void:
 	if active_debuffs.has(debuff_name):
@@ -647,7 +692,18 @@ func _create_status_icon(icon_path: String, status_name: String, is_buff: bool) 
 	
 	# Create tooltip
 	var tip = status_info.get("name", status_name) + "\n" + status_info.get("effect", "")
-	if duration > 0:
+	var expire_on = ""
+	if is_buff and active_buffs.has(status_name):
+		expire_on = active_buffs[status_name].get("expire_on", "")
+	elif not is_buff and active_debuffs.has(status_name):
+		expire_on = active_debuffs[status_name].get("expire_on", "")
+	if expire_on == "own_turn_end":
+		tip += "\nUntil end of turn"
+	elif expire_on == "opponent_turn_end":
+		tip += "\nUntil end of opponent's turn"
+	elif expire_on == "permanent":
+		pass  # No duration text for permanent
+	elif duration > 0:
 		tip += "\nDuration: " + str(duration) + " turn(s)"
 	# Show Thunder stacks in tooltip
 	if status_name == "thunder" and active_debuffs.has("thunder"):
