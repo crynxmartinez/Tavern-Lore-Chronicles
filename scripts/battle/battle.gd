@@ -914,11 +914,24 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 	var target: Hero = null
 	var target_is_enemy: bool = false
 	
-	print("Battle: [HOST] _play_queued_card_as_host - card: ", card_data.get("name", "?"), " type: ", card_type)
+	print("Battle: [HOST] _play_queued_card_as_host - card: ", card_data.get("name", "?"), " type: ", card_type, " target_type: ", target_type)
 	print("Battle: [HOST] source_hero: ", source_hero.hero_id if source_hero else "null")
 	
-	# Determine target based on card type
-	if card_type == "attack" or card_type == "basic_attack":
+	# Determine target based on card type and target_type
+	if target_type == "all_ally":
+		# Multi-target: target is null, _execute_card_and_collect_results resolves internally
+		target = null
+		target_is_enemy = false
+		print("Battle: [HOST] all_ally card - multi-target resolved in execute")
+	elif target_type == "all_enemy":
+		target = null
+		target_is_enemy = true
+		print("Battle: [HOST] all_enemy card - multi-target resolved in execute")
+	elif target_type == "self":
+		target = source_hero
+		target_is_enemy = false
+		print("Battle: [HOST] self-target: ", target.hero_id if target else "null")
+	elif card_type == "attack" or card_type == "basic_attack":
 		target = _get_nearest_enemy()
 		target_is_enemy = true
 		print("Battle: [HOST] Attack target (nearest enemy): ", target.hero_id if target else "null")
@@ -926,18 +939,18 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 		target = _get_lowest_hp_ally()
 		target_is_enemy = false
 	elif card_type == "buff":
-		if target_type == "self":
-			target = source_hero
-			target_is_enemy = false
-		else:
-			target = _get_first_alive_ally()
-			target_is_enemy = false
+		target = _get_first_alive_ally()
+		target_is_enemy = false
 	elif card_type == "debuff":
 		target = _get_nearest_enemy()
 		target_is_enemy = true
 	elif card_type == "equipment":
 		target = source_hero
 		target_is_enemy = false
+	elif card_type == "energy":
+		target = source_hero
+		target_is_enemy = false
+		print("Battle: [HOST] energy card - self-target: ", target.hero_id if target else "null")
 	
 	# Execute and collect results
 	var result = await _execute_card_and_collect_results(card_data, source_hero, target)
@@ -3700,10 +3713,25 @@ func _host_execute_card_request(request: Dictionary) -> void:
 		return
 	if source == null:
 		print("  NOTE: Source is null (equipment card - this is OK)")
+	
+	# RC1: Auto-resolve target for cards that don't need an explicit target
+	var card_target_type = card_data.get("target", "")
+	var card_type = card_data.get("type", "")
 	if target == null:
-		print("  ERROR: Target hero not found! Cannot execute card.")
-		print("---\n")
-		return
+		if card_target_type in ["all_ally", "all_enemy"]:
+			# Multi-target cards: null target is OK, resolved inside _execute_card_and_collect_results
+			print("  NOTE: Multi-target card (", card_target_type, ") - target resolved in execute")
+		elif card_target_type == "self" or card_type == "energy":
+			# Self-target / energy cards: use source as target
+			target = source
+			print("  NOTE: Auto-resolved self/energy target to source: ", target.hero_id if target else "NULL!")
+		elif card_type == "equipment" and source == null:
+			# Equipment with no source - already handled above
+			pass
+		else:
+			print("  ERROR: Target hero not found! Cannot execute card.")
+			print("---\n")
+			return
 	
 	# Execute the card and collect results
 	print("  → Executing card...")
@@ -3874,45 +3902,62 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "NULL!", " iid=", source.instance_id if source else "?")
 	print("Battle: [GUEST]   Found target: ", target.hero_id if target else "NULL!", " iid=", target.instance_id if target else "?")
 	
+	# For multi-target cards, target may be null - resolve an animation target from effects
+	var anim_target = target
+	if anim_target == null and effects.size() > 0:
+		var first_effect_iid = effects[0].get("instance_id", "")
+		if not first_effect_iid.is_empty():
+			anim_target = _find_hero_by_instance_id(first_effect_iid)
+		if anim_target == null:
+			var first_effect_hid = effects[0].get("hero_id", "")
+			if not first_effect_hid.is_empty():
+				for h in player_heroes + enemy_heroes:
+					if h.hero_id == first_effect_hid:
+						anim_target = h
+						break
+	
 	# Play VISUAL-ONLY animation based on card type
 	# Guest must NOT call _animate_attack (it applies damage via take_damage).
 	# Instead, use _guest_animate_attack which is visual-only.
 	# _apply_effect will set the authoritative HP values from Host afterward.
-	if card_type in ["attack", "basic_attack"] and source and target:
+	if card_type in ["attack", "basic_attack"] and source and anim_target:
 		var damage = 0
 		for effect in effects:
 			if effect.get("type", "") == "damage":
 				damage = int(effect.get("amount", 0))
 				break
-		print("Battle: [GUEST] ANIM: attack - source=", source.hero_id, " target=", target.hero_id, " damage=", damage)
+		print("Battle: [GUEST] ANIM: attack - source=", source.hero_id, " target=", anim_target.hero_id, " damage=", damage)
 		await _show_card_display({"name": card_name, "type": card_type})
 		if damage > 0:
-			await _guest_animate_attack(source, target, damage)
+			await _guest_animate_attack(source, anim_target, damage)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: attack animation complete")
-	elif card_type == "heal" and source and target:
-		print("Battle: [GUEST] ANIM: heal - source=", source.hero_id, " target=", target.hero_id)
+	elif card_type == "heal" and source:
+		var heal_target = anim_target if anim_target else source
+		print("Battle: [GUEST] ANIM: heal - source=", source.hero_id, " target=", heal_target.hero_id)
 		await _show_card_display({"name": card_name, "type": card_type})
-		await _animate_cast_heal(source, target)
+		await _animate_cast_heal(source, heal_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: heal animation complete")
-	elif card_type == "buff" and source and target:
-		print("Battle: [GUEST] ANIM: buff - source=", source.hero_id, " target=", target.hero_id)
+	elif card_type == "buff" and source:
+		var buff_target = anim_target if anim_target else source
+		print("Battle: [GUEST] ANIM: buff - source=", source.hero_id, " target=", buff_target.hero_id)
 		await _show_card_display({"name": card_name, "type": card_type})
-		await _animate_cast_buff(source, target)
+		await _animate_cast_buff(source, buff_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: buff animation complete")
-	elif card_type == "debuff" and source and target:
-		print("Battle: [GUEST] ANIM: debuff - source=", source.hero_id, " target=", target.hero_id)
+	elif card_type == "debuff" and source:
+		var debuff_target = anim_target if anim_target else source
+		print("Battle: [GUEST] ANIM: debuff - source=", source.hero_id, " target=", debuff_target.hero_id)
 		await _show_card_display({"name": card_name, "type": card_type})
-		await _animate_cast_debuff(source, target)
+		await _animate_cast_debuff(source, debuff_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: debuff animation complete")
-	elif card_type == "equipment" and target:
-		var caster = source if source else target
-		print("Battle: [GUEST] ANIM: equipment - caster=", caster.hero_id, " target=", target.hero_id)
+	elif card_type == "equipment" and anim_target:
+		var caster = source if source else anim_target
+		print("Battle: [GUEST] ANIM: equipment - caster=", caster.hero_id, " target=", anim_target.hero_id)
 		await _show_card_display({"name": card_name, "type": card_type})
-		await _animate_cast_buff(caster, target)
+		await _animate_cast_buff(caster, anim_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: equipment animation complete")
 	elif card_type == "energy" and source:
@@ -3922,13 +3967,13 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: energy animation complete")
 	else:
-		print("Battle: [GUEST] ANIM: SKIPPED! card_type='", card_type, "' source=", source != null, " target=", target != null)
+		print("Battle: [GUEST] ANIM: SKIPPED! card_type='", card_type, "' source=", source != null, " target=", anim_target != null)
 		if card_type.is_empty():
 			print("Battle: [GUEST] WARNING: card_type is EMPTY - animation will not play!")
 		if source == null:
 			print("Battle: [GUEST] WARNING: source hero NOT FOUND for id '", source_hero_id, "'")
-		if target == null:
-			print("Battle: [GUEST] WARNING: target hero NOT FOUND for id '", target_hero_id, "'")
+		if anim_target == null:
+			print("Battle: [GUEST] WARNING: target hero NOT FOUND for animation")
 	
 	# Apply each effect (set authoritative values from Host after animation)
 	print("Battle: [GUEST] Applying ", effects.size(), " effects...")
@@ -3943,9 +3988,17 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 func _guest_apply_ex_skill_result(result: Dictionary) -> void:
 	## GUEST: Apply EX skill results from Host
 	var effects = result.get("effects", [])
+	var source_hero_id = result.get("source_hero_id", "")
+	var target_hero_id = result.get("target_hero_id", "")
 	
-	for effect in effects:
+	print("Battle: [GUEST] Applying EX skill result - source: ", source_hero_id, " target: ", target_hero_id, " effects: ", effects.size())
+	
+	for i in range(effects.size()):
+		var effect = effects[i]
+		print("Battle: [GUEST]   EX effect[", i, "]: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"))
 		_apply_effect(effect)
+	
+	print("Battle: [GUEST] EX skill result fully applied\n")
 
 func _guest_apply_end_turn_result(result: Dictionary) -> void:
 	## GUEST: Received end_turn result from Host
@@ -4038,6 +4091,16 @@ func _apply_effect(effect: Dictionary) -> void:
 			var new_mana = effect.get("new_mana", GameManager.current_mana)
 			GameManager.current_mana = new_mana
 			GameManager.mana_changed.emit(new_mana, GameManager.max_mana)
+		"cleanse":
+			hero.clear_all_debuffs()
+		"draw":
+			var amount = effect.get("amount", 1)
+			if hero.is_player_hero:
+				GameManager.draw_cards(amount)
+				_refresh_hand()
+		"revive":
+			var new_hp = effect.get("new_hp", 1)
+			hero.revive(new_hp)
 
 func _on_opponent_turn_ended() -> void:
 	# Opponent ended their turn, now it's our turn
@@ -4051,6 +4114,7 @@ func _on_opponent_turn_ended() -> void:
 func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, target: Hero) -> Dictionary:
 	## HOST ONLY: Execute a card and collect all effects as results
 	## Returns a dictionary with "effects" array containing all state changes
+	## Supports multi-target (all_ally/all_enemy) and card effects array
 	print("Battle: [HOST] _execute_card_and_collect_results")
 	print("  card: ", card_data.get("name", "?"))
 	print("  source: ", source.hero_id if source else "null")
@@ -4058,111 +4122,155 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 	
 	var effects: Array = []
 	var card_type = card_data.get("type", "")
+	var target_type = card_data.get("target", "single_enemy")
 	var base_atk = source.hero_data.get("base_attack", 10) if source else 10
 	var damage_mult = source.get_damage_multiplier() if source else 1.0
+	var card_effects = card_data.get("effects", [])
+	
+	# Resolve target list for multi-target cards
+	var targets: Array = []
+	if target_type == "all_ally":
+		var ally_team = player_heroes if (source and source.is_player_hero) else enemy_heroes
+		for h in ally_team:
+			if not h.is_dead:
+				targets.append(h)
+		print("Battle: [HOST] Multi-target all_ally: ", targets.size(), " targets")
+	elif target_type == "all_enemy":
+		var enemy_team = enemy_heroes if (source and source.is_player_hero) else player_heroes
+		for h in enemy_team:
+			if not h.is_dead:
+				targets.append(h)
+		print("Battle: [HOST] Multi-target all_enemy: ", targets.size(), " targets")
+	elif target:
+		targets.append(target)
 	
 	# Show card display
 	await _show_card_display(card_data)
 	
 	match card_type:
 		"attack", "basic_attack":
-			if target:
-				var atk_mult = card_data.get("atk_multiplier", 1.0)
-				var damage = int(base_atk * atk_mult * damage_mult)
-				var old_hp = target.current_hp
+			var atk_mult = card_data.get("atk_multiplier", 1.0)
+			var damage = int(base_atk * atk_mult * damage_mult)
+			
+			for t in targets:
+				var old_hp = t.current_hp
+				print("Battle: [HOST] Executing attack - damage: ", damage, " on ", t.hero_id)
 				
-				print("Battle: [HOST] Executing attack - damage: ", damage, " on ", target.hero_id)
-				
-				# Execute the attack with animation
 				if source:
-					await _animate_attack(source, target, damage)
+					await _animate_attack(source, t, damage)
 				else:
-					target.take_damage(damage)
+					t.take_damage(damage)
 				
-				print("Battle: [HOST] After attack - target HP: ", target.current_hp, " (was ", old_hp, ")")
+				print("Battle: [HOST] After attack - ", t.hero_id, " HP: ", t.current_hp, " (was ", old_hp, ")")
 				
 				effects.append({
 					"type": "damage",
-					"hero_id": target.hero_id,
-					"instance_id": target.instance_id,
-					"is_host_hero": target.is_player_hero,
+					"hero_id": t.hero_id,
+					"instance_id": t.instance_id,
+					"is_host_hero": t.is_player_hero,
 					"amount": damage,
-					"new_hp": target.current_hp,
-					"new_block": target.block
+					"new_hp": t.current_hp,
+					"new_block": t.block
 				})
+			
+			# Process card effects (stun, thunder, mana_surge, penetrate, etc.)
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"heal":
-			if target:
-				var heal_mult = card_data.get("heal_multiplier", card_data.get("atk_multiplier", 1.0))
-				var heal_amount = int(base_atk * heal_mult)
-				target.heal(heal_amount)
+			var heal_mult = card_data.get("heal_multiplier", card_data.get("atk_multiplier", 1.0))
+			var heal_amount = int(base_atk * heal_mult)
+			
+			for t in targets:
+				t.heal(heal_amount)
 				
-				if source:
-					await _animate_cast_heal(source, target)
+				if source and t == targets[0]:
+					await _animate_cast_heal(source, t)
 				
 				effects.append({
 					"type": "heal",
-					"hero_id": target.hero_id,
-					"instance_id": target.instance_id,
-					"is_host_hero": target.is_player_hero,
+					"hero_id": t.hero_id,
+					"instance_id": t.instance_id,
+					"is_host_hero": t.is_player_hero,
 					"amount": heal_amount,
-					"new_hp": target.current_hp
+					"new_hp": t.current_hp
 				})
+			
+			# Process card effects (cleanse, etc.)
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"buff":
-			if target:
-				var shield_mult = card_data.get("shield_multiplier", 0.0)
+			var shield_mult = card_data.get("shield_multiplier", 0.0)
+			var buff_type = card_data.get("buff_type", "")
+			var duration = card_data.get("duration", 1)
+			
+			for t in targets:
 				if shield_mult > 0:
 					var shield_amount = int(base_atk * shield_mult)
-					target.add_block(shield_amount)
+					t.add_block(shield_amount)
 					effects.append({
 						"type": "block",
-						"hero_id": target.hero_id,
-						"instance_id": target.instance_id,
-						"is_host_hero": target.is_player_hero,
+						"hero_id": t.hero_id,
+						"instance_id": t.instance_id,
+						"is_host_hero": t.is_player_hero,
 						"amount": shield_amount,
-						"new_block": target.block
+						"new_block": t.block
 					})
 				
-				var buff_type = card_data.get("buff_type", "")
-				var duration = card_data.get("duration", 1)
 				if not buff_type.is_empty():
-					target.apply_buff(buff_type, duration, base_atk)
+					t.apply_buff(buff_type, duration, base_atk)
 					effects.append({
 						"type": "buff",
-						"hero_id": target.hero_id,
-						"instance_id": target.instance_id,
-						"is_host_hero": target.is_player_hero,
+						"hero_id": t.hero_id,
+						"instance_id": t.instance_id,
+						"is_host_hero": t.is_player_hero,
 						"buff_type": buff_type,
 						"duration": duration,
 						"value": base_atk
 					})
-				
-				if source:
-					await _animate_cast_buff(source, target)
+			
+			if source and targets.size() > 0:
+				await _animate_cast_buff(source, targets[0])
+			
+			# Process card effects (empower_target, taunt, draw_1, etc.)
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"debuff":
-			if target:
-				var debuff_type = card_data.get("debuff_type", "")
-				var duration = card_data.get("duration", 1)
+			var debuff_type = card_data.get("debuff_type", "")
+			var duration = card_data.get("duration", 1)
+			
+			for t in targets:
 				if not debuff_type.is_empty():
-					target.apply_debuff(debuff_type, duration, base_atk)
+					t.apply_debuff(debuff_type, duration, base_atk)
 					effects.append({
 						"type": "debuff",
-						"hero_id": target.hero_id,
-						"instance_id": target.instance_id,
-						"is_host_hero": target.is_player_hero,
+						"hero_id": t.hero_id,
+						"instance_id": t.instance_id,
+						"is_host_hero": t.is_player_hero,
 						"debuff_type": debuff_type,
 						"duration": duration,
 						"value": base_atk
 					})
-				
-				if source:
-					await _animate_cast_debuff(source, target)
+			
+			if source and targets.size() > 0:
+				await _animate_cast_debuff(source, targets[0])
+			
+			# Process card effects (thunder_all, thunder_stack_2, etc.)
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"equipment":
 			if target:
-				# Play cast animation first (use target as fallback caster if source is null)
 				var caster = source if source else target
 				if caster:
 					await _animate_cast_buff(caster, target)
@@ -4224,17 +4332,247 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 		"effects": effects
 	}
 
+func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero, primary_target: Hero, targets: Array) -> void:
+	## After _apply_effects has been called, snapshot any state changes caused by
+	## the card's effects array so the Guest can replicate them.
+	## This collects buff/debuff/block/hp/energy changes from effects like stun, empower, taunt, etc.
+	for effect_name in card_effects:
+		match effect_name:
+			"stun":
+				if primary_target and not primary_target.is_dead:
+					effects.append({
+						"type": "debuff",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero,
+						"debuff_type": "stun",
+						"duration": 2,
+						"value": source.hero_data.get("base_attack", 10) if source else 10
+					})
+			"weak":
+				if primary_target and not primary_target.is_dead:
+					effects.append({
+						"type": "debuff",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero,
+						"debuff_type": "weak",
+						"duration": 2,
+						"value": source.hero_data.get("base_attack", 10) if source else 10
+					})
+			"empower":
+				if source and not source.is_dead:
+					effects.append({
+						"type": "buff",
+						"hero_id": source.hero_id,
+						"instance_id": source.instance_id,
+						"is_host_hero": source.is_player_hero,
+						"buff_type": "empower",
+						"duration": 2,
+						"value": source.hero_data.get("base_attack", 10)
+					})
+			"empower_target":
+				if primary_target and not primary_target.is_dead:
+					effects.append({
+						"type": "buff",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero,
+						"buff_type": "empower",
+						"duration": 2,
+						"value": source.hero_data.get("base_attack", 10) if source else 10
+					})
+			"empower_all":
+				var allies = player_heroes if (source and source.is_player_hero) else enemy_heroes
+				for ally in allies:
+					if not ally.is_dead:
+						effects.append({
+							"type": "buff",
+							"hero_id": ally.hero_id,
+							"instance_id": ally.instance_id,
+							"is_host_hero": ally.is_player_hero,
+							"buff_type": "empower",
+							"duration": 2,
+							"value": source.hero_data.get("base_attack", 10) if source else 10
+						})
+			"taunt":
+				if source and not source.is_dead:
+					effects.append({
+						"type": "buff",
+						"hero_id": source.hero_id,
+						"instance_id": source.instance_id,
+						"is_host_hero": source.is_player_hero,
+						"buff_type": "taunt",
+						"duration": 2,
+						"value": source.hero_data.get("base_attack", 10)
+					})
+			"regen":
+				if primary_target and not primary_target.is_dead:
+					effects.append({
+						"type": "buff",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero,
+						"buff_type": "regen",
+						"duration": 2,
+						"value": source.hero_data.get("base_attack", 10) if source else 10
+					})
+			"cleanse":
+				if primary_target and not primary_target.is_dead:
+					effects.append({
+						"type": "cleanse",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero
+					})
+			"cleanse_all":
+				var allies = player_heroes if (source and source.is_player_hero) else enemy_heroes
+				for ally in allies:
+					if not ally.is_dead:
+						effects.append({
+							"type": "cleanse",
+							"hero_id": ally.hero_id,
+							"instance_id": ally.instance_id,
+							"is_host_hero": ally.is_player_hero
+						})
+			"thunder":
+				if primary_target and not primary_target.is_dead:
+					effects.append({
+						"type": "debuff",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero,
+						"debuff_type": "thunder",
+						"duration": 1,
+						"value": source.hero_data.get("base_attack", 10) if source else 10
+					})
+			"thunder_all":
+				var enemies = enemy_heroes if (source and source.is_player_hero) else player_heroes
+				for enemy in enemies:
+					if not enemy.is_dead:
+						effects.append({
+							"type": "debuff",
+							"hero_id": enemy.hero_id,
+							"instance_id": enemy.instance_id,
+							"is_host_hero": enemy.is_player_hero,
+							"debuff_type": "thunder",
+							"duration": 1,
+							"value": source.hero_data.get("base_attack", 10) if source else 10
+						})
+			"thunder_stack_2":
+				if primary_target and not primary_target.is_dead and primary_target.has_debuff("thunder"):
+					effects.append({
+						"type": "debuff",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero,
+						"debuff_type": "thunder_stack_2",
+						"duration": 1,
+						"value": source.hero_data.get("base_attack", 10) if source else 10
+					})
+			"penetrate":
+				# Penetrate damage is already applied by _apply_effects
+				# Snapshot the behind-target's HP
+				if primary_target and not primary_target.is_dead:
+					var target_team = player_heroes if primary_target.is_player_hero else enemy_heroes
+					var target_index = target_team.find(primary_target)
+					var behind_index = target_index - 1 if primary_target.is_player_hero else target_index + 1
+					if behind_index >= 0 and behind_index < target_team.size():
+						var behind_target = target_team[behind_index]
+						if not behind_target.is_dead:
+							effects.append({
+								"type": "damage",
+								"hero_id": behind_target.hero_id,
+								"instance_id": behind_target.instance_id,
+								"is_host_hero": behind_target.is_player_hero,
+								"amount": int(source.hero_data.get("base_attack", 10) * 1.0),
+								"new_hp": behind_target.current_hp,
+								"new_block": behind_target.block
+							})
+							effects.append({
+								"type": "debuff",
+								"hero_id": behind_target.hero_id,
+								"instance_id": behind_target.instance_id,
+								"is_host_hero": behind_target.is_player_hero,
+								"debuff_type": "weak",
+								"duration": 2,
+								"value": source.hero_data.get("base_attack", 10)
+							})
+			"shield_current_hp":
+				if source and not source.is_dead:
+					effects.append({
+						"type": "block",
+						"hero_id": source.hero_id,
+						"instance_id": source.instance_id,
+						"is_host_hero": source.is_player_hero,
+						"amount": source.current_hp,
+						"new_block": source.block
+					})
+			"break":
+				if primary_target and not primary_target.is_dead:
+					effects.append({
+						"type": "debuff",
+						"hero_id": primary_target.hero_id,
+						"instance_id": primary_target.instance_id,
+						"is_host_hero": primary_target.is_player_hero,
+						"debuff_type": "break",
+						"duration": 2,
+						"value": source.hero_data.get("base_attack", 10) if source else 10
+					})
+			"draw_1":
+				if source and source.is_player_hero:
+					effects.append({
+						"type": "draw",
+						"hero_id": source.hero_id,
+						"instance_id": source.instance_id,
+						"is_host_hero": source.is_player_hero,
+						"amount": 1
+					})
+			"mana_surge":
+				# Mana surge bonus damage is already applied by _apply_effects
+				# Just note it for the Guest (no extra snapshot needed)
+				pass
+
 func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictionary:
 	## HOST ONLY: Execute an EX skill and collect all effects as results
+	## Handles all EX types: damage, self_buff, thunder_all, revive, multi-target
 	var effects: Array = []
 	
-	if source == null or target == null:
+	if source == null:
 		return {"success": false, "effects": []}
 	
-	# Execute the EX skill
-	await _execute_ex_skill(source, target)
+	var ex_data = source.hero_data.get("ex_skill", {})
+	var ex_type = ex_data.get("type", "damage")
+	var ex_effects = ex_data.get("effects", [])
+	var base_atk = source.hero_data.get("base_attack", 10)
 	
-	# Collect the resulting state
+	print("Battle: [HOST] _execute_ex_skill_and_collect_results")
+	print("  source: ", source.hero_id, " ex_type: ", ex_type)
+	print("  target: ", target.hero_id if target else "null")
+	print("  ex_effects: ", ex_effects)
+	
+	# Snapshot all heroes BEFORE execution so we can detect changes
+	var pre_snapshot: Dictionary = {}
+	for h in player_heroes + enemy_heroes:
+		pre_snapshot[h.instance_id] = {
+			"hp": h.current_hp,
+			"block": h.block,
+			"energy": h.energy,
+			"is_dead": h.is_dead
+		}
+	
+	# For self_buff and thunder_all, target may be source itself
+	if target == null and (ex_type == "self_buff" or ex_type == "thunder_all"):
+		target = source
+	
+	# Execute the EX skill (runs animation + applies effects on Host)
+	if target:
+		await _execute_ex_skill(source, target)
+	else:
+		# Fallback: execute with source as target (shouldn't happen normally)
+		await _execute_ex_skill(source, source)
+	
+	# Always collect source energy change (EX costs energy)
 	effects.append({
 		"type": "energy",
 		"hero_id": source.hero_id,
@@ -4243,15 +4581,68 @@ func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictio
 		"new_energy": source.energy
 	})
 	
-	# The target's state after EX skill
-	effects.append({
-		"type": "damage",
-		"hero_id": target.hero_id,
-		"instance_id": target.instance_id,
-		"is_host_hero": target.is_player_hero,
-		"new_hp": target.current_hp,
-		"new_block": target.block
-	})
+	# Detect and collect all state changes by comparing to pre-snapshot
+	for h in player_heroes + enemy_heroes:
+		var pre = pre_snapshot.get(h.instance_id, {})
+		if pre.is_empty():
+			continue
+		
+		# HP changed (damage or heal)
+		if h.current_hp != pre.get("hp", h.current_hp):
+			if h.current_hp < pre.get("hp", h.current_hp):
+				effects.append({
+					"type": "damage",
+					"hero_id": h.hero_id,
+					"instance_id": h.instance_id,
+					"is_host_hero": h.is_player_hero,
+					"amount": pre.get("hp", 0) - h.current_hp,
+					"new_hp": h.current_hp,
+					"new_block": h.block
+				})
+			else:
+				effects.append({
+					"type": "heal",
+					"hero_id": h.hero_id,
+					"instance_id": h.instance_id,
+					"is_host_hero": h.is_player_hero,
+					"amount": h.current_hp - pre.get("hp", 0),
+					"new_hp": h.current_hp
+				})
+		
+		# Block changed
+		if h.block != pre.get("block", h.block):
+			effects.append({
+				"type": "block",
+				"hero_id": h.hero_id,
+				"instance_id": h.instance_id,
+				"is_host_hero": h.is_player_hero,
+				"amount": h.block - pre.get("block", 0),
+				"new_block": h.block
+			})
+		
+		# Hero died
+		if h.is_dead and not pre.get("is_dead", false):
+			# Already captured in damage effect above with new_hp <= 0
+			pass
+		
+		# Hero revived (was dead, now alive)
+		if not h.is_dead and pre.get("is_dead", false):
+			effects.append({
+				"type": "revive",
+				"hero_id": h.hero_id,
+				"instance_id": h.instance_id,
+				"is_host_hero": h.is_player_hero,
+				"new_hp": h.current_hp
+			})
+	
+	# Collect buff/debuff effects from the EX skill's effects array
+	# These are applied by _apply_effects inside _execute_ex_skill
+	_collect_effects_snapshot(effects, ex_effects, source, target, [])
+	
+	print("Battle: [HOST] EX skill collected ", effects.size(), " effects")
+	for i in range(effects.size()):
+		var e = effects[i]
+		print("  effect[", i, "]: ", e.get("type", "?"), " on ", e.get("hero_id", "?"))
 	
 	return {
 		"success": true,
