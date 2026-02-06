@@ -5,8 +5,9 @@ signal hero_clicked(hero: Hero)
 signal hero_died(hero: Hero)
 signal energy_full(hero: Hero)
 
-@export var hero_id: String = ""
+@export var hero_id: String = ""  # Template/type ID (e.g. "priest", "squire")
 @export var is_player_hero: bool = true
+var instance_id: String = ""  # Globally unique instance ID (e.g. "host_priest_0")
 var owner_id: String = ""  # player_id of the player who owns this hero
 
 var hero_data: Dictionary = {}

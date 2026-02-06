@@ -266,6 +266,11 @@ func _spawn_heroes(team: Array, is_player: bool) -> void:
 		enemy_heroes.clear()
 	
 	var hero_count = spawn_team.size()
+	# Determine the owner's player_id for deterministic instance_id generation
+	# Both sides compute the SAME instance_id for any hero using: owner_short_heroId_origPos
+	var owner_pid = my_player_id if is_player else opponent_player_id
+	# Use last 8 chars of player_id as short prefix for readability
+	var owner_short = owner_pid.substr(max(0, owner_pid.length() - 8)) if not owner_pid.is_empty() else ("p" if is_player else "e")
 	for i in range(hero_count):
 		var hero_id = spawn_team[i]
 		var hero_instance = hero_scene.instantiate()
@@ -273,9 +278,17 @@ func _spawn_heroes(team: Array, is_player: bool) -> void:
 		$Board.add_child(hero_instance)
 		hero_instance.setup(hero_id)
 		hero_instance.is_player_hero = is_player
+		# Generate deterministic instance_id: ownerShort_heroId_originalPosition
+		# Note: i is the spawn position (may be reversed for enemy in MP), 
+		# but we use the ORIGINAL team index for consistency.
+		# For enemy in MP, spawn_team is reversed, so original index = (hero_count - 1 - i)
+		var original_index = i
+		if is_multiplayer and not is_player:
+			original_index = hero_count - 1 - i  # Undo the reverse to get original team index
+		hero_instance.instance_id = owner_short + "_" + hero_id + "_" + str(original_index)
 		# Tag hero with owner's player_id
 		if is_multiplayer:
-			hero_instance.owner_id = my_player_id if is_player else opponent_player_id
+			hero_instance.owner_id = owner_pid
 		hero_instance.hero_clicked.connect(_on_hero_clicked)
 		hero_instance.hero_died.connect(_on_hero_died)
 		
@@ -289,7 +302,7 @@ func _spawn_heroes(team: Array, is_player: bool) -> void:
 		hero_instance.global_position = positions[i]
 		hero_instance.z_index = z_indices[i]
 		
-		print("Battle: Spawned hero ", hero_id, " at position ", positions[i], " is_player: ", is_player)
+		print("Battle: Spawned hero ", hero_id, " instance_id=", hero_instance.instance_id, " at position ", positions[i], " is_player: ", is_player)
 		
 		if not is_player:
 			hero_instance.flip_sprite()
@@ -662,7 +675,9 @@ func _add_card_to_stack(card: Card) -> void:
 				"action_type": "play_card",
 				"card_data": card.card_data.duplicate(),
 				"source_hero_id": source_hero.hero_id if source_hero else "",
+				"source_instance_id": source_hero.instance_id if source_hero else "",
 				"target_hero_id": auto_target.hero_id if auto_target else "",
+				"target_instance_id": auto_target.instance_id if auto_target else "",
 				"target_is_enemy": auto_target_is_enemy,
 				"timestamp": Time.get_unix_time_from_system()
 			}
@@ -933,13 +948,15 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 	result["card_name"] = card_data.get("name", "Unknown")
 	result["card_type"] = card_data.get("type", "")
 	result["source_hero_id"] = source_hero.hero_id if source_hero else ""
+	result["source_instance_id"] = source_hero.instance_id if source_hero else ""
 	result["target_hero_id"] = target.hero_id if target else ""
+	result["target_instance_id"] = target.instance_id if target else ""
 	result["target_is_enemy"] = target_is_enemy
 	
 	# Debug: Print what we're sending
 	print("Battle: [HOST] Sending result with ", result.get("effects", []).size(), " effects")
 	for effect in result.get("effects", []):
-		print("  - Effect: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"))
+		print("  - Effect: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"), " iid=", effect.get("instance_id", "?"))
 	
 	# Send results to Guest
 	network_manager.send_action_result(result)
@@ -1423,7 +1440,9 @@ func _on_hero_clicked(hero: Hero) -> void:
 					var request = {
 						"action_type": "use_ex_skill",
 						"source_hero_id": ex_skill_hero.hero_id,
+						"source_instance_id": ex_skill_hero.instance_id,
 						"target_hero_id": hero.hero_id,
+						"target_instance_id": hero.instance_id,
 						"target_is_enemy": false,
 						"timestamp": Time.get_unix_time_from_system()
 					}
@@ -1439,7 +1458,9 @@ func _on_hero_clicked(hero: Hero) -> void:
 					ex_result["action_type"] = "use_ex_skill"
 					ex_result["played_by"] = my_player_id
 					ex_result["source_hero_id"] = ex_skill_hero.hero_id
+					ex_result["source_instance_id"] = ex_skill_hero.instance_id
 					ex_result["target_hero_id"] = hero.hero_id
+					ex_result["target_instance_id"] = hero.instance_id
 					network_manager.send_action_result(ex_result)
 				else:
 					_execute_ex_skill(ex_skill_hero, hero)
@@ -1450,7 +1471,9 @@ func _on_hero_clicked(hero: Hero) -> void:
 					var request = {
 						"action_type": "use_ex_skill",
 						"source_hero_id": ex_skill_hero.hero_id,
+						"source_instance_id": ex_skill_hero.instance_id,
 						"target_hero_id": hero.hero_id,
+						"target_instance_id": hero.instance_id,
 						"target_is_enemy": true,
 						"timestamp": Time.get_unix_time_from_system()
 					}
@@ -1466,7 +1489,9 @@ func _on_hero_clicked(hero: Hero) -> void:
 					ex_result["action_type"] = "use_ex_skill"
 					ex_result["played_by"] = my_player_id
 					ex_result["source_hero_id"] = ex_skill_hero.hero_id
+					ex_result["source_instance_id"] = ex_skill_hero.instance_id
 					ex_result["target_hero_id"] = hero.hero_id
+					ex_result["target_instance_id"] = hero.instance_id
 					network_manager.send_action_result(ex_result)
 				else:
 					_execute_ex_skill(ex_skill_hero, hero)
@@ -1490,7 +1515,9 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 				"action_type": "play_card",
 				"card_data": card_data_copy,
 				"source_hero_id": source_hero.hero_id if source_hero else "",
+				"source_instance_id": source_hero.instance_id if source_hero else "",
 				"target_hero_id": target.hero_id if target else "",
+				"target_instance_id": target.instance_id if target else "",
 				"target_is_enemy": not target.is_player_hero if target else false,
 				"timestamp": Time.get_unix_time_from_system()
 			}
@@ -1531,7 +1558,9 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 				host_result["card_name"] = card_data_copy.get("name", "Unknown")
 				host_result["card_type"] = card_data_copy.get("type", "")
 				host_result["source_hero_id"] = source_hero.hero_id if source_hero else ""
+				host_result["source_instance_id"] = source_hero.instance_id if source_hero else ""
 				host_result["target_hero_id"] = target.hero_id if target else ""
+				host_result["target_instance_id"] = target.instance_id if target else ""
 				host_result["target_is_enemy"] = not target.is_player_hero if target else false
 				network_manager.send_action_result(host_result)
 				print("Battle: [HOST] Executed targeted card and sent results to Guest")
@@ -1985,6 +2014,16 @@ func _trigger_thunder_damage(heroes: Array) -> void:
 func _get_hero_by_id(hero_id: String) -> Hero:
 	for hero in player_heroes:
 		if hero.hero_id == hero_id:
+			return hero
+	return null
+
+func _find_hero_by_instance_id(iid: String) -> Hero:
+	## Find any hero (player or enemy) by their unique instance_id
+	for hero in player_heroes:
+		if hero.instance_id == iid:
+			return hero
+	for hero in enemy_heroes:
+		if hero.instance_id == iid:
 			return hero
 	return null
 
@@ -2476,7 +2515,9 @@ func _use_ex_skill(hero: Hero) -> void:
 			var request = {
 				"action_type": "use_ex_skill",
 				"source_hero_id": hero.hero_id,
+				"source_instance_id": hero.instance_id,
 				"target_hero_id": hero.hero_id,
+				"target_instance_id": hero.instance_id,
 				"target_is_enemy": false,
 				"timestamp": Time.get_unix_time_from_system()
 			}
@@ -2490,7 +2531,9 @@ func _use_ex_skill(hero: Hero) -> void:
 			ex_result["action_type"] = "use_ex_skill"
 			ex_result["played_by"] = my_player_id
 			ex_result["source_hero_id"] = hero.hero_id
+			ex_result["source_instance_id"] = hero.instance_id
 			ex_result["target_hero_id"] = hero.hero_id
+			ex_result["target_instance_id"] = hero.instance_id
 			network_manager.send_action_result(ex_result)
 		else:
 			_execute_ex_skill(hero, hero)
@@ -2501,7 +2544,9 @@ func _use_ex_skill(hero: Hero) -> void:
 			var request = {
 				"action_type": "use_ex_skill",
 				"source_hero_id": hero.hero_id,
+				"source_instance_id": hero.instance_id,
 				"target_hero_id": hero.hero_id,
+				"target_instance_id": hero.instance_id,
 				"target_is_enemy": false,
 				"timestamp": Time.get_unix_time_from_system()
 			}
@@ -2515,7 +2560,9 @@ func _use_ex_skill(hero: Hero) -> void:
 			ex_result["action_type"] = "use_ex_skill"
 			ex_result["played_by"] = my_player_id
 			ex_result["source_hero_id"] = hero.hero_id
+			ex_result["source_instance_id"] = hero.instance_id
 			ex_result["target_hero_id"] = hero.hero_id
+			ex_result["target_instance_id"] = hero.instance_id
 			network_manager.send_action_result(ex_result)
 		else:
 			_execute_ex_skill(hero, hero)
@@ -3603,47 +3650,49 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	## HOST: Execute a card play request from Guest and send results
 	var card_data = request.get("card_data", {})
 	var source_hero_id = request.get("source_hero_id", "")
+	var source_instance_id = request.get("source_instance_id", "")
 	var target_hero_id = request.get("target_hero_id", "")
+	var target_instance_id = request.get("target_instance_id", "")
 	var is_guest_targeting_enemy = request.get("target_is_enemy", false)
 	
 	print("\n--- HOST: _host_execute_card_request ---")
 	print("  card_name: ", card_data.get("name", "?"))
 	print("  card_type: ", card_data.get("type", "?"))
-	print("  source_hero_id: ", source_hero_id)
-	print("  target_hero_id: ", target_hero_id)
+	print("  source: hero_id=", source_hero_id, " iid=", source_instance_id)
+	print("  target: hero_id=", target_hero_id, " iid=", target_instance_id)
 	print("  is_guest_targeting_enemy: ", is_guest_targeting_enemy)
-	print("  Host player_heroes: ", player_heroes.map(func(h): return h.hero_id))
-	print("  Host enemy_heroes: ", enemy_heroes.map(func(h): return h.hero_id))
 	
-	# From Host's perspective: Guest's "enemy" is Host's player heroes
-	# Guest's "ally" is Host's enemy heroes
+	# Use instance_id for precise lookup (no ambiguity with duplicate hero_ids)
 	var target: Hero = null
-	if not target_hero_id.is_empty():
-		# Guest targeting their enemy = Host's player heroes
-		# Guest targeting their ally = Host's enemy heroes
+	if not target_instance_id.is_empty():
+		target = _find_hero_by_instance_id(target_instance_id)
+	# Fallback to hero_id + perspective if instance_id not found
+	if target == null and not target_hero_id.is_empty():
+		print("  WARNING: instance_id lookup failed, falling back to hero_id")
 		var search_array = player_heroes if is_guest_targeting_enemy else enemy_heroes
-		print("  Searching for target in: ", "player_heroes" if is_guest_targeting_enemy else "enemy_heroes")
 		for hero in search_array:
 			if hero.hero_id == target_hero_id:
 				target = hero
 				break
-		# Fallback search
 		if target == null:
-			print("  WARNING: Target not found in primary array, trying fallback...")
 			for hero in player_heroes + enemy_heroes:
 				if hero.hero_id == target_hero_id:
 					target = hero
 					break
 	
-	# Find source hero (Guest's hero = Host's enemy hero)
+	# Find source hero by instance_id first
 	var source: Hero = null
-	for hero in enemy_heroes:
-		if hero.hero_id == source_hero_id:
-			source = hero
-			break
+	if not source_instance_id.is_empty():
+		source = _find_hero_by_instance_id(source_instance_id)
+	# Fallback to hero_id
+	if source == null and not source_hero_id.is_empty():
+		for hero in enemy_heroes:
+			if hero.hero_id == source_hero_id:
+				source = hero
+				break
 	
-	print("  Found source: ", source.hero_id if source else "NULL!", " (is_player=", source.is_player_hero if source else "?", ")")
-	print("  Found target: ", target.hero_id if target else "NULL!", " (is_player=", target.is_player_hero if target else "?", ")")
+	print("  Found source: ", source.hero_id if source else "NULL!", " iid=", source.instance_id if source else "?")
+	print("  Found target: ", target.hero_id if target else "NULL!", " iid=", target.instance_id if target else "?")
 	
 	if source == null and card_data.get("type", "") != "equipment":
 		print("  ERROR: Source hero not found! Cannot execute card.")
@@ -3666,26 +3715,35 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	result["card_name"] = card_data.get("name", "Unknown")
 	result["card_type"] = card_data.get("type", "")
 	result["source_hero_id"] = source_hero_id
+	result["source_instance_id"] = source.instance_id if source else source_instance_id
 	result["target_hero_id"] = target_hero_id
+	result["target_instance_id"] = target.instance_id if target else target_instance_id
 	result["target_is_enemy"] = not is_guest_targeting_enemy
 	network_manager.send_action_result(result)
 
 func _host_execute_ex_skill_request(request: Dictionary) -> void:
 	## HOST: Execute an EX skill request from Guest and send results
 	var source_hero_id = request.get("source_hero_id", "")
+	var source_instance_id = request.get("source_instance_id", "")
 	var target_hero_id = request.get("target_hero_id", "")
+	var target_instance_id = request.get("target_instance_id", "")
 	var is_guest_targeting_enemy = request.get("target_is_enemy", false)
 	
-	# Find source (Guest's hero = Host's enemy hero)
+	# Find source by instance_id first
 	var source: Hero = null
-	for hero in enemy_heroes:
-		if hero.hero_id == source_hero_id:
-			source = hero
-			break
+	if not source_instance_id.is_empty():
+		source = _find_hero_by_instance_id(source_instance_id)
+	if source == null:
+		for hero in enemy_heroes:
+			if hero.hero_id == source_hero_id:
+				source = hero
+				break
 	
-	# Find target
+	# Find target by instance_id first
 	var target: Hero = null
-	if not target_hero_id.is_empty():
+	if not target_instance_id.is_empty():
+		target = _find_hero_by_instance_id(target_instance_id)
+	if target == null and not target_hero_id.is_empty():
 		var search_array = player_heroes if is_guest_targeting_enemy else enemy_heroes
 		for hero in search_array:
 			if hero.hero_id == target_hero_id:
@@ -3697,7 +3755,9 @@ func _host_execute_ex_skill_request(request: Dictionary) -> void:
 		result["action_type"] = "use_ex_skill"
 		result["played_by"] = opponent_player_id  # Guest used this EX skill
 		result["source_hero_id"] = source_hero_id
+		result["source_instance_id"] = source.instance_id
 		result["target_hero_id"] = target_hero_id
+		result["target_instance_id"] = target.instance_id
 		network_manager.send_action_result(result)
 
 func _host_execute_end_turn_request(request: Dictionary) -> void:
@@ -3760,59 +3820,59 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	var card_name = result.get("card_name", "Unknown Card")
 	var card_type = result.get("card_type", "")
 	var source_hero_id = result.get("source_hero_id", "")
+	var source_instance_id = result.get("source_instance_id", "")
 	var target_hero_id = result.get("target_hero_id", "")
+	var target_instance_id = result.get("target_instance_id", "")
 	var played_by = result.get("played_by", "")
 	
 	print("Battle: [GUEST] Applying card result - name: ", card_name, " type: ", card_type, " effects: ", effects.size())
 	print("Battle: [GUEST]   played_by: ", played_by, " my_player_id: ", my_player_id)
-	print("Battle: [GUEST]   source_hero_id: ", source_hero_id, " target_hero_id: ", target_hero_id)
+	print("Battle: [GUEST]   source: iid=", source_instance_id, " hero_id=", source_hero_id)
+	print("Battle: [GUEST]   target: iid=", target_instance_id, " hero_id=", target_hero_id)
 	
-	# Use played_by (player_id) to determine which side the source hero is on
-	# If I played this card → source is in my player_heroes
-	# If opponent played this card → source is in my enemy_heroes
-	var i_played_it = (played_by == my_player_id)
-	var source_search = player_heroes if i_played_it else enemy_heroes
+	# Use instance_id for precise hero lookup (no ambiguity)
 	var source: Hero = null
-	for h in source_search:
-		if h.hero_id == source_hero_id:
-			source = h
-			break
-	# Fallback: search all heroes
-	if source == null:
-		for h in player_heroes + enemy_heroes:
+	if not source_instance_id.is_empty():
+		source = _find_hero_by_instance_id(source_instance_id)
+	# Fallback: use played_by + hero_id
+	if source == null and not source_hero_id.is_empty():
+		var i_played_it = (played_by == my_player_id)
+		var source_search = player_heroes if i_played_it else enemy_heroes
+		for h in source_search:
 			if h.hero_id == source_hero_id:
 				source = h
 				break
+		if source == null:
+			for h in player_heroes + enemy_heroes:
+				if h.hero_id == source_hero_id:
+					source = h
+					break
 	
-	# Find target hero using owner_id to handle duplicate hero_ids across teams
-	# The target's owner_id tells us which side they're on
-	# For attacks: target is on opposite side from source
-	# For heals/buffs: target is on same side as source
+	# Use instance_id for target lookup
 	var target: Hero = null
-	var is_offensive = card_type in ["attack", "basic_attack", "debuff"]
-	var target_search_primary: Array
-	if is_offensive:
-		# Offensive cards: target is on opposite side from who played
-		target_search_primary = enemy_heroes if i_played_it else player_heroes
-	else:
-		# Defensive cards (heal/buff/equipment): target is on same side as who played
-		target_search_primary = player_heroes if i_played_it else enemy_heroes
-	for h in target_search_primary:
-		if h.hero_id == target_hero_id:
-			target = h
-			break
-	# Fallback: search all heroes
-	if target == null:
-		for h in player_heroes + enemy_heroes:
+	if not target_instance_id.is_empty():
+		target = _find_hero_by_instance_id(target_instance_id)
+	# Fallback: use card type context + hero_id
+	if target == null and not target_hero_id.is_empty():
+		var i_played_it = (played_by == my_player_id)
+		var is_offensive = card_type in ["attack", "basic_attack", "debuff"]
+		var target_search_primary: Array
+		if is_offensive:
+			target_search_primary = enemy_heroes if i_played_it else player_heroes
+		else:
+			target_search_primary = player_heroes if i_played_it else enemy_heroes
+		for h in target_search_primary:
 			if h.hero_id == target_hero_id:
 				target = h
 				break
+		if target == null:
+			for h in player_heroes + enemy_heroes:
+				if h.hero_id == target_hero_id:
+					target = h
+					break
 	
-	print("Battle: [GUEST]   i_played_it: ", i_played_it)
-	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "NULL!", " (owner=", source.owner_id if source else "?", ")")
-	print("Battle: [GUEST]   Found target: ", target.hero_id if target else "NULL!", " (owner=", target.owner_id if target else "?", ")")
-	print("Battle: [GUEST]   Player heroes: ", player_heroes.map(func(h): return h.hero_id + "(" + h.owner_id.substr(0,8) + ")"))
-	print("Battle: [GUEST]   Enemy heroes: ", enemy_heroes.map(func(h): return h.hero_id + "(" + h.owner_id.substr(0,8) + ")"))
+	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "NULL!", " iid=", source.instance_id if source else "?")
+	print("Battle: [GUEST]   Found target: ", target.hero_id if target else "NULL!", " iid=", target.instance_id if target else "?")
 	
 	# Play VISUAL-ONLY animation based on card type
 	# Guest must NOT call _animate_attack (it applies damage via take_damage).
@@ -3907,21 +3967,25 @@ func _apply_effect(effect: Dictionary) -> void:
 	## Apply a single effect directly (no calculation, just set values)
 	var effect_type = effect.get("type", "")
 	var hero_id = effect.get("hero_id", "")
+	var instance_id = effect.get("instance_id", "")
 	var is_host_hero = effect.get("is_host_hero", true)
 	
-	print("Battle: [GUEST] _apply_effect - type: ", effect_type, " hero_id: ", hero_id, " is_host_hero: ", is_host_hero)
+	print("Battle: [GUEST] _apply_effect - type: ", effect_type, " hero_id: ", hero_id, " iid: ", instance_id, " is_host_hero: ", is_host_hero)
 	
-	# Find the hero using is_host_hero to search the correct array
-	# On Guest: Host's player heroes (is_host_hero=true) are our enemy_heroes
-	#           Host's enemy heroes (is_host_hero=false) are our player_heroes
+	# Use instance_id for precise lookup first
 	var hero: Hero = null
-	var search_array = enemy_heroes if is_host_hero else player_heroes
-	for h in search_array:
-		if h.hero_id == hero_id:
-			hero = h
-			break
+	if not instance_id.is_empty():
+		hero = _find_hero_by_instance_id(instance_id)
 	
-	# Fallback: search all heroes if not found in expected array
+	# Fallback: use is_host_hero + hero_id
+	if hero == null:
+		var search_array = enemy_heroes if is_host_hero else player_heroes
+		for h in search_array:
+			if h.hero_id == hero_id:
+				hero = h
+				break
+	
+	# Fallback: search all heroes
 	if hero == null:
 		for h in player_heroes + enemy_heroes:
 			if h.hero_id == hero_id:
@@ -4020,6 +4084,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				effects.append({
 					"type": "damage",
 					"hero_id": target.hero_id,
+					"instance_id": target.instance_id,
 					"is_host_hero": target.is_player_hero,
 					"amount": damage,
 					"new_hp": target.current_hp,
@@ -4038,6 +4103,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				effects.append({
 					"type": "heal",
 					"hero_id": target.hero_id,
+					"instance_id": target.instance_id,
 					"is_host_hero": target.is_player_hero,
 					"amount": heal_amount,
 					"new_hp": target.current_hp
@@ -4052,6 +4118,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					effects.append({
 						"type": "block",
 						"hero_id": target.hero_id,
+						"instance_id": target.instance_id,
 						"is_host_hero": target.is_player_hero,
 						"amount": shield_amount,
 						"new_block": target.block
@@ -4064,6 +4131,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					effects.append({
 						"type": "buff",
 						"hero_id": target.hero_id,
+						"instance_id": target.instance_id,
 						"is_host_hero": target.is_player_hero,
 						"buff_type": buff_type,
 						"duration": duration,
@@ -4082,6 +4150,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					effects.append({
 						"type": "debuff",
 						"hero_id": target.hero_id,
+						"instance_id": target.instance_id,
 						"is_host_hero": target.is_player_hero,
 						"debuff_type": debuff_type,
 						"duration": duration,
@@ -4102,6 +4171,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				effects.append({
 					"type": "equipment",
 					"hero_id": target.hero_id,
+					"instance_id": target.instance_id,
 					"is_host_hero": target.is_player_hero,
 					"equipment_data": card_data
 				})
@@ -4113,6 +4183,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					effects.append({
 						"type": "block",
 						"hero_id": target.hero_id,
+						"instance_id": target.instance_id,
 						"is_host_hero": target.is_player_hero,
 						"amount": shield_amount,
 						"new_block": target.block
@@ -4125,6 +4196,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					effects.append({
 						"type": "buff",
 						"hero_id": target.hero_id,
+						"instance_id": target.instance_id,
 						"is_host_hero": target.is_player_hero,
 						"buff_type": buff_type,
 						"duration": duration,
@@ -4138,6 +4210,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				effects.append({
 					"type": "energy",
 					"hero_id": source.hero_id,
+					"instance_id": source.instance_id,
 					"is_host_hero": source.is_player_hero,
 					"amount": energy_gain,
 					"new_energy": source.energy
@@ -4165,6 +4238,7 @@ func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictio
 	effects.append({
 		"type": "energy",
 		"hero_id": source.hero_id,
+		"instance_id": source.instance_id,
 		"is_host_hero": source.is_player_hero,
 		"new_energy": source.energy
 	})
@@ -4173,6 +4247,7 @@ func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictio
 	effects.append({
 		"type": "damage",
 		"hero_id": target.hero_id,
+		"instance_id": target.instance_id,
 		"is_host_hero": target.is_player_hero,
 		"new_hp": target.current_hp,
 		"new_block": target.block
