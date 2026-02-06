@@ -3846,6 +3846,19 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 		await _animate_cast_debuff(source, target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: debuff animation complete")
+	elif card_type == "equipment" and target:
+		var caster = source if source else target
+		print("Battle: [GUEST] ANIM: equipment - caster=", caster.hero_id, " target=", target.hero_id)
+		await _show_card_display({"name": card_name, "type": card_type})
+		await _animate_cast_buff(caster, target)
+		await _hide_card_display()
+		print("Battle: [GUEST] ANIM: equipment animation complete")
+	elif card_type == "energy" and source:
+		print("Battle: [GUEST] ANIM: energy - source=", source.hero_id)
+		await _show_card_display({"name": card_name, "type": card_type})
+		await _animate_cast_buff(source, source)
+		await _hide_card_display()
+		print("Battle: [GUEST] ANIM: energy animation complete")
 	else:
 		print("Battle: [GUEST] ANIM: SKIPPED! card_type='", card_type, "' source=", source != null, " target=", target != null)
 		if card_type.is_empty():
@@ -4078,6 +4091,11 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 		
 		"equipment":
 			if target:
+				# Play cast animation first (use target as fallback caster if source is null)
+				var caster = source if source else target
+				if caster:
+					await _animate_cast_buff(caster, target)
+				
 				target.add_equipment(card_data)
 				effects.append({
 					"type": "equipment",
@@ -4110,9 +4128,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 						"duration": duration,
 						"value": base_atk
 					})
-				
-				if source:
-					await _animate_cast_buff(source, target)
 		
 		"energy":
 			if source:
