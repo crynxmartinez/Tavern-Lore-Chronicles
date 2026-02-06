@@ -9,9 +9,16 @@ var discard_pile: Array = []
 var dead_hero_cards: Dictionary = {}
 
 var id_prefix: String = ""  # "" for player, "enemy_" for enemy
+var _card_counter: int = 0  # Auto-incrementing counter for unique card instance IDs
 
 func _init(prefix: String = "") -> void:
 	id_prefix = prefix
+
+func _generate_card_instance_id(card_data: Dictionary) -> String:
+	## Generate a unique instance_id for a card copy
+	_card_counter += 1
+	var base_id = card_data.get("id", "card")
+	return id_prefix + base_id + "_inst" + str(_card_counter)
 
 func clear() -> void:
 	deck.clear()
@@ -29,6 +36,7 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 			if not id_prefix.is_empty():
 				card_copy["id"] = id_prefix + card_copy.get("id", "")
 			card_copy["hero_id"] = hero_data.id
+			card_copy["instance_id"] = _generate_card_instance_id(card_copy)
 			deck.append(card_copy)
 		
 		# Build attack card image path from hero folder
@@ -49,6 +57,7 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 				"art": attack_image,
 				"image": attack_image
 			}
+			attack_card["instance_id"] = _generate_card_instance_id(attack_card)
 			deck.append(attack_card)
 	
 	# Add equipped items to deck (player only)
@@ -59,6 +68,7 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 			if not equip_data.is_empty():
 				var equip_card = equip_data.duplicate()
 				equip_card["id"] = equip_id + "_" + str(randi())
+				equip_card["instance_id"] = _generate_card_instance_id(equip_card)
 				deck.append(equip_card)
 	
 	shuffle_deck()
@@ -190,7 +200,7 @@ func on_hero_revived(hero_id: String) -> void:
 	dead_hero_cards.erase(hero_id)
 
 func _create_mana_card(hero_id: String, hero_color: String) -> Dictionary:
-	return {
+	var card = {
 		"id": "mana_" + str(randi()),
 		"name": "Manastone",
 		"cost": 0,
@@ -200,6 +210,8 @@ func _create_mana_card(hero_id: String, hero_color: String) -> Dictionary:
 		"description": "Gain 1 mana this turn.",
 		"image": "res://asset/Others/manastone.png"
 	}
+	card["instance_id"] = _generate_card_instance_id(card)
+	return card
 
 func get_hand_size() -> int:
 	return hand.size()
