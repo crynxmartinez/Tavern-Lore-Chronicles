@@ -962,6 +962,7 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 	var send_cb = func(res: Dictionary) -> void:
 		res["action_type"] = "play_card"
 		res["played_by"] = _pid
+		res["card_id"] = _cd.get("id", "")
 		res["card_name"] = _cd.get("name", "Unknown")
 		res["card_type"] = _cd.get("type", "")
 		res["source_hero_id"] = _src_hero.hero_id if _src_hero else ""
@@ -1601,6 +1602,7 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 				var send_cb = func(res: Dictionary) -> void:
 					res["action_type"] = "play_card"
 					res["played_by"] = _pid
+					res["card_id"] = _cdc.get("id", "")
 					res["card_name"] = _cdc.get("name", "Unknown")
 					res["card_type"] = _cdc.get("type", "")
 					res["source_hero_id"] = _sh.hero_id if _sh else ""
@@ -3893,6 +3895,7 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	var send_cb = func(res: Dictionary) -> void:
 		res["action_type"] = "play_card"
 		res["played_by"] = _opid
+		res["card_id"] = _cd.get("id", "")
 		res["card_name"] = _cd.get("name", "Unknown")
 		res["card_type"] = _cd.get("type", "")
 		res["source_hero_id"] = _src_hid
@@ -4003,8 +4006,18 @@ func _deferred_process_action_result(result: Dictionary) -> void:
 func _guest_apply_card_result(result: Dictionary) -> void:
 	## GUEST: Apply card play results from Host with animations
 	var effects = result.get("effects", [])
+	var card_id = result.get("card_id", "")
 	var card_name = result.get("card_name", "Unknown Card")
 	var card_type = result.get("card_type", "")
+	
+	# Look up full card data locally (both clients have same cards.json)
+	var display_card_data: Dictionary = {}
+	if not card_id.is_empty():
+		display_card_data = CardDatabase.get_card(card_id)
+		if display_card_data.is_empty():
+			display_card_data = EquipmentDatabase.get_equipment(card_id)
+	if display_card_data.is_empty():
+		display_card_data = {"name": card_name, "type": card_type}
 	var source_hero_id = result.get("source_hero_id", "")
 	var source_instance_id = result.get("source_instance_id", "")
 	var target_hero_id = result.get("target_hero_id", "")
@@ -4085,7 +4098,7 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 				damage = int(effect.get("amount", 0))
 				break
 		print("Battle: [GUEST] ANIM: attack - source=", source.hero_id, " target=", anim_target.hero_id, " damage=", damage)
-		await _show_card_display({"name": card_name, "type": card_type})
+		await _show_card_display(display_card_data)
 		if damage > 0:
 			await _guest_animate_attack(source, anim_target, damage)
 		await _hide_card_display()
@@ -4093,34 +4106,34 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	elif card_type == "heal" and source:
 		var heal_target = anim_target if anim_target else source
 		print("Battle: [GUEST] ANIM: heal - source=", source.hero_id, " target=", heal_target.hero_id)
-		await _show_card_display({"name": card_name, "type": card_type})
+		await _show_card_display(display_card_data)
 		await _animate_cast_heal(source, heal_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: heal animation complete")
 	elif card_type == "buff" and source:
 		var buff_target = anim_target if anim_target else source
 		print("Battle: [GUEST] ANIM: buff - source=", source.hero_id, " target=", buff_target.hero_id)
-		await _show_card_display({"name": card_name, "type": card_type})
+		await _show_card_display(display_card_data)
 		await _animate_cast_buff(source, buff_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: buff animation complete")
 	elif card_type == "debuff" and source:
 		var debuff_target = anim_target if anim_target else source
 		print("Battle: [GUEST] ANIM: debuff - source=", source.hero_id, " target=", debuff_target.hero_id)
-		await _show_card_display({"name": card_name, "type": card_type})
+		await _show_card_display(display_card_data)
 		await _animate_cast_debuff(source, debuff_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: debuff animation complete")
 	elif card_type == "equipment" and anim_target:
 		var caster = source if source else anim_target
 		print("Battle: [GUEST] ANIM: equipment - caster=", caster.hero_id, " target=", anim_target.hero_id)
-		await _show_card_display({"name": card_name, "type": card_type})
+		await _show_card_display(display_card_data)
 		await _animate_cast_buff(caster, anim_target)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: equipment animation complete")
 	elif card_type == "energy" and source:
 		print("Battle: [GUEST] ANIM: energy - source=", source.hero_id)
-		await _show_card_display({"name": card_name, "type": card_type})
+		await _show_card_display(display_card_data)
 		await _animate_cast_buff(source, source)
 		await _hide_card_display()
 		print("Battle: [GUEST] ANIM: energy animation complete")
