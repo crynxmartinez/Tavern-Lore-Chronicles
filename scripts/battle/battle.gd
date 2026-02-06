@@ -3645,10 +3645,12 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	print("  Found source: ", source.hero_id if source else "NULL!", " (is_player=", source.is_player_hero if source else "?", ")")
 	print("  Found target: ", target.hero_id if target else "NULL!", " (is_player=", target.is_player_hero if target else "?", ")")
 	
-	if source == null:
+	if source == null and card_data.get("type", "") != "equipment":
 		print("  ERROR: Source hero not found! Cannot execute card.")
 		print("---\n")
 		return
+	if source == null:
+		print("  NOTE: Source is null (equipment card - this is OK)")
 	if target == null:
 		print("  ERROR: Target hero not found! Cannot execute card.")
 		print("---\n")
