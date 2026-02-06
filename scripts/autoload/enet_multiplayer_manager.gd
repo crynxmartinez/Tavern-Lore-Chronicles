@@ -24,6 +24,7 @@ var my_player_id: String = ""  # My account UID
 var my_username: String = ""  # My display name
 var opponent_player_id: String = ""  # Opponent's account UID
 var opponent_username: String = ""  # Opponent's display name
+var _match_ready_emitted: bool = false  # Guard against double-fire
 
 func _ready() -> void:
 	# Connect multiplayer signals
@@ -101,6 +102,7 @@ func disconnect_game() -> void:
 	is_host = false
 	opponent_id = -1
 	my_id = -1
+	_match_ready_emitted = false
 	
 	print("ENetMultiplayer: Disconnected")
 
@@ -148,6 +150,10 @@ func _send_identity(player_id: String, username: String) -> void:
 	_emit_match_ready.call_deferred()
 
 func _emit_match_ready() -> void:
+	if _match_ready_emitted:
+		print("ENetMultiplayer: match_ready already emitted, skipping")
+		return
+	_match_ready_emitted = true
 	print("ENetMultiplayer: Emitting match_ready (deferred) - is_host: ", is_host, " opponent_id: ", opponent_id)
 	match_ready.emit(is_host, opponent_id)
 
