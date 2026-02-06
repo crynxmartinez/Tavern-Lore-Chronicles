@@ -65,6 +65,10 @@ func _on_match_ready(is_host: bool, opponent_id: int) -> void:
 	var role = "HOST" if is_host else "CLIENT"
 	status_label.text = "Match ready! You are: " + role + "\nStarting battle..."
 	
+	# Defer to avoid issues when signal fires from RPC context
+	_deferred_start_battle.call_deferred()
+
+func _deferred_start_battle() -> void:
 	# Wait a moment then start battle
 	await get_tree().create_timer(1.0).timeout
 	_start_battle()
