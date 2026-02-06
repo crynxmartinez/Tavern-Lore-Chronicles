@@ -23,8 +23,9 @@ var is_dead: bool = false
 var is_flipped: bool = false
 
 # Buff/Debuff system
-var active_buffs: Dictionary = {}  # {buff_name: {duration: int, source_atk: int}}
-var active_debuffs: Dictionary = {}  # {debuff_name: {duration: int, source_atk: int}}
+var active_buffs: Dictionary = {}  # {buff_name: {duration: int, source_atk: int, instance_id: String}}
+var active_debuffs: Dictionary = {}  # {debuff_name: {duration: int, source_atk: int, instance_id: String}}
+var _buff_counter: int = 0  # Auto-incrementing counter for buff/debuff instance IDs
 
 # Equipment system - tracks equipment cards played on this hero
 var equipped_items: Array = []  # Array of equipment card data dictionaries
@@ -357,10 +358,15 @@ func on_turn_end() -> void:
 # BUFF/DEBUFF SYSTEM
 # ============================================
 
+func _generate_buff_instance_id(name: String) -> String:
+	_buff_counter += 1
+	return instance_id + "_" + name + "_" + str(_buff_counter)
+
 func apply_buff(buff_name: String, duration: int = 1, source_atk: int = 10) -> void:
 	active_buffs[buff_name] = {
 		"duration": duration,
-		"source_atk": source_atk
+		"source_atk": source_atk,
+		"instance_id": _generate_buff_instance_id(buff_name)
 	}
 	_update_buff_icons()
 	print(hero_data.get("name", "Hero") + " gained buff: " + buff_name + " for " + str(duration) + " turn(s)")
@@ -386,7 +392,8 @@ func apply_debuff(debuff_name: String, duration: int = 1, source_atk: int = 10) 
 				"duration": -1,  # Thunder doesn't expire by duration, only by triggering
 				"source_atk": source_atk,
 				"stacks": 1,
-				"turns_remaining": 2  # Triggers after 2 turns
+				"turns_remaining": 2,  # Triggers after 2 turns
+				"instance_id": _generate_buff_instance_id("thunder")
 			}
 		_update_buff_icons()
 		print(hero_data.get("name", "Hero") + " gained Thunder stack (total: " + str(active_debuffs["thunder"]["stacks"]) + ")")
@@ -394,7 +401,8 @@ func apply_debuff(debuff_name: String, duration: int = 1, source_atk: int = 10) 
 	
 	active_debuffs[debuff_name] = {
 		"duration": duration,
-		"source_atk": source_atk
+		"source_atk": source_atk,
+		"instance_id": _generate_buff_instance_id(debuff_name)
 	}
 	_update_buff_icons()
 	print(hero_data.get("name", "Hero") + " gained debuff: " + debuff_name + " for " + str(duration) + " turn(s)")
@@ -429,7 +437,7 @@ func add_equipment(equip_data: Dictionary) -> void:
 	equipped_items.append(equip_data)
 	# Show equipment indicator as a buff icon
 	if not active_buffs.has("equipped"):
-		active_buffs["equipped"] = {"duration": -1, "source_atk": 0}  # Permanent until removed
+		active_buffs["equipped"] = {"duration": -1, "source_atk": 0, "instance_id": _generate_buff_instance_id("equipped")}  # Permanent until removed
 	_update_buff_icons()
 	print(hero_data.get("name", "Hero") + " equipped: " + equip_data.get("name", "Unknown") + " iid=" + equip_data.get("instance_id", "?"))
 
