@@ -356,11 +356,13 @@ func add_block(amount: int) -> void:
 
 func on_turn_start() -> void:
 	current_attack = base_attack
-	# Apply regeneration healing at turn start
+	# Apply regeneration healing at turn start, then consume (delayed heal)
 	if has_buff("regen"):
 		var regen_data = active_buffs["regen"]
-		var heal_amount = int(regen_data.get("source_atk", GameConstants.DEFAULT_BASE_ATTACK) * GameConstants.REGEN_HEAL_MULT)
-		heal(heal_amount)
+		var heal_amount = regen_data.get("heal_amount", 0)
+		if heal_amount > 0:
+			heal(heal_amount)
+		remove_buff("regen")
 
 func on_turn_end() -> void:
 	# DEPRECATED - use on_own_turn_end() and on_opponent_turn_end() instead
@@ -423,6 +425,25 @@ func apply_buff(buff_name: String, duration: int = 1, source_atk: int = 10, expi
 	##   "opponent_turn_end" - removed when the opponent ends their turn
 	##   "permanent" or duration < 0 - never expires
 	##   "" (empty) - uses legacy duration countdown (deprecated)
+	
+	# Regen stacks: each application adds heal_amount to existing total
+	if buff_name == "regen":
+		var new_heal = int(source_atk * GameConstants.REGEN_HEAL_MULT)
+		if active_buffs.has("regen"):
+			active_buffs["regen"]["heal_amount"] = active_buffs["regen"].get("heal_amount", 0) + new_heal
+			active_buffs["regen"]["source_atk"] = source_atk
+		else:
+			active_buffs["regen"] = {
+				"duration": -1,
+				"expire_on": "permanent",
+				"source_atk": source_atk,
+				"heal_amount": new_heal,
+				"instance_id": _generate_buff_instance_id("regen")
+			}
+		_update_buff_icons()
+		print(hero_data.get("name", "Hero") + " gained regen (heal: " + str(active_buffs["regen"]["heal_amount"]) + ")")
+		return
+	
 	var resolved_expire = expire_on
 	if resolved_expire.is_empty() and duration < 0:
 		resolved_expire = "permanent"
@@ -705,6 +726,10 @@ func _create_status_icon(icon_path: String, status_name: String, is_buff: bool) 
 		pass  # No duration text for permanent
 	elif duration > 0:
 		tip += "\nDuration: " + str(duration) + " turn(s)"
+	# Show Regen heal amount in tooltip
+	if status_name == "regen" and active_buffs.has("regen"):
+		var heal_amount = active_buffs["regen"].get("heal_amount", 0)
+		tip += "\nHeals " + str(heal_amount) + " at turn start"
 	# Show Thunder stacks in tooltip
 	if status_name == "thunder" and active_debuffs.has("thunder"):
 		var stacks = active_debuffs["thunder"].get("stacks", 1)

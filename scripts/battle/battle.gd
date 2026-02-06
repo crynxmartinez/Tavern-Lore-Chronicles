@@ -2789,7 +2789,7 @@ func _get_buff_expire_on(buff_type: String) -> String:
 		"taunt":
 			return "opponent_turn_end"
 		"regen":
-			return "own_turn_end"
+			return "permanent"  # Self-consumes at turn start (delayed heal)
 		"equipped":
 			return "permanent"
 		_:
@@ -2853,7 +2853,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 					source.apply_buff("taunt", 1, source_atk, "opponent_turn_end")
 			"regen":
 				if target and not target.is_dead:
-					target.apply_buff("regen", 1, source_atk, "own_turn_end")
+					target.apply_buff("regen", -1, source_atk, "permanent")
 			"cleanse":
 				if target and not target.is_dead:
 					target.clear_all_debuffs()
@@ -4681,8 +4681,8 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 						"instance_id": primary_target.instance_id,
 						"is_host_hero": primary_target.is_player_hero,
 						"buff_type": "regen",
-						"duration": 1,
-						"expire_on": "own_turn_end",
+						"duration": -1,
+						"expire_on": "permanent",
 						"value": source.hero_data.get("base_attack", 10) if source else 10
 					})
 			"cleanse":
