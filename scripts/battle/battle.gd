@@ -2373,10 +2373,8 @@ func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 	target.take_damage(final_damage)
 	target.play_hit_anim()
 	
-	# Spawn damage number and play sound
+	# Play sound and flash (damage number already spawned by take_damage)
 	if target.sprite:
-		var sprite_center = target.sprite.global_position + target.sprite.size / 2
-		_play_vfx("spawn_damage", [self, sprite_center, final_damage])
 		_play_vfx("flash_damage", [target.sprite])
 	_play_audio("play_attack")
 	
