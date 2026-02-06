@@ -451,6 +451,66 @@ func _update_card_info(card_data: Dictionary) -> void:
 	
 	info_label.text = info_text
 
+func _get_card_display_description(card_data: Dictionary) -> String:
+	## Compute a human-readable description with actual damage/heal/shield values
+	var hero_data = HeroDatabase.get_hero(selected_hero_id)
+	var base_atk = hero_data.get("base_attack", 10)
+	var base_hp = hero_data.get("base_hp", 10)
+	var hp_mult = hero_data.get("hp_multiplier", 10)
+	var max_hp = hero_data.get("max_hp", base_hp * hp_mult)
+	var base_def = hero_data.get("base_def", 0)
+	
+	var card_type = card_data.get("type", "")
+	var desc = card_data.get("description", "")
+	
+	# Attack cards: compute ATK × multiplier
+	var atk_multiplier = card_data.get("atk_multiplier", 0.0)
+	if atk_multiplier > 0 and (card_type == "attack" or card_type == "basic_attack" or card_type == "ex"):
+		var damage = int(base_atk * atk_multiplier)
+		# Replace formula patterns with computed value
+		var patterns = [
+			"(" + str(int(atk_multiplier * 100)) + "% ATK)",
+			str(int(atk_multiplier * 100)) + "% ATK"
+		]
+		for pattern in patterns:
+			if desc.find(pattern) >= 0:
+				desc = desc.replace(pattern, str(damage))
+				break
+	
+	# Heal cards: compute max_HP × hp_multiplier
+	var card_hp_mult = card_data.get("hp_multiplier", 0.0)
+	if card_hp_mult > 0:
+		var heal_amount = int(max_hp * card_hp_mult)
+		var patterns = [
+			"(" + str(int(card_hp_mult * 100)) + "% max HP)",
+			str(int(card_hp_mult * 100)) + "% max HP"
+		]
+		for pattern in patterns:
+			if desc.find(pattern) >= 0:
+				desc = desc.replace(pattern, str(heal_amount) + " HP")
+				break
+	
+	# Shield cards: compute base_shield + DEF × def_multiplier
+	var card_base_shield = card_data.get("base_shield", 0)
+	var card_def_mult = card_data.get("def_multiplier", 0.0)
+	if card_base_shield > 0 or card_def_mult > 0:
+		var shield_amount = card_base_shield + int(base_def * card_def_mult)
+		# Replace the formula pattern like "(5 + DEF×3)" or "(15 + DEF×6)"
+		var formula_str = "(" + str(card_base_shield) + " + DEF" + str("\u00d7") + str(int(card_def_mult)) + ")"
+		if desc.find(formula_str) >= 0:
+			desc = desc.replace(formula_str, str(shield_amount))
+		else:
+			# Try alternate format
+			var alt = "(" + str(card_base_shield) + " + DEF*" + str(int(card_def_mult)) + ")"
+			if desc.find(alt) >= 0:
+				desc = desc.replace(alt, str(shield_amount))
+	
+	# Mana surge special case
+	if card_data.get("effects", []).has("mana_surge"):
+		desc = "Spend ALL mana. Deal " + str(int(base_atk * atk_multiplier)) + " damage per mana."
+	
+	return desc
+
 func _display_cards_in_pose_panels() -> void:
 	# Clear existing card panels
 	_hide_cards_panels()
@@ -466,12 +526,12 @@ func _display_cards_in_pose_panels() -> void:
 	# Use same positions as pose panels (IDLE, HIT, CAST, ATTACK)
 	# Position 0 = EX card, Position 1-3 = skill cards
 	var positions = [
-		Vector2(547, 541),   # IDLE position - EX card
-		Vector2(812, 541),   # HIT position - Skill 1
-		Vector2(1103, 541),  # CAST position - Skill 2
-		Vector2(1362, 541)   # ATTACK position - Skill 3
+		Vector2(510, 500),   # IDLE position - EX card
+		Vector2(780, 500),   # HIT position - Skill 1
+		Vector2(1060, 500),  # CAST position - Skill 2
+		Vector2(1330, 500)   # ATTACK position - Skill 3
 	]
-	var card_size = Vector2(160, 280)
+	var card_size = Vector2(210, 340)
 	
 	# Get EX card first
 	var ex_card_id = hero_data.get("ex_card", "")
@@ -576,10 +636,12 @@ func _create_card_panel(card_data: Dictionary, role_color: Color, pos: Vector2, 
 	var name_label = Label.new()
 	name_label.text = card_data.get("name", "Unknown")
 	name_label.position = Vector2(5, size.y * 0.48)
-	name_label.custom_minimum_size = Vector2(size.x - 10, 20)
+	name_label.custom_minimum_size = Vector2(size.x - 10, 24)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_font_size_override("font_size", 11)
+	name_label.add_theme_font_size_override("font_size", 14)
 	name_label.add_theme_color_override("font_color", Color(0.1, 0.05, 0))
+	name_label.add_theme_color_override("font_outline_color", Color(1, 0.95, 0.8))
+	name_label.add_theme_constant_override("outline_size", 2)
 	panel.add_child(name_label)
 	
 	# Card cost label (on the mana orb - positioned on the orb in template)
@@ -587,24 +649,24 @@ func _create_card_panel(card_data: Dictionary, role_color: Color, pos: Vector2, 
 	var cost_text = str(int(cost)) if cost >= 0 else "X"
 	var cost_label = Label.new()
 	cost_label.text = cost_text
-	cost_label.position = Vector2(6, 28)
-	cost_label.custom_minimum_size = Vector2(26, 26)
+	cost_label.position = Vector2(8, 36)
+	cost_label.custom_minimum_size = Vector2(32, 32)
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	cost_label.add_theme_font_size_override("font_size", 18)
+	cost_label.add_theme_font_size_override("font_size", 22)
 	cost_label.add_theme_color_override("font_color", Color(1, 1, 1))
 	cost_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	cost_label.add_theme_constant_override("outline_size", 4)
+	cost_label.add_theme_constant_override("outline_size", 5)
 	panel.add_child(cost_label)
 	
-	# Card description (in template's description area - moved down slightly)
+	# Card description (in template's description area - computed values)
 	var desc_label = RichTextLabel.new()
-	desc_label.text = card_data.get("description", "")
-	desc_label.position = Vector2(12, size.y * 0.62)
-	desc_label.custom_minimum_size = Vector2(size.x - 24, size.y * 0.32)
-	desc_label.size = Vector2(size.x - 24, size.y * 0.32)
-	desc_label.add_theme_font_size_override("normal_font_size", 10)
-	desc_label.add_theme_color_override("default_color", Color(0.9, 0.9, 0.9))
+	desc_label.text = _get_card_display_description(card_data)
+	desc_label.position = Vector2(14, size.y * 0.60)
+	desc_label.custom_minimum_size = Vector2(size.x - 28, size.y * 0.34)
+	desc_label.size = Vector2(size.x - 28, size.y * 0.34)
+	desc_label.add_theme_font_size_override("normal_font_size", 13)
+	desc_label.add_theme_color_override("default_color", Color(0.95, 0.95, 0.95))
 	desc_label.scroll_active = false
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	panel.add_child(desc_label)
