@@ -7,6 +7,7 @@ signal energy_full(hero: Hero)
 
 @export var hero_id: String = ""
 @export var is_player_hero: bool = true
+var owner_id: String = ""  # player_id of the player who owns this hero
 
 var hero_data: Dictionary = {}
 var max_hp: int = GameConstants.DEFAULT_MAX_HP

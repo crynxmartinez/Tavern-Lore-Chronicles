@@ -80,6 +80,8 @@ var is_multiplayer: bool = false
 var is_host: bool = false
 var network_manager = null  # BattleNetworkManager instance
 var waiting_for_opponent: bool = false
+var my_player_id: String = ""  # My account UID
+var opponent_player_id: String = ""  # Opponent's account UID
 
 func _ready() -> void:
 	GameManager.mana_changed.connect(_on_mana_changed)
@@ -271,6 +273,9 @@ func _spawn_heroes(team: Array, is_player: bool) -> void:
 		$Board.add_child(hero_instance)
 		hero_instance.setup(hero_id)
 		hero_instance.is_player_hero = is_player
+		# Tag hero with owner's player_id
+		if is_multiplayer:
+			hero_instance.owner_id = my_player_id if is_player else opponent_player_id
 		hero_instance.hero_clicked.connect(_on_hero_clicked)
 		hero_instance.hero_died.connect(_on_hero_died)
 		
@@ -922,9 +927,10 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 	# Execute and collect results
 	var result = await _execute_card_and_collect_results(card_data, source_hero, target)
 	
-	# Add action info to result - SIMPLIFIED to avoid serialization issues
+	# Add action info to result
 	result["action_type"] = "play_card"
-	result["card_name"] = card_data.get("name", "Unknown")  # Just name, not full card_data
+	result["played_by"] = my_player_id  # Host played this card
+	result["card_name"] = card_data.get("name", "Unknown")
 	result["card_type"] = card_data.get("type", "")
 	result["source_hero_id"] = source_hero.hero_id if source_hero else ""
 	result["target_hero_id"] = target.hero_id if target else ""
@@ -1431,6 +1437,7 @@ func _on_hero_clicked(hero: Hero) -> void:
 				if is_multiplayer and network_manager and is_host:
 					var ex_result = await _execute_ex_skill_and_collect_results(ex_skill_hero, hero)
 					ex_result["action_type"] = "use_ex_skill"
+					ex_result["played_by"] = my_player_id
 					ex_result["source_hero_id"] = ex_skill_hero.hero_id
 					ex_result["target_hero_id"] = hero.hero_id
 					network_manager.send_action_result(ex_result)
@@ -1457,6 +1464,7 @@ func _on_hero_clicked(hero: Hero) -> void:
 				if is_multiplayer and network_manager and is_host:
 					var ex_result = await _execute_ex_skill_and_collect_results(ex_skill_hero, hero)
 					ex_result["action_type"] = "use_ex_skill"
+					ex_result["played_by"] = my_player_id
 					ex_result["source_hero_id"] = ex_skill_hero.hero_id
 					ex_result["target_hero_id"] = hero.hero_id
 					network_manager.send_action_result(ex_result)
@@ -1519,6 +1527,7 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 			if GameManager.play_card(card_data_copy, source_hero, target):
 				var host_result = await _execute_card_and_collect_results(card_data_copy, source_hero, target)
 				host_result["action_type"] = "play_card"
+				host_result["played_by"] = my_player_id
 				host_result["card_name"] = card_data_copy.get("name", "Unknown")
 				host_result["card_type"] = card_data_copy.get("type", "")
 				host_result["source_hero_id"] = source_hero.hero_id if source_hero else ""
@@ -2479,6 +2488,7 @@ func _use_ex_skill(hero: Hero) -> void:
 		if is_multiplayer and network_manager and is_host:
 			var ex_result = await _execute_ex_skill_and_collect_results(hero, hero)
 			ex_result["action_type"] = "use_ex_skill"
+			ex_result["played_by"] = my_player_id
 			ex_result["source_hero_id"] = hero.hero_id
 			ex_result["target_hero_id"] = hero.hero_id
 			network_manager.send_action_result(ex_result)
@@ -2503,6 +2513,7 @@ func _use_ex_skill(hero: Hero) -> void:
 		if is_multiplayer and network_manager and is_host:
 			var ex_result = await _execute_ex_skill_and_collect_results(hero, hero)
 			ex_result["action_type"] = "use_ex_skill"
+			ex_result["played_by"] = my_player_id
 			ex_result["source_hero_id"] = hero.hero_id
 			ex_result["target_hero_id"] = hero.hero_id
 			network_manager.send_action_result(ex_result)
@@ -3517,13 +3528,17 @@ func _setup_multiplayer() -> void:
 			is_multiplayer = true
 			is_host = enet.is_host
 			
+			# Store player identity
+			my_player_id = enet.my_player_id
+			opponent_player_id = enet.opponent_player_id
+			
 			# Create network manager
 			network_manager = battle_network_manager_script.new()
 			network_manager.name = "BattleNetworkManager"
 			add_child(network_manager)
 			
 			var opponent_id = enet.opponent_id
-			var opponent_name = "Host" if not is_host else "Guest"
+			var opponent_name = enet.opponent_username if not enet.opponent_username.is_empty() else "Opponent"
 			
 			network_manager.initialize(self, is_multiplayer, is_host, opponent_id)
 			
@@ -3538,7 +3553,8 @@ func _setup_multiplayer() -> void:
 			network_manager.action_result_received.connect(_on_action_result_received)
 			network_manager.opponent_team_received.connect(_on_opponent_team_received)
 			
-			print("Battle: ENet Multiplayer [HOST-AUTHORITATIVE] - Host: ", is_host, " Opponent ID: ", opponent_id)
+			print("Battle: ENet Multiplayer [HOST-AUTHORITATIVE] - Host: ", is_host)
+			print("  My player_id: ", my_player_id, " Opponent player_id: ", opponent_player_id)
 			return
 	
 	# No multiplayer - AI battle mode
@@ -3644,20 +3660,11 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	
 	# Send results to Guest
 	result["action_type"] = "play_card"
+	result["played_by"] = opponent_player_id  # Guest played this card
 	result["card_name"] = card_data.get("name", "Unknown")
 	result["card_type"] = card_data.get("type", "")
 	result["source_hero_id"] = source_hero_id
 	result["target_hero_id"] = target_hero_id
-	# target_is_enemy from HOST's perspective for consistency with _play_queued_card_as_host:
-	# Host's target_is_enemy=true means "target is Host's enemy" = Guest's player_heroes
-	# For Guest-initiated cards: Guest targeted their enemy (is_guest_targeting_enemy=true)
-	#   → On Host, that target is in Host's player_heroes (Host's own heroes)
-	#   → From Host's perspective, that's NOT enemy → target_is_enemy=false
-	#   → Guest reads false → searches enemy_heroes → finds their enemy ✓
-	# Guest targeted their ally (is_guest_targeting_enemy=false)
-	#   → On Host, that target is in Host's enemy_heroes
-	#   → From Host's perspective, that IS enemy → target_is_enemy=true
-	#   → Guest reads true → searches player_heroes → finds their ally ✓
 	result["target_is_enemy"] = not is_guest_targeting_enemy
 	network_manager.send_action_result(result)
 
@@ -3686,6 +3693,7 @@ func _host_execute_ex_skill_request(request: Dictionary) -> void:
 	if source and target:
 		var result = await _execute_ex_skill_and_collect_results(source, target)
 		result["action_type"] = "use_ex_skill"
+		result["played_by"] = opponent_player_id  # Guest used this EX skill
 		result["source_hero_id"] = source_hero_id
 		result["target_hero_id"] = target_hero_id
 		network_manager.send_action_result(result)
@@ -3751,52 +3759,58 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	var card_type = result.get("card_type", "")
 	var source_hero_id = result.get("source_hero_id", "")
 	var target_hero_id = result.get("target_hero_id", "")
-	var target_is_enemy = result.get("target_is_enemy", false)
+	var played_by = result.get("played_by", "")
 	
 	print("Battle: [GUEST] Applying card result - name: ", card_name, " type: ", card_type, " effects: ", effects.size())
-	print("Battle: [GUEST]   source_hero_id: ", source_hero_id, " target_hero_id: ", target_hero_id, " target_is_enemy(host perspective): ", target_is_enemy)
+	print("Battle: [GUEST]   played_by: ", played_by, " my_player_id: ", my_player_id)
+	print("Battle: [GUEST]   source_hero_id: ", source_hero_id, " target_hero_id: ", target_hero_id)
 	
-	# Find source and target heroes for animations
-	# target_is_enemy is from HOST's perspective:
-	#   true = Host targeted their enemy = Guest's player_heroes
-	#   false = Host targeted their ally = Guest's enemy_heroes
+	# Use played_by (player_id) to determine which side the source hero is on
+	# If I played this card → source is in my player_heroes
+	# If opponent played this card → source is in my enemy_heroes
+	var i_played_it = (played_by == my_player_id)
+	var source_search = player_heroes if i_played_it else enemy_heroes
 	var source: Hero = null
-	var target: Hero = null
+	for h in source_search:
+		if h.hero_id == source_hero_id:
+			source = h
+			break
+	# Fallback: search all heroes
+	if source == null:
+		for h in player_heroes + enemy_heroes:
+			if h.hero_id == source_hero_id:
+				source = h
+				break
 	
-	var target_search = player_heroes if target_is_enemy else enemy_heroes
-	for h in target_search:
+	# Find target hero using owner_id to handle duplicate hero_ids across teams
+	# The target's owner_id tells us which side they're on
+	# For attacks: target is on opposite side from source
+	# For heals/buffs: target is on same side as source
+	var target: Hero = null
+	var is_offensive = card_type in ["attack", "basic_attack", "debuff"]
+	var target_search_primary: Array
+	if is_offensive:
+		# Offensive cards: target is on opposite side from who played
+		target_search_primary = enemy_heroes if i_played_it else player_heroes
+	else:
+		# Defensive cards (heal/buff/equipment): target is on same side as who played
+		target_search_primary = player_heroes if i_played_it else enemy_heroes
+	for h in target_search_primary:
 		if h.hero_id == target_hero_id:
 			target = h
 			break
-	# Fallback
+	# Fallback: search all heroes
 	if target == null:
 		for h in player_heroes + enemy_heroes:
 			if h.hero_id == target_hero_id:
 				target = h
 				break
 	
-	# Source: Use is_host_hero from effects to determine which side the source is on
-	# If first effect's target is_host_hero=true, the Host executed on their own hero
-	# For source, check if source matches a player or enemy hero
-	# Since both teams can have same hero_ids, use context:
-	#   If target_is_enemy=true (Host attacked their enemy), source is Host's player = Guest's enemy
-	#   If target_is_enemy=false (Host buffed/healed their ally), source is Host's player = Guest's enemy
-	#   UNLESS it was a Guest-initiated card, then source is Guest's player = Guest's player
-	# Simplest: check both arrays, prefer the one that makes sense for the card direction
-	for h in enemy_heroes:
-		if h.hero_id == source_hero_id:
-			source = h
-			break
-	if source == null:
-		for h in player_heroes:
-			if h.hero_id == source_hero_id:
-				source = h
-				break
-	
-	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "NULL!", " (is_player=", source.is_player_hero if source else "?", ")")
-	print("Battle: [GUEST]   Found target: ", target.hero_id if target else "NULL!", " (is_player=", target.is_player_hero if target else "?", ")")
-	print("Battle: [GUEST]   Player heroes: ", player_heroes.map(func(h): return h.hero_id))
-	print("Battle: [GUEST]   Enemy heroes: ", enemy_heroes.map(func(h): return h.hero_id))
+	print("Battle: [GUEST]   i_played_it: ", i_played_it)
+	print("Battle: [GUEST]   Found source: ", source.hero_id if source else "NULL!", " (owner=", source.owner_id if source else "?", ")")
+	print("Battle: [GUEST]   Found target: ", target.hero_id if target else "NULL!", " (owner=", target.owner_id if target else "?", ")")
+	print("Battle: [GUEST]   Player heroes: ", player_heroes.map(func(h): return h.hero_id + "(" + h.owner_id.substr(0,8) + ")"))
+	print("Battle: [GUEST]   Enemy heroes: ", enemy_heroes.map(func(h): return h.hero_id + "(" + h.owner_id.substr(0,8) + ")"))
 	
 	# Play VISUAL-ONLY animation based on card type
 	# Guest must NOT call _animate_attack (it applies damage via take_damage).

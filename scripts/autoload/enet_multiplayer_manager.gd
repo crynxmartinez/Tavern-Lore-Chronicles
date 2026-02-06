@@ -19,6 +19,12 @@ var is_host: bool = false
 var opponent_id: int = -1
 var my_id: int = -1
 
+# Player identity (from PlayerData)
+var my_player_id: String = ""  # My account UID
+var my_username: String = ""  # My display name
+var opponent_player_id: String = ""  # Opponent's account UID
+var opponent_username: String = ""  # Opponent's display name
+
 func _ready() -> void:
 	# Connect multiplayer signals
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -26,6 +32,27 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+
+func _load_my_identity() -> void:
+	if has_node("/root/PlayerData"):
+		var pd = get_node("/root/PlayerData")
+		my_player_id = pd.player_id
+		my_username = pd.username
+	else:
+		my_player_id = "unknown_" + str(randi())
+		my_username = "Player"
+	# When testing locally (2 instances on same PC), both share the same PlayerData save.
+	# Append peer role to make player_id unique per session.
+	# This will be overwritten once we have proper separate accounts.
+	if is_host:
+		my_player_id = my_player_id + "_host"
+		if my_username == "Player" or my_username == "Guest":
+			my_username = my_username + " (Host)"
+	else:
+		my_player_id = my_player_id + "_client"
+		if my_username == "Player" or my_username == "Guest":
+			my_username = my_username + " (Client)"
+	print("ENetMultiplayer: My identity - player_id: ", my_player_id, " username: ", my_username)
 
 func host_game(port: int = DEFAULT_PORT) -> Error:
 	"""Host a game server"""
@@ -40,6 +67,7 @@ func host_game(port: int = DEFAULT_PORT) -> Error:
 	is_multiplayer = true
 	is_host = true
 	my_id = multiplayer.get_unique_id()
+	_load_my_identity()
 	
 	print("ENetMultiplayer: Server started on port ", port)
 	print("ENetMultiplayer: My ID: ", my_id, " (Host)")
@@ -58,6 +86,7 @@ func join_game(ip: String = "127.0.0.1", port: int = DEFAULT_PORT) -> Error:
 	multiplayer.multiplayer_peer = peer
 	is_multiplayer = true
 	is_host = false
+	_load_my_identity()
 	
 	print("ENetMultiplayer: Connecting to ", ip, ":", port)
 	
@@ -82,9 +111,9 @@ func _on_peer_connected(id: int) -> void:
 		# Host: the connected peer is our opponent
 		opponent_id = id
 		print("ENetMultiplayer: Opponent joined! ID: ", opponent_id)
-		
-		# Match is ready - emit signal
-		match_ready.emit(true, opponent_id)
+	
+	# Exchange player identity with the new peer
+	_send_identity.rpc_id(id, my_player_id, my_username)
 	
 	player_connected.emit(id)
 
@@ -106,8 +135,17 @@ func _on_connected_to_server() -> void:
 	
 	connection_succeeded.emit()
 	
-	# Match is ready - emit signal
-	match_ready.emit(false, opponent_id)
+	# Send our identity to the host
+	_send_identity.rpc_id(opponent_id, my_player_id, my_username)
+
+@rpc("any_peer", "reliable")
+func _send_identity(player_id: String, username: String) -> void:
+	opponent_player_id = player_id
+	opponent_username = username
+	print("ENetMultiplayer: Received opponent identity - player_id: ", opponent_player_id, " username: ", opponent_username)
+	
+	# Now that we have identity, match is ready
+	match_ready.emit(is_host, opponent_id)
 
 func _on_connection_failed() -> void:
 	print("ENetMultiplayer: Connection failed!")
