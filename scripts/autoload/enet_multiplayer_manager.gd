@@ -144,7 +144,11 @@ func _send_identity(player_id: String, username: String) -> void:
 	opponent_username = username
 	print("ENetMultiplayer: Received opponent identity - player_id: ", opponent_player_id, " username: ", opponent_username)
 	
-	# Now that we have identity, match is ready
+	# Defer the signal emit so listeners run in a clean frame context (not inside RPC)
+	_emit_match_ready.call_deferred()
+
+func _emit_match_ready() -> void:
+	print("ENetMultiplayer: Emitting match_ready (deferred) - is_host: ", is_host, " opponent_id: ", opponent_id)
 	match_ready.emit(is_host, opponent_id)
 
 func _on_connection_failed() -> void:
