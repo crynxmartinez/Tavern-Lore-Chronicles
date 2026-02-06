@@ -26,6 +26,10 @@ var opponent_player_id: String = ""  # Opponent's account UID
 var opponent_username: String = ""  # Opponent's display name
 var _match_ready_emitted: bool = false  # Guard against double-fire
 
+# Match & Action tracking
+var match_id: String = ""  # Unique ID for current match
+var _action_counter: int = 0  # Sequential action counter per match
+
 func _ready() -> void:
 	# Connect multiplayer signals
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -103,6 +107,8 @@ func disconnect_game() -> void:
 	opponent_id = -1
 	my_id = -1
 	_match_ready_emitted = false
+	match_id = ""
+	_action_counter = 0
 	
 	print("ENetMultiplayer: Disconnected")
 
@@ -154,8 +160,20 @@ func _emit_match_ready() -> void:
 		print("ENetMultiplayer: match_ready already emitted, skipping")
 		return
 	_match_ready_emitted = true
+	# Generate match_id when match starts (Host generates, both sides will have it)
+	_action_counter = 0
+	match_id = my_player_id.substr(max(0, my_player_id.length() - 6)) + "_" + str(int(Time.get_unix_time_from_system())) + "_" + str(randi() % 10000)
+	print("ENetMultiplayer: Match ID: ", match_id)
 	print("ENetMultiplayer: Emitting match_ready (deferred) - is_host: ", is_host, " opponent_id: ", opponent_id)
 	match_ready.emit(is_host, opponent_id)
+
+func next_action_id() -> int:
+	## Get next sequential action ID for this match
+	_action_counter += 1
+	return _action_counter
+
+func get_action_counter() -> int:
+	return _action_counter
 
 func _on_connection_failed() -> void:
 	print("ENetMultiplayer: Connection failed!")

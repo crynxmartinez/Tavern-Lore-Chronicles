@@ -45,6 +45,11 @@ func initialize(battle: Node, mp: bool, host: bool, opp_id: int) -> void:
 	print("  - My ID: ", my_id)
 	print("  - Opponent ID: ", opponent_id)
 
+func _get_enet_manager():
+	if has_node("/root/ENetMultiplayerManager"):
+		return get_node("/root/ENetMultiplayerManager")
+	return null
+
 func _on_peer_disconnected(id: int) -> void:
 	if id == opponent_id:
 		print("BattleNetworkManagerENet: Opponent disconnected!")
@@ -98,6 +103,12 @@ func send_action_request(request: Dictionary) -> void:
 	if is_host:
 		push_warning("BattleNetworkManagerENet: Host should not send action requests!")
 		return
+	
+	# Stamp with match_id and action_id
+	var enet = _get_enet_manager()
+	if enet:
+		request["match_id"] = enet.match_id
+		request["action_id"] = enet.next_action_id()
 	
 	var action = request.get("action_type", "unknown")
 	print("\n=== NET [GUEST→HOST] ACTION REQUEST ===")
@@ -159,6 +170,12 @@ func send_action_result(result: Dictionary) -> void:
 	if not is_host:
 		push_warning("BattleNetworkManagerENet: Guest should not send action results!")
 		return
+	
+	# Stamp with match_id and action_id
+	var enet = _get_enet_manager()
+	if enet:
+		result["match_id"] = enet.match_id
+		result["action_id"] = enet.next_action_id()
 	
 	var action = result.get("action_type", "unknown")
 	var effects = result.get("effects", [])
