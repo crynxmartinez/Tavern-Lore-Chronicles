@@ -423,16 +423,20 @@ func has_equipment() -> bool:
 	return not equipped_items.is_empty()
 
 func add_equipment(equip_data: Dictionary) -> void:
+	# Ensure equipment has an instance_id
+	if not equip_data.has("instance_id"):
+		equip_data["instance_id"] = "equip_" + equip_data.get("id", "unknown") + "_" + str(randi())
 	equipped_items.append(equip_data)
 	# Show equipment indicator as a buff icon
 	if not active_buffs.has("equipped"):
 		active_buffs["equipped"] = {"duration": -1, "source_atk": 0}  # Permanent until removed
 	_update_buff_icons()
-	print(hero_data.get("name", "Hero") + " equipped: " + equip_data.get("name", "Unknown"))
+	print(hero_data.get("name", "Hero") + " equipped: " + equip_data.get("name", "Unknown") + " iid=" + equip_data.get("instance_id", "?"))
 
 func remove_equipment(equip_id: String) -> void:
+	## Remove equipment by id or instance_id
 	for i in range(equipped_items.size()):
-		if equipped_items[i].get("id", "") == equip_id:
+		if equipped_items[i].get("instance_id", "") == equip_id or equipped_items[i].get("id", "") == equip_id:
 			var removed = equipped_items[i]
 			equipped_items.remove_at(i)
 			print(hero_data.get("name", "Hero") + " unequipped: " + removed.get("name", "Unknown"))
