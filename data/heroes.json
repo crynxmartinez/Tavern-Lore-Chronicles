@@ -277,7 +277,7 @@
 		],
 		"ex_skill": {
 			"name": "Thunder God",
-			"description": "Detonate all Thunder stacks on all enemies.",
+			"description": "Apply 2 stacks of Thunder to all enemies.",
 			"type": "thunder_all",
 			"effects": ["thunder_all"],
 			"image": "res://asset/Hero/Raizel/ex.png"

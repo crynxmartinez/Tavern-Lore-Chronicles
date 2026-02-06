@@ -495,15 +495,22 @@ func _get_card_display_description(card_data: Dictionary) -> String:
 	var card_def_mult = card_data.get("def_multiplier", 0.0)
 	if card_base_shield > 0 or card_def_mult > 0:
 		var shield_amount = card_base_shield + int(base_def * card_def_mult)
-		# Replace the formula pattern like "(5 + DEF×3)" or "(15 + DEF×6)"
-		var formula_str = "(" + str(card_base_shield) + " + DEF" + str("\u00d7") + str(int(card_def_mult)) + ")"
-		if desc.find(formula_str) >= 0:
-			desc = desc.replace(formula_str, str(shield_amount))
-		else:
-			# Try alternate format
-			var alt = "(" + str(card_base_shield) + " + DEF*" + str(int(card_def_mult)) + ")"
-			if desc.find(alt) >= 0:
-				desc = desc.replace(alt, str(shield_amount))
+		var def_int = str(int(card_def_mult))
+		var base_str = str(card_base_shield)
+		# Try all possible × character variants
+		var separators = ["×", "x", "X", "*"]
+		var replaced = false
+		for sep in separators:
+			var with_parens = "(" + base_str + " + DEF" + sep + def_int + ")"
+			if desc.find(with_parens) >= 0:
+				desc = desc.replace(with_parens, str(shield_amount))
+				replaced = true
+				break
+			var no_parens = base_str + " + DEF" + sep + def_int
+			if desc.find(no_parens) >= 0:
+				desc = desc.replace(no_parens, str(shield_amount))
+				replaced = true
+				break
 	
 	# Mana surge special case
 	if card_data.get("effects", []).has("mana_surge"):

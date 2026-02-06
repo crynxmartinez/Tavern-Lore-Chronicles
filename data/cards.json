@@ -503,7 +503,7 @@
 		"target": "all_enemy",
 		"effects": ["thunder_detonate"],
 		"hero_color": "blue",
-		"description": "Detonate all Thunder stacks on all enemies.",
+		"description": "Apply 2 stacks of Thunder to all enemies.",
 		"art": "res://asset/Hero/Raizel/ex.png",
 		"image": "res://asset/Hero/Raizel/RaizelEX.png"
 	},

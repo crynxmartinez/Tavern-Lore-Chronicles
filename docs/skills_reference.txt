@@ -346,8 +346,8 @@ RAIZEL (Mage - Blue) | HP: 130 | ATK: 15 | DEF: 1
 
 EX: Thunder God
    - Type: thunder_all | Target: all_enemy
-   - Effects: thunder_detonate
-   - Description: Detonate all Thunder stacks on all enemies.
+   - Effects: thunder_2_all
+   - Description: Apply 2 stacks of Thunder to all enemies.
 
 THUNDER DEBUFF:
 - Stacks accumulate on target

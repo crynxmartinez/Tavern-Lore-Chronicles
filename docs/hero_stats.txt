@@ -214,7 +214,7 @@ RAIZEL (Mage)
 Color: Blue | HP: 130 | ATK: 15 | DEF: 1
 
 EX SKILL: Thunder God
-- Detonate all Thunder stacks on all enemies.
+- Apply 2 stacks of Thunder to all enemies.
 
 SKILL CARDS:
 1. Thunder Strike (2 Mana)
