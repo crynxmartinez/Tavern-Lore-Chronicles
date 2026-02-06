@@ -952,8 +952,8 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 		target_is_enemy = false
 		print("Battle: [HOST] energy card - self-target: ", target.hero_id if target else "null")
 	
-	# Execute and collect results
-	var result = await _execute_card_and_collect_results(card_data, source_hero, target)
+	# Execute and collect results (NO animations yet)
+	var result = _execute_card_and_collect_results(card_data, source_hero, target)
 	
 	# Add action info to result
 	result["action_type"] = "play_card"
@@ -971,9 +971,12 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 	for effect in result.get("effects", []):
 		print("  - Effect: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"), " iid=", effect.get("instance_id", "?"))
 	
-	# Send results to Guest
+	# Send results to Guest IMMEDIATELY (before animations)
 	network_manager.send_action_result(result)
-	print("Battle: [HOST] Executed card and sent results to Guest")
+	print("Battle: [HOST] Sent results to Guest, now animating...")
+	
+	# Play animations on Host (Guest animates in parallel)
+	await _play_card_animations(result, card_data, source_hero, target)
 	
 	# Finish card play
 	await _fade_out_visual(visual)
@@ -1589,11 +1592,10 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 		if is_host:
 			selected_card = null
 			_play_audio("play_card_play")
-			await _animate_card_to_display(card)
 			
-			# Spend mana
+			# Spend mana and compute effects FIRST (no animations)
 			if GameManager.play_card(card_data_copy, source_hero, target):
-				var host_result = await _execute_card_and_collect_results(card_data_copy, source_hero, target)
+				var host_result = _execute_card_and_collect_results(card_data_copy, source_hero, target)
 				host_result["action_type"] = "play_card"
 				host_result["played_by"] = my_player_id
 				host_result["card_name"] = card_data_copy.get("name", "Unknown")
@@ -1603,8 +1605,14 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 				host_result["target_hero_id"] = target.hero_id if target else ""
 				host_result["target_instance_id"] = target.instance_id if target else ""
 				host_result["target_is_enemy"] = not target.is_player_hero if target else false
+				# Send result IMMEDIATELY before animations
 				network_manager.send_action_result(host_result)
-				print("Battle: [HOST] Executed targeted card and sent results to Guest")
+				print("Battle: [HOST] Sent targeted card results to Guest, now animating...")
+				# Animate card to display then play card animations
+				await _animate_card_to_display(card)
+				await _play_card_animations(host_result, card_data_copy, source_hero, target)
+			else:
+				await _animate_card_to_display(card)
 			
 			_finish_card_play()
 			return
@@ -3811,11 +3819,11 @@ func _host_execute_card_request(request: Dictionary) -> void:
 			print("---\n")
 			return
 	
-	# Execute the card and collect results
-	print("  → Executing card...")
-	var result = await _execute_card_and_collect_results(card_data, source, target)
+	# Execute the card and collect results (NO animations yet)
+	print("  → Executing card (compute only)...")
+	var result = _execute_card_and_collect_results(card_data, source, target)
 	
-	# Send results to Guest
+	# Send results to Guest IMMEDIATELY (before animations)
 	result["action_type"] = "play_card"
 	result["played_by"] = opponent_player_id  # Guest played this card
 	result["card_name"] = card_data.get("name", "Unknown")
@@ -3826,6 +3834,9 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	result["target_instance_id"] = target.instance_id if target else target_instance_id
 	result["target_is_enemy"] = not is_guest_targeting_enemy
 	network_manager.send_action_result(result)
+	
+	# Now play animations on Host (Guest animates in parallel)
+	await _play_card_animations(result, card_data, source, target)
 
 func _host_execute_ex_skill_request(request: Dictionary) -> void:
 	## HOST: Execute an EX skill request from Guest and send results
@@ -4190,9 +4201,9 @@ func _on_opponent_turn_ended() -> void:
 # ============================================
 
 func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, target: Hero) -> Dictionary:
-	## HOST ONLY: Execute a card and collect all effects as results
-	## Returns a dictionary with "effects" array containing all state changes
-	## Supports multi-target (all_ally/all_enemy) and card effects array
+	## HOST ONLY: Execute a card, collect results, then animate.
+	## Phase 1: Apply all effects and collect results (instant, no animations)
+	## Phase 2: Play animations on Host (while Guest receives results in parallel)
 	print("Battle: [HOST] _execute_card_and_collect_results")
 	print("  card: ", card_data.get("name", "?"))
 	print("  source: ", source.hero_id if source else "null")
@@ -4222,23 +4233,21 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 	elif target:
 		targets.append(target)
 	
-	# Show card display
-	await _show_card_display(card_data)
+	# ========================================
+	# PHASE 1: Apply effects and collect results (NO animations)
+	# ========================================
+	var _anim_data: Dictionary = {"type": card_type, "source": source, "targets": targets, "card_data": card_data}
 	
 	match card_type:
 		"attack", "basic_attack":
 			var atk_mult = card_data.get("atk_multiplier", 1.0)
 			var damage = int(base_atk * atk_mult * damage_mult)
+			_anim_data["damage"] = damage
 			
 			for t in targets:
 				var old_hp = t.current_hp
 				print("Battle: [HOST] Executing attack - damage: ", damage, " on ", t.hero_id)
-				
-				if source:
-					await _animate_attack(source, t, damage)
-				else:
-					t.take_damage(damage)
-				
+				t.take_damage(damage)
 				print("Battle: [HOST] After attack - ", t.hero_id, " HP: ", t.current_hp, " (was ", old_hp, ")")
 				
 				effects.append({
@@ -4270,10 +4279,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 			
 			for t in targets:
 				t.heal(heal_amount)
-				
-				if source and t == targets[0]:
-					await _animate_cast_heal(source, t)
-				
 				effects.append({
 					"type": "heal",
 					"hero_id": t.hero_id,
@@ -4328,9 +4333,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 						"value": base_atk
 					})
 			
-			if source and targets.size() > 0:
-				await _animate_cast_buff(source, targets[0])
-			
 			# Process card effects (empower_target, taunt, draw_1, etc.)
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
@@ -4354,9 +4356,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 						"value": base_atk
 					})
 			
-			if source and targets.size() > 0:
-				await _animate_cast_debuff(source, targets[0])
-			
 			# Process card effects (thunder_all, thunder_stack_2, etc.)
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
@@ -4365,10 +4364,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 		
 		"equipment":
 			if target:
-				var caster = source if source else target
-				if caster:
-					await _animate_cast_buff(caster, target)
-				
 				target.add_equipment(card_data)
 				effects.append({
 					"type": "equipment",
@@ -4424,14 +4419,55 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					"amount": energy_gain,
 					"new_energy": source.energy
 				})
+	
+	# Results are now ready — caller can send to Guest before we animate
+	var result = {
+		"success": true,
+		"effects": effects,
+		"_anim_data": _anim_data
+	}
+	return result
+
+func _play_card_animations(result: Dictionary, card_data: Dictionary, source: Hero, target: Hero) -> void:
+	## HOST ONLY: Play card animations AFTER results have been sent to Guest.
+	## This runs in parallel with Guest receiving and processing results.
+	var _anim_data = result.get("_anim_data", {})
+	var card_type = _anim_data.get("type", card_data.get("type", ""))
+	var targets = _anim_data.get("targets", [target] if target else [])
+	
+	await _show_card_display(card_data)
+	
+	match card_type:
+		"attack", "basic_attack":
+			var damage = _anim_data.get("damage", 10)
+			for t in targets:
+				if source and is_instance_valid(t):
+					# Visual-only attack animation (damage already applied)
+					await _guest_animate_attack(source, t, damage)
+		
+		"heal":
+			if source and targets.size() > 0:
+				await _animate_cast_heal(source, targets[0])
+		
+		"buff":
+			if source and targets.size() > 0:
+				await _animate_cast_buff(source, targets[0])
+		
+		"debuff":
+			if source and targets.size() > 0:
+				await _animate_cast_debuff(source, targets[0])
+		
+		"equipment":
+			if target:
+				var caster = source if source else target
+				if caster:
+					await _animate_cast_buff(caster, target)
+		
+		"energy":
+			if source:
 				await _animate_cast_buff(source, source)
 	
 	await _hide_card_display()
-	
-	return {
-		"success": true,
-		"effects": effects
-	}
 
 func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero, primary_target: Hero, targets: Array) -> void:
 	## After _apply_effects has been called, snapshot any state changes caused by
