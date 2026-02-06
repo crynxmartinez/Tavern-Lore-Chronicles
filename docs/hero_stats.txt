@@ -73,7 +73,7 @@ PRIEST (Support)
 Color: Green | HP: 132 | ATK: 12 | DEF: 3
 
 EX SKILL: Divine Light
-- Revive target ally and heal for (30% max HP).
+- Heal the target. If the target is dead, revive it.
 - Heal: 132 × 0.30 = 39
 
 SKILL CARDS:
@@ -247,15 +247,48 @@ Mage:      Blue         (Color: 0.2, 0.6, 1.0)
 ================================================================================
                               BUFFS & DEBUFFS
 ================================================================================
-BUFFS:
-Empower:  +50% damage dealt (2 turns)
-Taunt:    Enemies must target this hero (2 turns)
-Regen:    Heals 50% ATK at turn start (2 turns)
 
-DEBUFFS:
-Break:    +50% damage taken (2 turns)
-Thunder:  Stacks, triggers at turn end for (Stacks × 100% ATK) damage
-Stun:     Cannot act for 1 turn
-Weak:     -50% damage dealt (2 turns)
+TIMING RULE:
+  All debuffs last until the end of the affected player's turn.
+  Damage debuffs trigger at end of turn, then clear/consume.
+  Status debuffs are active during that turn, then clear at end.
+
+--------------------------------------------------------------------------------
+BUFFS
+--------------------------------------------------------------------------------
+Empower:   +50% damage dealt, +50% heal, +50% shield. Until end of turn.
+Taunt:     Enemies must target this hero. Until end of turn.
+Regen:     Heals 50% ATK at turn start. Until end of turn.
+Bolster:   Indicates equipment is attached (passive, no duration).
+
+--------------------------------------------------------------------------------
+DEBUFFS (Status) — Active during owner's turn, cleared at end
+--------------------------------------------------------------------------------
+Weak:      -50% damage dealt, -50% heal, -50% shield. (Opposite of Empower)
+Break:     +50% damage taken, -50% shield and heal received.
+Stun:      Cannot act.
+Frost:     Cannot use normal attack.
+Chain:     Cannot use EX skill.
+Entangle:  +5 flat damage taken. Does not stack.
+             Interaction: Break (+50%) applies first, then +5 flat.
+Target:    Taunt-like debuff — forces enemies to focus this hero.
+
+--------------------------------------------------------------------------------
+DEBUFFS (Stackable / Detonation) — Trigger at end of owner's turn
+--------------------------------------------------------------------------------
+Thunder:   Stacks × base damage. Consumes stacks on trigger.
+Bomb:      20 flat damage to ALL enemies. Stackable. Consumes on trigger.
+Decay:     Stacks × base damage. BYPASSES SHIELD. Consumes on trigger.
+Star:      Stacks × base damage. Consumes stacks on trigger.
+Fire:      Damage dealt becomes DoT. Stackable. PERMANENT until removed.
+             Ticks at end of owner's turn. Does NOT auto-clear.
+
+--------------------------------------------------------------------------------
+ICON ASSETS (res://asset/buff debuff/)
+--------------------------------------------------------------------------------
+Empower.webp  Taunt-0.webp  regen.webp    Block.webp    Shield-0.webp
+Bolster.webp  Weak.webp     Break.webp    Stun-0.webp   Frost.webp
+Chain.webp    Entangle.webp Target.webp   Thunder.webp  Bomb.webp
+Decaying.webp Star.webp     Fire.webp     Blood.webp
 
 ================================================================================

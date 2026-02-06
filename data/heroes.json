@@ -62,7 +62,7 @@
 		],
 		"ex_skill": {
 			"name": "Divine Light",
-			"description": "Revive target ally and heal for (30% max HP).",
+			"description": "Heal the target. If the target is dead, revive it.",
 			"type": "revive",
 			"hp_multiplier": 0.30,
 			"image": "res://asset/Hero/Priest/Priest_EX.png"

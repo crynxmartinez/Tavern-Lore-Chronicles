@@ -69,30 +69,49 @@ Updated for the HP/ATK/DEF stat system.
                           AVAILABLE EFFECTS
 ================================================================================
 
+TIMING RULE:
+  All debuffs last until the end of the affected player's turn.
+  Damage debuffs trigger at end of turn, then clear/consume.
+  Status debuffs are active during that turn, then clear at end.
+
 BUFFS (positive, applied to allies):
 -------------------------------------
-| Effect         | Duration | Description                                |
-|----------------|----------|--------------------------------------------|
-| empower        | 2 turns  | +50% damage dealt (self)                   |
-| empower_target | 2 turns  | +50% damage dealt (applied to target)      |
-| empower_all    | 1 turn   | +50% damage dealt (all allies)             |
-| taunt          | 2 turns  | Enemies must target this hero              |
-| regen          | 2 turns  | Heals 50% ATK at turn start               |
-| draw_1         | instant  | Draw 1 card                                |
+| Effect         | Duration      | Description                                    |
+|----------------|---------------|------------------------------------------------|
+| empower        | Until end turn| +50% damage dealt, +50% heal, +50% shield      |
+| empower_target | Until end turn| Same as empower, applied to target              |
+| empower_all    | Until end turn| Same as empower, applied to all allies          |
+| taunt          | Until end turn| Enemies must target this hero                  |
+| regen          | Until end turn| Heals 50% ATK at turn start                    |
+| bolster        | Passive       | Indicates equipment is attached                |
+| draw_1         | Instant       | Draw 1 card                                    |
 
-DEBUFFS (negative, applied to enemies):
----------------------------------------
-| Effect         | Duration | Description                                |
-|----------------|----------|--------------------------------------------|
-| stun           | 2 turns  | Cannot act next turn                       |
-| weak           | 2 turns  | -50% damage dealt                          |
-| break          | 2 turns  | +50% damage taken                          |
-| thunder        | stacks   | 1 stack on target, detonates at turn end   |
-| thunder_all    | stacks   | 1 stack on ALL enemies                     |
-| thunder_stack_2| stacks   | +2 stacks if target already has Thunder    |
+DEBUFFS (Status) — Active during owner's turn, cleared at end:
+--------------------------------------------------------------
+| Effect         | Description                                            |
+|----------------|--------------------------------------------------------|
+| weak           | -50% damage dealt, -50% heal, -50% shield              |
+| break          | +50% damage taken, -50% shield and heal received       |
+| stun           | Cannot act                                             |
+| frost          | Cannot use normal attack                               |
+| chain          | Cannot use EX skill                                    |
+| entangle       | +5 flat damage taken. Does not stack.                  |
+|                | Interaction: Break (+50%) applies first, then +5 flat  |
+| target         | Taunt-like debuff — forces enemies to focus this hero  |
 
-SPECIAL EFFECTS:
-----------------
+DEBUFFS (Stackable / Detonation) — Trigger at end of owner's turn:
+------------------------------------------------------------------
+| Effect         | Description                                            |
+|----------------|--------------------------------------------------------|
+| thunder        | Stacks × base damage. Consumes stacks on trigger.     |
+| bomb           | 20 flat damage to ALL. Stackable. Consumes on trigger. |
+| decay          | Stacks × base damage. BYPASSES SHIELD. Consumes.      |
+| star           | Stacks × base damage. Consumes stacks on trigger.     |
+| fire           | Damage dealt becomes DoT. Stackable. PERMANENT.       |
+|                | Ticks at end of owner's turn. Does NOT auto-clear.    |
+
+SPECIAL EFFECTS (Instant):
+--------------------------
 | Effect           | Description                                    |
 |------------------|------------------------------------------------|
 | cleanse          | Remove all debuffs from target                 |
@@ -159,9 +178,9 @@ PRIEST (Support - Green) | HP: 132 | ATK: 12 | DEF: 3
    - Description: Restore (8% max HP) to target ally. Remove all debuffs.
 
 EX: Divine Light
-   - Type: revive | Target: single_ally (dead)
+   - Type: revive | Target: single_ally
    - Heal: 30% max HP (= 39)
-   - Description: Revive target ally and heal for (30% max HP).
+   - Description: Heal the target. If the target is dead, revive it.
 
 --------------------------------------------------------------------------------
 MARKSWOMAN (DPS - Red) | HP: 143 | ATK: 18 | DEF: 1
