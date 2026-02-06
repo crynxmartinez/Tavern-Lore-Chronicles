@@ -2,236 +2,260 @@
                            MY TURN - HERO STATS & SKILLS
 ================================================================================
 
-DAMAGE FORMULA:
-  Final Damage = Hero Base ATK × Card ATK Multiplier × Buff/Debuff Modifiers
-  
-  Example: Hero with 10 ATK using 100% ATK card = 10 damage
-  Example: Hero with 10 ATK using 50% ATK card = 5 damage
-  Example: Hero with 10 ATK + Empower (50%) using 100% ATK card = 15 damage
+================================================================================
+                            STAT SYSTEM
+================================================================================
+
+3 STATS: HP, ATK, DEF
+
+HP (Hit Points):
+  max_hp = base_hp × hp_multiplier
+  Items increase base_hp → multiplied by hp_multiplier for effective HP
+  When max HP increases, current HP stays the same (doesn't auto-fill)
+
+ATK (Attack):
+  Damage = ATK × card atk_multiplier × buff/debuff modifiers
+  Example: 18 ATK × 2.0 multiplier = 36 damage
+  Example: 18 ATK × 2.0 × 1.5 (Empower) = 54 damage
+
+DEF (Defense):
+  Damage reduction: every 1 DEF = 2% reduction, max 30%
+  Formula: final_damage = max(1, raw_damage × (1 - min(DEF×2, 30) / 100))
+  Example: 5 DEF = 10% reduction → 36 raw damage becomes 32
+
+SCALING RULES:
+  Damage cards  → scale off caster's ATK  (ATK × multiplier)
+  Heal cards    → scale off caster's max HP (max_HP × hp_multiplier)
+  Shield cards  → scale off caster's DEF   (base_shield + DEF × def_multiplier)
+  DEF reduction → applied to target's incoming damage
+
+================================================================================
+                          HERO STAT TABLE
+================================================================================
+
+| Hero        | Role      | Color  | Base HP | HP× | Max HP | ATK | DEF |
+|-------------|-----------|--------|---------|-----|--------|-----|-----|
+| Squire      | Tank      | Yellow |   12    | ×14 |  168   |  10 |  5  |
+| Makash      | Tank      | Yellow |   13    | ×15 |  195   |  10 |  5  |
+| Stony       | Tank      | Yellow |   13    | ×14 |  182   |  11 |  4  |
+| Priest      | Support   | Green  |   11    | ×12 |  132   |  12 |  3  |
+| Markswoman  | DPS       | Red    |   11    | ×13 |  143   |  18 |  1  |
+| Dana        | Scientist | Purple |   10    | ×11 |  110   |  14 |  1  |
+| Caelum      | Mage      | Blue   |   10    | ×12 |  120   |  16 |  0  |
+| Raizel      | Mage      | Blue   |   10    | ×13 |  130   |  15 |  1  |
 
 ================================================================================
 SQUIRE (Tank)
 ================================================================================
-Color: Yellow
-Role: Tank
-HP: 162
-Base Attack: 10
+Color: Yellow | HP: 168 | ATK: 10 | DEF: 5
 
 EX SKILL: Guardian's Oath
 - Deal (200% ATK) damage to target enemy. Stun the target.
+- Damage: 10 × 2.0 = 20
 
 SKILL CARDS:
 1. Shield Bash (2 Mana)
-   - Type: Attack
-   - Deal (100% ATK) damage to target enemy. Stun it.
+   - Type: Attack | Target: single_enemy
+   - Deal (100% ATK) damage. Stun it.
+   - Damage: 10 × 1.0 = 10
 
 2. Rally (2 Mana)
-   - Type: Buff
+   - Type: Buff | Target: single_ally
    - Empower target ally.
 
 3. Fortify (2 Mana)
-   - Type: Buff
-   - All allies gain (100% ATK) Shield.
+   - Type: Buff | Target: all_ally
+   - All allies gain Shield. (5 + DEF×3 = 20)
 
 ================================================================================
 PRIEST (Support)
 ================================================================================
-Color: Green
-Role: Support
-HP: 136
-Base Attack: 10
+Color: Green | HP: 132 | ATK: 12 | DEF: 3
 
 EX SKILL: Divine Light
-- Revive target ally and heal for (400% ATK) HP.
+- Revive target ally and heal for (30% max HP).
+- Heal: 132 × 0.30 = 39
 
 SKILL CARDS:
 1. Heal (1 Mana)
-   - Type: Heal
-   - Restore (200% ATK) HP to target ally.
+   - Type: Heal | Target: single_ally
+   - Restore (15% max HP) to target ally.
+   - Heal: 132 × 0.15 = 19
 
 2. Blessing (2 Mana)
-   - Type: Heal
-   - Restore (100% ATK) HP to all allies.
+   - Type: Heal | Target: all_ally
+   - Restore (8% max HP) to all allies.
+   - Heal: 132 × 0.08 = 10 each
 
 3. Purify (2 Mana)
-   - Type: Heal
-   - Restore (100% ATK) HP to target ally. Remove all debuffs.
+   - Type: Heal | Target: single_ally
+   - Restore (8% max HP) to target ally. Remove all debuffs.
+   - Heal: 132 × 0.08 = 10
 
 ================================================================================
 MARKSWOMAN (DPS)
 ================================================================================
-Color: Red
-Role: DPS
-HP: 168
-Base Attack: 10
+Color: Red | HP: 143 | ATK: 18 | DEF: 1
 
-EX SKILL: Sniper Shot
-- Deal (500% ATK) damage to target enemy.
+EX SKILL: Bullseye
+- Deal (300% ATK) damage to target enemy.
+- Damage: 18 × 3.0 = 54
 
 SKILL CARDS:
 1. Aimed Shot (3 Mana)
-   - Type: Attack
-   - Deal (300% ATK) damage to target enemy.
+   - Type: Attack | Target: single_enemy
+   - Deal (200% ATK) damage to target enemy.
+   - Damage: 18 × 2.0 = 36
 
 2. Rapid Shot (2 Mana)
-   - Type: Attack
-   - Deal (100% ATK) damage to all enemies.
+   - Type: Attack | Target: all_enemy
+   - Deal (70% ATK) damage to all enemies.
+   - Damage: 18 × 0.7 = 12 each
 
 3. Focus (2 Mana)
-   - Type: Buff
+   - Type: Buff | Target: self
    - Gain Empower.
 
 ================================================================================
-CRAFTSWOMAN (Scientist)
+DANA (Scientist)
 ================================================================================
-Color: Purple
-Role: Scientist
-HP: 108
-Base Attack: 10
+Color: Purple | HP: 110 | ATK: 14 | DEF: 1
 
 EX SKILL: Mech Overdrive
-- Deal (200% ATK) damage to target enemy. Empower All allies.
-- Effects: Empower All (1 turn)
+- Deal (150% ATK) damage to target enemy. Empower all allies.
+- Damage: 14 × 1.5 = 21
 
 SKILL CARDS:
 1. Dig (3 Mana)
-   - Type: Dig (Deck Manipulation)
+   - Type: Dig | Target: none
    - Check the top 3 cards of your deck. Add 1 equipment to your hand.
-   - If no equipment found, cards are shown but nothing is added.
-   - Unpicked cards are shuffled back into deck.
 
 2. Repair (2 Mana)
-   - Type: Heal
-   - Restore (200% ATK) HP to target ally.
-   - If target has equipment attached, also apply Empower (2 turns).
+   - Type: Heal | Target: single_ally
+   - Restore (18% max HP) to target ally. If target has equipment, Empower it.
+   - Heal: 110 × 0.18 = 19
 
 3. Barrier (2 Mana)
-   - Type: Buff
-   - Give target ally (200% ATK) Shield.
+   - Type: Buff | Target: single_ally
+   - Give target ally Shield. (15 + DEF×5 = 20)
 
 ================================================================================
 MAKASH (Tank)
 ================================================================================
-Color: Yellow
-Role: Tank
-HP: 183
-Base Attack: 10
+Color: Yellow | HP: 195 | ATK: 10 | DEF: 5
 
-EX SKILL: Fallen Strike
-- Deal (100% ATK) damage, apply Weak to target. Penetrates to hit the hero behind.
-- Effects: Weak, Penetrate
+EX SKILL: Rampage
+- Deal (300% ATK) damage to all enemies.
+- Damage: 10 × 3.0 = 30 each
 
 SKILL CARDS:
 1. Killing Chop (1 Mana)
-   - Type: Attack
+   - Type: Attack | Target: front_enemy
    - Deal (100% ATK) damage to the front enemy.
+   - Damage: 10 × 1.0 = 10
 
 2. Bull Rage (2 Mana)
-   - Type: Energy
+   - Type: Energy | Target: self
    - Gain 40 Energy (EX gauge).
 
 3. Bull Taunt (2 Mana)
-   - Type: Buff
-   - Gain (200% ATK) Shield and Taunt.
-
+   - Type: Buff | Target: self
+   - Gain Shield (5 + DEF×3 = 20) and Taunt.
 
 ================================================================================
 STONY (Tank)
 ================================================================================
-Color: Yellow
-Role: Tank
-HP: 182
-Base Attack: 10
+Color: Yellow | HP: 182 | ATK: 11 | DEF: 4
 
-EX SKILL: Goliath Strength
-- Gain Taunt. Stoney Gain Shield equal to it's current HP.
-- Effects: Taunt, Shield (Current HP)
+EX SKILL: Stone Fortress
+- Gain Shield (20 + DEF×10 = 60) and Taunt.
 
 SKILL CARDS:
 1. Stone Call (1 Mana)
-   - Type: Buff
+   - Type: Buff | Target: self
    - Gain Taunt.
-   - Effects: Taunt
 
 2. Stone Punch (1 Mana)
-   - Type: Attack
+   - Type: Attack | Target: front_enemy
    - Deal (200% ATK) damage to the nearest enemy.
+   - Damage: 11 × 2.0 = 22
 
 3. Stone Armor (3 Mana)
-   - Type: Buff
-   - Stony gains (400% ATK) Shield.
+   - Type: Buff | Target: self
+   - Stony gains Shield. (15 + DEF×6 = 39)
 
 ================================================================================
 CAELUM (Mage)
 ================================================================================
-Color: Purple
-Role: Mage
-HP: 140
-Base Attack: 10
+Color: Blue | HP: 120 | ATK: 16 | DEF: 0
 
-EX SKILL: Arcane Break
-- Deal (200% ATK) damage to target enemy. Apply Break (+50% damage taken).
-- Effects: Break (2 turns)
+EX SKILL: Arcane Storm
+- Deal (160% ATK) damage to all enemies.
+- Damage: 16 × 1.6 = 25 each
 
 SKILL CARDS:
-1. Mana Surge (X Mana - uses ALL mana)
-   - Type: Attack
-   - Deal (X × 100% ATK) damage where X = mana spent.
+1. Mana Surge (ALL Mana)
+   - Type: Attack | Target: single_enemy
+   - Deal (60% ATK) damage per mana spent.
+   - Example: 5 mana → 16 × 0.6 × 5 = 48 damage
 
 2. Arcane Bolt (2 Mana)
-   - Type: Attack
-   - Deal (200% ATK) damage to target enemy.
+   - Type: Attack | Target: single_enemy
+   - Deal (150% ATK) damage to target enemy.
+   - Damage: 16 × 1.5 = 24
 
 3. Future Sight (0 Mana)
-   - Type: Buff
+   - Type: Buff | Target: self
    - Draw 1 card.
 
 ================================================================================
 RAIZEL (Mage)
 ================================================================================
-Color: Blue
-Role: Mage
-HP: 145
-Base Attack: 10
+Color: Blue | HP: 130 | ATK: 15 | DEF: 1
 
-EX SKILL: Storm Judgment
-- Apply Thunder (1 stack) to ALL enemies. Lightning strikes at turn end.
-- Effects: Thunder (all enemies)
+EX SKILL: Thunder God
+- Detonate all Thunder stacks on all enemies.
 
 SKILL CARDS:
 1. Thunder Strike (2 Mana)
-   - Type: Attack
-   - Deal (100% ATK) damage to target enemy. Apply Thunder (1 stack).
+   - Type: Attack | Target: single_enemy
+   - Deal (70% ATK) damage. Apply Thunder (1 stack).
+   - Damage: 15 × 0.7 = 10
 
 2. Thunder Punish (3 Mana)
-   - Type: Debuff
+   - Type: Debuff | Target: all_enemy
    - Apply Thunder (1 stack) to ALL enemies.
 
 3. Thunder Stack (1 Mana)
-   - Type: Debuff
+   - Type: Debuff | Target: single_enemy
    - Target with Thunder: +2 stacks. No effect if no Thunder.
 
 THUNDER DEBUFF:
 - Stacks accumulate on target
 - At turn end: Lightning strikes dealing (Stacks × 100% ATK) damage
 - Stacks are consumed after triggering
-- Visual: Dark cloud appears above afflicted heroes
 
 ================================================================================
                               ROLE COLORS
 ================================================================================
-Tank:     Yellow/Gold  (Color: 1.0, 0.85, 0.0)
-Support:  Green        (Color: 0.2, 0.8, 0.2)
-DPS:      Red          (Color: 0.9, 0.2, 0.2)
-Mage:     Purple       (Color: 0.6, 0.2, 0.8)
-Assassin: Blue         (Color: 0.2, 0.6, 1.0)
+Tank:      Yellow/Gold  (Color: 1.0, 0.85, 0.0)
+Support:   Green        (Color: 0.2, 0.8, 0.2)
+DPS:       Red          (Color: 0.9, 0.2, 0.2)
+Scientist: Purple       (Color: 0.6, 0.2, 0.8)
+Mage:      Blue         (Color: 0.2, 0.6, 1.0)
 
 ================================================================================
-                              DEBUFFS
+                              BUFFS & DEBUFFS
 ================================================================================
+BUFFS:
+Empower:  +50% damage dealt (2 turns)
+Taunt:    Enemies must target this hero (2 turns)
+Regen:    Heals 50% ATK at turn start (2 turns)
+
+DEBUFFS:
 Break:    +50% damage taken (2 turns)
-Thunder:  Stacks, triggers at turn end for (Stacks × 200% ATK) damage
+Thunder:  Stacks, triggers at turn end for (Stacks × 100% ATK) damage
 Stun:     Cannot act for 1 turn
-Weak:     -50% damage dealt
+Weak:     -50% damage dealt (2 turns)
 
 ================================================================================

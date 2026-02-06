@@ -3,6 +3,7 @@
 ================================================================================
 
 This document defines the standardized format for creating skills in the game.
+Updated for the HP/ATK/DEF stat system.
 
 ================================================================================
                             TARGET TYPES
@@ -24,11 +25,12 @@ This document defines the standardized format for creating skills in the game.
 
 | Type    | Description                                    |
 |---------|------------------------------------------------|
-| attack  | Deals damage to enemies                        |
-| heal    | Restores HP to allies                          |
-| buff    | Applies positive effects to allies             |
+| attack  | Deals damage to enemies (scales off ATK)       |
+| heal    | Restores HP to allies (scales off max HP)      |
+| buff    | Applies positive effects / shield to allies     |
 | energy  | Grants EX gauge energy to source hero          |
 | mana    | Grants mana for the current turn               |
+| dig     | Deck manipulation (search for cards)           |
 
 ================================================================================
                          SKILL CARD FORMAT
@@ -37,19 +39,20 @@ This document defines the standardized format for creating skills in the game.
 {
     "id": "hero_sk#",           # Unique identifier
     "name": "Skill Name",       # Display name
-    "cost": 2,                  # Mana cost (0-5)
+    "cost": 2,                  # Mana cost (0-5, -1 for EX/special)
     "type": "attack",           # Card type (see above)
     "target": "single_enemy",   # Target type (see above)
     
-    # DAMAGE (for attack cards)
-    "atk_multiplier": 1.0,      # Damage = base_attack * multiplier
-    
-    # HEALING (for heal cards)
-    "heal_multiplier": 2.0,     # Heal = base_attack * multiplier
-    
-    # SHIELD (for buff/heal cards)
-    "shield_multiplier": 2.0,   # Shield = base_attack * multiplier
-    
+    # DAMAGE (for attack cards) — scales off caster's ATK
+    "atk_multiplier": 1.0,      # Damage = ATK × multiplier
+
+    # HEALING (for heal cards) — scales off caster's max HP
+    "hp_multiplier": 0.15,      # Heal = max_HP × multiplier
+
+    # SHIELD (for buff cards) — scales off caster's DEF
+    "base_shield": 5,           # Flat shield base
+    "def_multiplier": 3.0,      # Shield = base_shield + (DEF × multiplier)
+
     # ENERGY (for energy cards)
     "energy_gain": 40,          # Flat energy amount
     
@@ -68,227 +71,269 @@ This document defines the standardized format for creating skills in the game.
 
 BUFFS (positive, applied to allies):
 -------------------------------------
-| Effect         | Duration | Description                          |
-|----------------|----------|--------------------------------------|
-| empower        | 2 turns  | +50% damage dealt                    |
-| empower_target | 2 turns  | +50% damage (applied to target)      |
-| taunt          | 2 turns  | Enemies must target this hero        |
-| regen          | 2 turns  | Heals 50% ATK at turn start          |
-| shield         | 1 turn   | Absorbs damage (via shield_multiplier)|
+| Effect         | Duration | Description                                |
+|----------------|----------|--------------------------------------------|
+| empower        | 2 turns  | +50% damage dealt (self)                   |
+| empower_target | 2 turns  | +50% damage dealt (applied to target)      |
+| empower_all    | 1 turn   | +50% damage dealt (all allies)             |
+| taunt          | 2 turns  | Enemies must target this hero              |
+| regen          | 2 turns  | Heals 50% ATK at turn start               |
+| draw_1         | instant  | Draw 1 card                                |
 
 DEBUFFS (negative, applied to enemies):
 ---------------------------------------
-| Effect    | Duration | Description                          |
-|-----------|----------|--------------------------------------|
-| stun      | 2 turns  | Cannot act next turn                 |
-| weak      | 2 turns  | -50% damage dealt                    |
-| burn      | 2 turns  | Takes damage at turn end             |
-| poison    | 2 turns  | Takes damage at turn start           |
+| Effect         | Duration | Description                                |
+|----------------|----------|--------------------------------------------|
+| stun           | 2 turns  | Cannot act next turn                       |
+| weak           | 2 turns  | -50% damage dealt                          |
+| break          | 2 turns  | +50% damage taken                          |
+| thunder        | stacks   | 1 stack on target, detonates at turn end   |
+| thunder_all    | stacks   | 1 stack on ALL enemies                     |
+| thunder_stack_2| stacks   | +2 stacks if target already has Thunder    |
 
 SPECIAL EFFECTS:
 ----------------
-| Effect           | Description                                  |
-|------------------|----------------------------------------------|
-| cleanse          | Remove all debuffs from target               |
-| penetrate        | Also hits the hero behind target             |
-| shield_current_hp| Gain shield equal to current HP              |
+| Effect           | Description                                    |
+|------------------|------------------------------------------------|
+| cleanse          | Remove all debuffs from target                 |
+| cleanse_all      | Remove all debuffs from all allies             |
+| penetrate        | Also hits the hero behind target               |
+| shield_current_hp| Gain shield equal to current HP                |
+| mana_surge       | Cost = ALL mana. Damage = ATK × mult × mana   |
+| thunder_detonate | Detonate all Thunder stacks on all enemies     |
 
 ================================================================================
                          ALL SKILL CARDS
 ================================================================================
 
 --------------------------------------------------------------------------------
-SQUIRE (Tank - Yellow)
+SQUIRE (Tank - Yellow) | HP: 168 | ATK: 10 | DEF: 5
 --------------------------------------------------------------------------------
 
 1. Shield Bash
    - Cost: 2 Mana
-   - Type: attack
-   - Target: single_enemy
-   - Damage: 100% ATK
+   - Type: attack | Target: single_enemy
+   - Damage: 100% ATK (= 10)
    - Effects: stun
-   - Description: Deal 10 damage to target enemy. Stun it.
+   - Description: Deal (100% ATK) damage to target enemy. Stun it.
 
 2. Rally
    - Cost: 2 Mana
-   - Type: buff
-   - Target: single_ally
+   - Type: buff | Target: single_ally
    - Effects: empower_target
    - Description: Empower target ally.
 
 3. Fortify
    - Cost: 2 Mana
-   - Type: buff
-   - Target: all_ally
-   - Shield: 100% ATK
-   - Description: All allies gain 10 Shield.
+   - Type: buff | Target: all_ally
+   - Shield: 5 + DEF×3 (= 20)
+   - Description: All allies gain Shield. (5 + DEF×3)
 
 EX: Guardian's Oath
-   - Type: attack
-   - Target: single_enemy
-   - Damage: 200% ATK
+   - Type: attack | Target: single_enemy
+   - Damage: 200% ATK (= 20)
    - Effects: stun
-   - Description: Deal 20 damage to target enemy. Stun the target.
+   - Description: Deal (200% ATK) damage to target enemy. Stun the target.
 
 --------------------------------------------------------------------------------
-PRIEST (Support - Green)
+PRIEST (Support - Green) | HP: 132 | ATK: 12 | DEF: 3
 --------------------------------------------------------------------------------
 
 1. Heal
    - Cost: 1 Mana
-   - Type: heal
-   - Target: single_ally
-   - Heal: 200% ATK
-   - Description: Restore 20 HP to target ally.
+   - Type: heal | Target: single_ally
+   - Heal: 15% max HP (= 19)
+   - Description: Restore (15% max HP) to target ally.
 
 2. Blessing
    - Cost: 2 Mana
-   - Type: heal
-   - Target: all_ally
-   - Heal: 100% ATK
-   - Description: Restore 10 HP to all allies.
+   - Type: heal | Target: all_ally
+   - Heal: 8% max HP (= 10 each)
+   - Description: Restore (8% max HP) to all allies.
 
 3. Purify
    - Cost: 2 Mana
-   - Type: heal
-   - Target: single_ally
-   - Heal: 100% ATK
+   - Type: heal | Target: single_ally
+   - Heal: 8% max HP (= 10)
    - Effects: cleanse
-   - Description: Restore 10 HP to target ally. Remove all debuffs.
+   - Description: Restore (8% max HP) to target ally. Remove all debuffs.
 
 EX: Divine Light
-   - Type: revive
-   - Target: single_ally (dead)
-   - Heal: 400% ATK
-   - Description: Revive target ally and heal for 40 HP.
+   - Type: revive | Target: single_ally (dead)
+   - Heal: 30% max HP (= 39)
+   - Description: Revive target ally and heal for (30% max HP).
 
 --------------------------------------------------------------------------------
-MARKSWOMAN (DPS - Red)
+MARKSWOMAN (DPS - Red) | HP: 143 | ATK: 18 | DEF: 1
 --------------------------------------------------------------------------------
 
 1. Aimed Shot
    - Cost: 3 Mana
-   - Type: attack
-   - Target: single_enemy
-   - Damage: 300% ATK
-   - Description: Deal 30 damage to target enemy.
+   - Type: attack | Target: single_enemy
+   - Damage: 200% ATK (= 36)
+   - Description: Deal (200% ATK) damage to target enemy.
 
 2. Rapid Shot
    - Cost: 2 Mana
-   - Type: attack
-   - Target: all_enemy
-   - Damage: 100% ATK
-   - Description: Deal 10 damage to all enemies.
+   - Type: attack | Target: all_enemy
+   - Damage: 70% ATK (= 12 each)
+   - Description: Deal (70% ATK) damage to all enemies.
 
 3. Focus
    - Cost: 2 Mana
-   - Type: buff
-   - Target: self
+   - Type: buff | Target: self
    - Effects: empower
    - Description: Gain Empower.
 
-EX: Sniper Shot
-   - Type: attack
-   - Target: single_enemy
-   - Damage: 500% ATK
-   - Description: Deal 50 damage to target enemy.
+EX: Bullseye
+   - Type: attack | Target: single_enemy
+   - Damage: 300% ATK (= 54)
+   - Description: Deal (300% ATK) damage to target enemy.
 
 --------------------------------------------------------------------------------
-CRAFTSWOMAN (Mage - Purple)
+DANA (Scientist - Purple) | HP: 110 | ATK: 14 | DEF: 1
 --------------------------------------------------------------------------------
 
-1. Turret Deploy
+1. Dig
    - Cost: 3 Mana
-   - Type: attack
-   - Target: single_enemy
-   - Damage: 100% ATK
-   - Description: Deal 10 damage to target enemy.
+   - Type: dig | Target: none
+   - Description: Check the top 3 cards of your deck. Add 1 equipment to hand.
 
 2. Repair
    - Cost: 2 Mana
-   - Type: heal
-   - Target: single_ally
-   - Heal: 200% ATK
-   - Shield: 150% ATK
-   - Description: Restore 20 HP to target ally. Give 15 Shield.
+   - Type: heal | Target: single_ally
+   - Heal: 18% max HP (= 19)
+   - Special: If target has equipment, also Empower it.
+   - Description: Restore (18% max HP) to target ally. If equipped, Empower.
 
 3. Barrier
-   - Cost: 3 Mana
-   - Type: buff
-   - Target: single_ally
-   - Shield: 300% ATK
-   - Description: Give target ally 30 Shield.
+   - Cost: 2 Mana
+   - Type: buff | Target: single_ally
+   - Shield: 15 + DEF×5 (= 20)
+   - Description: Give target ally Shield. (15 + DEF×5)
 
 EX: Mech Overdrive
-   - Type: attack
-   - Target: single_enemy
-   - Damage: 200% ATK
+   - Type: attack | Target: single_enemy
+   - Damage: 150% ATK (= 21)
    - Effects: empower_all
-   - Description: Deal 20 damage to target enemy. Empower all allies.
+   - Description: Deal (150% ATK) damage to target enemy. Empower all allies.
 
 --------------------------------------------------------------------------------
-MAKASH (Tank - Yellow)
+MAKASH (Tank - Yellow) | HP: 195 | ATK: 10 | DEF: 5
 --------------------------------------------------------------------------------
 
 1. Killing Chop
    - Cost: 1 Mana
-   - Type: attack
-   - Target: front_enemy
-   - Damage: 100% ATK
-   - Description: Deal 10 damage to the front enemy.
+   - Type: attack | Target: front_enemy
+   - Damage: 100% ATK (= 10)
+   - Description: Deal (100% ATK) damage to the front enemy.
 
 2. Bull Rage
    - Cost: 2 Mana
-   - Type: energy
-   - Target: self
+   - Type: energy | Target: self
    - Energy: 40
    - Description: Gain 40 Energy (EX gauge).
 
 3. Bull Taunt
    - Cost: 2 Mana
-   - Type: buff
-   - Target: self
-   - Shield: 200% ATK
+   - Type: buff | Target: self
+   - Shield: 5 + DEF×3 (= 20)
    - Effects: taunt
-   - Description: Gain 20 Shield and Taunt.
+   - Description: Gain Shield (5 + DEF×3) and Taunt.
 
-EX: Fallen Strike
-   - Type: attack
-   - Target: single_enemy
-   - Damage: 100% ATK
-   - Effects: weak, penetrate
-   - Description: Deal 10 damage, apply Weak. Penetrates to hit hero behind.
+EX: Rampage
+   - Type: attack | Target: all_enemy
+   - Damage: 300% ATK (= 30 each)
+   - Description: Deal (300% ATK) damage to all enemies.
 
 --------------------------------------------------------------------------------
-STONY (Tank - Yellow)
+STONY (Tank - Yellow) | HP: 182 | ATK: 11 | DEF: 4
 --------------------------------------------------------------------------------
 
 1. Stone Call
    - Cost: 1 Mana
-   - Type: buff
-   - Target: self
+   - Type: buff | Target: self
    - Effects: taunt
    - Description: Gain Taunt.
 
 2. Stone Punch
    - Cost: 1 Mana
-   - Type: attack
-   - Target: front_enemy
-   - Damage: 200% ATK
-   - Description: Deal 20 damage to the nearest enemy.
+   - Type: attack | Target: front_enemy
+   - Damage: 200% ATK (= 22)
+   - Description: Deal (200% ATK) damage to the nearest enemy.
 
 3. Stone Armor
    - Cost: 3 Mana
-   - Type: buff
-   - Target: self
-   - Shield: 400% ATK
-   - Description: Stony gains 40 Shield.
+   - Type: buff | Target: self
+   - Shield: 15 + DEF×6 (= 39)
+   - Description: Stony gains Shield. (15 + DEF×6)
 
-EX: Goliath Strength
-   - Type: self_buff
-   - Target: self
-   - Effects: taunt, shield_current_hp
-   - Description: Gain Taunt. Gain Shield equal to current HP.
+EX: Stone Fortress
+   - Type: self_buff | Target: self
+   - Shield: 20 + DEF×10 (= 60)
+   - Effects: taunt
+   - Description: Gain Shield (20 + DEF×10) and Taunt.
+
+--------------------------------------------------------------------------------
+CAELUM (Mage - Blue) | HP: 120 | ATK: 16 | DEF: 0
+--------------------------------------------------------------------------------
+
+1. Mana Surge
+   - Cost: ALL Mana
+   - Type: attack | Target: single_enemy
+   - Damage: 60% ATK per mana spent (e.g. 5 mana = 16 × 0.6 × 5 = 48)
+   - Effects: mana_surge
+   - Description: Cost: ALL mana. Deal (60% ATK) damage per mana spent.
+
+2. Arcane Bolt
+   - Cost: 2 Mana
+   - Type: attack | Target: single_enemy
+   - Damage: 150% ATK (= 24)
+   - Description: Deal (150% ATK) damage to target enemy.
+
+3. Future Sight
+   - Cost: 0 Mana
+   - Type: buff | Target: self
+   - Effects: draw_1
+   - Description: Draw 1 card.
+
+EX: Arcane Storm
+   - Type: attack | Target: all_enemy
+   - Damage: 160% ATK (= 25 each)
+   - Description: Deal (160% ATK) damage to all enemies.
+
+--------------------------------------------------------------------------------
+RAIZEL (Mage - Blue) | HP: 130 | ATK: 15 | DEF: 1
+--------------------------------------------------------------------------------
+
+1. Thunder Strike
+   - Cost: 2 Mana
+   - Type: attack | Target: single_enemy
+   - Damage: 70% ATK (= 10)
+   - Effects: thunder
+   - Description: Deal (70% ATK) damage. Apply Thunder (1 stack).
+
+2. Thunder Punish
+   - Cost: 3 Mana
+   - Type: debuff | Target: all_enemy
+   - Effects: thunder_all
+   - Description: Apply Thunder (1 stack) to ALL enemies.
+
+3. Thunder Stack
+   - Cost: 1 Mana
+   - Type: debuff | Target: single_enemy
+   - Effects: thunder_stack_2
+   - Description: Target with Thunder: +2 stacks. No effect if no Thunder.
+
+EX: Thunder God
+   - Type: thunder_all | Target: all_enemy
+   - Effects: thunder_detonate
+   - Description: Detonate all Thunder stacks on all enemies.
+
+THUNDER DEBUFF:
+- Stacks accumulate on target
+- At turn end: Lightning strikes dealing (Stacks × 100% ATK) damage
+- Stacks are consumed after triggering
 
 ================================================================================
                       CREATING NEW SKILLS - TEMPLATE
@@ -300,13 +345,14 @@ Copy this template when creating new skills:
     "id": "[hero]_sk[#]",
     "name": "[Skill Name]",
     "cost": [0-5],
-    "type": "[attack/heal/buff/energy]",
+    "type": "[attack/heal/buff/energy/dig]",
     "target": "[target_type]",
     
     # Include only what's needed:
-    "atk_multiplier": [0.0-5.0],      # For attack
-    "heal_multiplier": [0.0-5.0],     # For heal
-    "shield_multiplier": [0.0-5.0],   # For shield
+    "atk_multiplier": [0.0-5.0],      # For attack (scales off ATK)
+    "hp_multiplier": [0.0-1.0],       # For heal (scales off max HP)
+    "base_shield": [0-30],            # For shield (flat base)
+    "def_multiplier": [0.0-10.0],     # For shield (scales off DEF)
     "energy_gain": [0-100],           # For energy
     "effects": ["effect1", "effect2"], # Status effects
     
