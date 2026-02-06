@@ -649,7 +649,7 @@ func _create_card_panel(card_data: Dictionary, role_color: Color, pos: Vector2, 
 	var cost_text = str(int(cost)) if cost >= 0 else "X"
 	var cost_label = Label.new()
 	cost_label.text = cost_text
-	cost_label.position = Vector2(8, 36)
+	cost_label.position = Vector2(8, 26)
 	cost_label.custom_minimum_size = Vector2(32, 32)
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -662,9 +662,9 @@ func _create_card_panel(card_data: Dictionary, role_color: Color, pos: Vector2, 
 	# Card description (in template's description area - computed values)
 	var desc_label = RichTextLabel.new()
 	desc_label.text = _get_card_display_description(card_data)
-	desc_label.position = Vector2(14, size.y * 0.60)
-	desc_label.custom_minimum_size = Vector2(size.x - 28, size.y * 0.34)
-	desc_label.size = Vector2(size.x - 28, size.y * 0.34)
+	desc_label.position = Vector2(20, size.y * 0.60)
+	desc_label.custom_minimum_size = Vector2(size.x - 34, size.y * 0.34)
+	desc_label.size = Vector2(size.x - 34, size.y * 0.34)
 	desc_label.add_theme_font_size_override("normal_font_size", 13)
 	desc_label.add_theme_color_override("default_color", Color(0.95, 0.95, 0.95))
 	desc_label.scroll_active = false
