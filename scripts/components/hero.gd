@@ -330,9 +330,11 @@ func on_turn_start() -> void:
 		heal(heal_amount)
 
 func on_turn_end() -> void:
-	# Tick down buff durations
+	# Tick down buff durations (skip permanent buffs with duration < 0)
 	var buffs_to_remove = []
 	for buff_name in active_buffs:
+		if active_buffs[buff_name].duration < 0:
+			continue  # Permanent buff (e.g. equipment "equipped" indicator)
 		active_buffs[buff_name].duration -= 1
 		if active_buffs[buff_name].duration <= 0:
 			buffs_to_remove.append(buff_name)
