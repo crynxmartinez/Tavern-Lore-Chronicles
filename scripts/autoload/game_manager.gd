@@ -217,6 +217,31 @@ func enemy_play_card(card_data: Dictionary, source_hero, target) -> bool:
 func enemy_mulligan(cards_to_replace_count: int) -> void:
 	enemy_deck_manager.random_mulligan(cards_to_replace_count)
 
+func enemy_smart_mulligan() -> int:
+	# AI evaluates each card in hand and replaces bad ones
+	var cards_to_replace = []
+	for card in enemy_hand:
+		var dominated = false
+		var cost = card.get("cost", 0)
+		var card_type = card.get("type", "attack")
+		# Replace expensive cards (cost 3+) — want cheap openers
+		if cost >= 3:
+			dominated = true
+		# Keep buffs/debuffs (setup cards) and mana/energy cards
+		if card_type in ["buff", "mana", "energy"]:
+			dominated = false
+		# Keep 0-cost attacks always
+		if card_type == "basic_attack" or cost == 0:
+			dominated = false
+		if dominated:
+			cards_to_replace.append(card)
+	# Cap at 2 replacements max
+	if cards_to_replace.size() > 2:
+		cards_to_replace.resize(2)
+	if not cards_to_replace.is_empty():
+		enemy_deck_manager.mulligan(cards_to_replace)
+	return cards_to_replace.size()
+
 func on_enemy_hero_died(hero_id: String, hero_color: String) -> void:
 	enemy_deck_manager.on_hero_died(hero_id, hero_color)
 

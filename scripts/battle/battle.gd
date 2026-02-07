@@ -435,8 +435,8 @@ func _do_enemy_mulligan() -> void:
 		await get_tree().create_timer(1.0).timeout
 		return
 	
-	# AI randomly decides to replace 0-3 cards
-	var cards_to_replace = randi() % 4  # 0, 1, 2, or 3 cards
+	# AI smart mulligan — replace expensive/bad cards
+	var cards_to_replace = GameManager.enemy_smart_mulligan()
 	
 	if cards_to_replace > 0:
 		# Animate enemy hand changing (cards go down, new ones come up)
@@ -447,9 +447,6 @@ func _do_enemy_mulligan() -> void:
 				tween.tween_property(card_back, "modulate:a", 0.0, 0.15)
 		
 		await get_tree().create_timer(0.3).timeout
-		
-		# Actually perform the mulligan in GameManager
-		GameManager.enemy_mulligan(cards_to_replace)
 		
 		# Refresh enemy hand display with actual values
 		_refresh_enemy_hand_display()
@@ -3210,18 +3207,19 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 			var ex_data = enemy.hero_data.get("ex_skill", {})
 			var ex_target = _ai_get_best_target(alive_players, "damage", ex_data)
 			if ex_target:
-				# Use EX if: target has break, target is killable, or 3+ enemies alive
+				# Use EX strategically — don't always fire immediately
 				var should_ex = false
 				if ex_target.has_debuff("break"):
-					should_ex = true  # Amplified damage
-				elif ex_target.current_hp < ex_target.max_hp * 0.4:
-					should_ex = true  # Likely kill
-				elif alive_players.size() >= 3:
-					should_ex = true  # Good value
+					should_ex = true  # Amplified damage on broken target
+				elif ex_target.current_hp < ex_target.max_hp * 0.35:
+					should_ex = true  # Likely kill — secure it
+				elif alive_players.size() >= 3 and mana >= 2:
+					should_ex = true  # Good value with follow-up mana
 				elif mana <= 1:
-					should_ex = true  # No mana for cards anyway
-				else:
-					should_ex = true  # Default: use it (don't waste full energy)
+					should_ex = true  # No mana for cards, use free EX
+				elif alive_enemies.size() <= 1:
+					should_ex = true  # Last hero standing, go all out
+				# Otherwise hold EX — save for a better moment
 				
 				if should_ex:
 					await _ai_use_ex_skill(enemy, ex_target)
@@ -3479,8 +3477,12 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 					best = t
 			return best
 		else:
-			# Generic buff — give to a random ally
-			return targets[randi() % targets.size()]
+			# Generic buff — give to the ally with highest ATK (most value)
+			var best = targets[0]
+			for t in targets:
+				if t.hero_data.get("base_attack", 0) > best.hero_data.get("base_attack", 0):
+					best = t
+			return best
 	
 	return targets[0]
 
