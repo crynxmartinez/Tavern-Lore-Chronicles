@@ -856,7 +856,7 @@ func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 		await _hide_card_display()
 		await _fade_out_visual(visual)
 		_finish_card_play()
-	elif card_type == "attack":
+	elif card_type == "attack" or card_type == "basic_attack":
 		# For queued attacks, auto-target nearest enemy
 		var target = _get_nearest_enemy()
 		if target:
@@ -1310,7 +1310,7 @@ func _select_card(card: Card) -> void:
 	if card_type == "mana":
 		await _play_mana_card(card)
 		return
-	elif card_type == "attack":
+	elif card_type == "attack" or card_type == "basic_attack":
 		if target_type == "nearest" or card_data.get("cost", 0) == 0:
 			await _play_attack_on_nearest(card)
 			return
@@ -1462,7 +1462,7 @@ func _on_hero_clicked(hero: Hero) -> void:
 		var card_type = selected_card.get_card_type()
 		var valid_target = false
 		
-		if card_type == "attack" and not hero.is_player_hero and not hero.is_dead:
+		if (card_type == "attack" or card_type == "basic_attack") and not hero.is_player_hero and not hero.is_dead:
 			valid_target = true
 		elif card_type == "debuff" and not hero.is_player_hero and not hero.is_dead:
 			valid_target = true
@@ -3276,7 +3276,7 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 		await _hide_card_display()
 		result.taken = true
 		result.cost = card.get("cost", 0)
-	elif card_type == "attack":
+	elif card_type == "attack" or card_type == "basic_attack":
 		var target = _ai_get_best_target(alive_players, "damage", card)
 		if target:
 			await _ai_play_attack(attacker, target, card)
@@ -3329,7 +3329,7 @@ func _ai_get_card_priority(card: Dictionary, players: Array, enemies: Array, man
 			var any_damaged = enemies.any(func(e): return float(e.current_hp) / float(max(e.max_hp, 1)) < 0.6)
 			priority += 15 if any_damaged else 5
 	
-	elif card_type == "attack":
+	elif card_type == "attack" or card_type == "basic_attack":
 		priority += 30
 		var atk_mult = card.get("atk_multiplier", 1.0)
 		# Higher multiplier = higher priority
