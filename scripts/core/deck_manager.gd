@@ -33,6 +33,7 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 		var hero_cards = HeroDatabase.get_hero_cards(hero_data.id)
 		for card in hero_cards:
 			var card_copy = card.duplicate()
+			card_copy["base_id"] = card_copy.get("id", "")  # Original cards.json key
 			if not id_prefix.is_empty():
 				card_copy["id"] = id_prefix + card_copy.get("id", "")
 			card_copy["hero_id"] = hero_data.id
@@ -45,8 +46,10 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 		
 		# Add basic attack cards per hero
 		for i in range(GameConstants.ATTACK_CARDS_PER_HERO):
+			var base_attack_id = hero_data.id + "_attack"
 			var attack_card = {
 				"id": id_prefix + hero_data.id + "_attack_" + str(i),
+				"base_id": base_attack_id,  # Original cards.json key
 				"name": hero_data.name + " Attack",
 				"cost": 0,
 				"type": "basic_attack",
@@ -67,6 +70,7 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 			var equip_data = EquipmentDatabase.get_equipment(equip_id)
 			if not equip_data.is_empty():
 				var equip_card = equip_data.duplicate()
+				equip_card["base_id"] = equip_id  # Original equipment.json key
 				equip_card["id"] = equip_id + "_" + str(randi())
 				equip_card["instance_id"] = _generate_card_instance_id(equip_card)
 				deck.append(equip_card)

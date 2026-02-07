@@ -967,7 +967,7 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 	var send_cb = func(res: Dictionary) -> void:
 		res["action_type"] = "play_card"
 		res["played_by"] = _pid
-		res["card_id"] = _cd.get("id", "")
+		res["card_id"] = _cd.get("base_id", _cd.get("id", ""))
 		res["card_name"] = _cd.get("name", "Unknown")
 		res["card_type"] = _cd.get("type", "")
 		res["source_hero_id"] = _src_hero.hero_id if _src_hero else ""
@@ -1607,7 +1607,7 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 				var send_cb = func(res: Dictionary) -> void:
 					res["action_type"] = "play_card"
 					res["played_by"] = _pid
-					res["card_id"] = _cdc.get("id", "")
+					res["card_id"] = _cdc.get("base_id", _cdc.get("id", ""))
 					res["card_name"] = _cdc.get("name", "Unknown")
 					res["card_type"] = _cdc.get("type", "")
 					res["source_hero_id"] = _sh.hero_id if _sh else ""
@@ -3903,7 +3903,7 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	var send_cb = func(res: Dictionary) -> void:
 		res["action_type"] = "play_card"
 		res["played_by"] = _opid
-		res["card_id"] = _cd.get("id", "")
+		res["card_id"] = _cd.get("base_id", _cd.get("id", ""))
 		res["card_name"] = _cd.get("name", "Unknown")
 		res["card_type"] = _cd.get("type", "")
 		res["source_hero_id"] = _src_hid
