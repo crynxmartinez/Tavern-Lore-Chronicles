@@ -155,12 +155,13 @@ func setup(id: String) -> void:
 	_load_sprite(hero_data.get("idle_sprite", ""))
 	_update_ui()
 
-func _load_sprite(path: String) -> void:
+func _load_sprite(path: String, use_flip_h: bool = false) -> void:
 	if path.is_empty():
 		return
 	var texture = load(path)
 	if texture and sprite:
 		sprite.texture = texture
+		sprite.flip_h = use_flip_h
 		# Resize sprite to match texture size (no clipping)
 		var tex_size = texture.get_size()
 		sprite.custom_minimum_size = tex_size
@@ -891,7 +892,8 @@ func revive(heal_amount: int) -> void:
 	sprite.modulate = Color.WHITE
 	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	
-	_load_sprite(_get_idle_sprite_path())
+	var idle = _resolve_flip_sprite("idle_sprite")
+	_load_sprite(idle.path, idle.flip_h)
 	_update_ui()
 	if is_player_hero:
 		GameManager.on_hero_revived(hero_id)
@@ -903,42 +905,43 @@ func _play_hit_animation() -> void:
 	# Spawn impact sparks
 	_spawn_impact_sparks()
 	
-	var hit_sprite_path = hero_data.get("hit_sprite_flip" if is_flipped else "hit_sprite", "")
-	if hit_sprite_path.is_empty() or not ResourceLoader.exists(hit_sprite_path):
-		hit_sprite_path = hero_data.get("hit_sprite", "")
-	if not hit_sprite_path.is_empty():
-		_load_sprite(hit_sprite_path)
+	var resolved = _resolve_flip_sprite("hit_sprite")
+	if not resolved.path.is_empty():
+		_load_sprite(resolved.path, resolved.flip_h)
 		await get_tree().create_timer(0.5).timeout
 		if not is_dead:
-			_load_sprite(_get_idle_sprite_path())
+			var idle = _resolve_flip_sprite("idle_sprite")
+			_load_sprite(idle.path, idle.flip_h)
 
 func _play_attack_animation() -> void:
 	if is_dead:
 		return
-	var atk_sprite_path = hero_data.get("attack_sprite_flip" if is_flipped else "attack_sprite", "")
-	if atk_sprite_path.is_empty() or not ResourceLoader.exists(atk_sprite_path):
-		atk_sprite_path = hero_data.get("attack_sprite", "")
-	if not atk_sprite_path.is_empty():
-		_load_sprite(atk_sprite_path)
+	var resolved = _resolve_flip_sprite("attack_sprite")
+	if not resolved.path.is_empty():
+		_load_sprite(resolved.path, resolved.flip_h)
 		await get_tree().create_timer(0.5).timeout
 		if not is_dead:
-			_load_sprite(_get_idle_sprite_path())
+			var idle = _resolve_flip_sprite("idle_sprite")
+			_load_sprite(idle.path, idle.flip_h)
 
 func _play_cast_animation() -> void:
 	if is_dead:
 		return
-	var cast_sprite_path = hero_data.get("cast_sprite_flip" if is_flipped else "cast_sprite", "")
-	if cast_sprite_path.is_empty() or not ResourceLoader.exists(cast_sprite_path):
-		cast_sprite_path = hero_data.get("cast_sprite", "")
-	if not cast_sprite_path.is_empty() and ResourceLoader.exists(cast_sprite_path):
-		_load_sprite(cast_sprite_path)
+	var resolved = _resolve_flip_sprite("cast_sprite")
+	if not resolved.path.is_empty():
+		_load_sprite(resolved.path, resolved.flip_h)
 
-func _get_idle_sprite_path() -> String:
+func _resolve_flip_sprite(base_key: String) -> Dictionary:
 	if is_flipped:
-		var flip_path = hero_data.get("idle_sprite_flip", "")
+		var flip_path = hero_data.get(base_key + "_flip", "")
 		if not flip_path.is_empty() and ResourceLoader.exists(flip_path):
-			return flip_path
-	return hero_data.get("idle_sprite", "")
+			return {"path": flip_path, "flip_h": false}
+		# No dedicated flip sprite — use normal sprite + flip_h
+		var normal_path = hero_data.get(base_key, "")
+		if not normal_path.is_empty() and ResourceLoader.exists(normal_path):
+			return {"path": normal_path, "flip_h": true}
+		return {"path": "", "flip_h": false}
+	return {"path": hero_data.get(base_key, ""), "flip_h": false}
 
 func _on_clicked() -> void:
 	hero_clicked.emit(self)
@@ -949,13 +952,10 @@ func get_color() -> String:
 func flip_sprite() -> void:
 	is_flipped = true
 	
-	# Load the flipped idle sprite instead of using flip_h
-	var flip_path = hero_data.get("idle_sprite_flip", "")
-	if not flip_path.is_empty() and ResourceLoader.exists(flip_path):
-		_load_sprite(flip_path)
-	else:
-		# Fallback to flip_h if no flipped sprite exists
-		sprite.flip_h = true
+	# Use dedicated flip sprite if available, otherwise flip_h
+	var resolved = _resolve_flip_sprite("idle_sprite")
+	if not resolved.path.is_empty():
+		_load_sprite(resolved.path, resolved.flip_h)
 	
 	# Reposition sprite to align RIGHT for enemy heroes (after texture is loaded)
 	_align_sprite_right()
@@ -992,7 +992,8 @@ func play_cast_anim_with_callback(callback: Callable) -> void:
 	
 	# Revert to idle sprite
 	if not is_dead:
-		_load_sprite(_get_idle_sprite_path())
+		var idle = _resolve_flip_sprite("idle_sprite")
+		_load_sprite(idle.path, idle.flip_h)
 	
 	z_index = original_z
 	callback.call()
