@@ -3313,7 +3313,7 @@ func _ai_get_card_priority(card: Dictionary, players: Array, enemies: Array, man
 		priority += 50
 		var effects = card.get("effects", [])
 		for eff in effects:
-			var eff_type = eff.get("type", "")
+			var eff_type = eff.get("type", "") if eff is Dictionary else str(eff)
 			if eff_type == "apply_empower":
 				priority += 20  # Empower before attacks = huge value
 			elif eff_type == "apply_taunt":
@@ -3447,9 +3447,10 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 		var has_shield = card.get("base_shield", 0) > 0 or card.get("def_multiplier", 0.0) > 0 or card.get("shield_multiplier", 0.0) > 0
 		var has_taunt_buff = false
 		for eff in buff_effects:
-			if eff.get("type", "") == "apply_empower":
+			var eff_type = eff.get("type", "") if eff is Dictionary else str(eff)
+			if eff_type == "apply_empower":
 				has_empower = true
-			if eff.get("type", "") == "apply_taunt":
+			if eff_type == "apply_taunt":
 				has_taunt_buff = true
 		
 		if has_empower:
