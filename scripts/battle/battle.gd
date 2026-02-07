@@ -629,6 +629,11 @@ func _add_card_to_stack(card: Card) -> void:
 			return  # Need at least 1 mana
 		# Store the mana spent for damage calculation
 		card.card_data["mana_spent"] = this_cost
+	else:
+		# Frost debuff: +1 card cost for each frosted hero on the source's team
+		var source_hero = _get_source_hero(card.card_data)
+		if source_hero and source_hero.has_debuff("frost"):
+			this_cost += 1
 	
 	# Check if we have enough mana
 	if GameManager.current_mana < this_cost:
@@ -1795,12 +1800,12 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				hero.add_energy(energy_amount)
 				print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " gained " + str(energy_amount) + " energy")
 			
-			"apply_weak":
-				# Frost Gauntlet: Apply Weak to target
+			"apply_frost":
+				# Frost Gauntlet: Apply Frost to target (+1 card cost)
 				var target = context.get("target", null)
 				if target and is_instance_valid(target) and not target.is_dead:
-					target.apply_debuff("weak", 1, 0, "own_turn_end")
-					print("[Equipment] " + equip_name + ": Applied Weak to " + target.hero_data.get("name", ""))
+					target.apply_debuff("frost", 1, 0, "own_turn_end")
+					print("[Equipment] " + equip_name + ": Applied Frost to " + target.hero_data.get("name", ""))
 			
 			"reflect":
 				# Thorned Armor: Reflect damage back to attacker
@@ -1856,40 +1861,21 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 					hero.remove_random_debuff()
 				print("[Equipment] " + equip_name + ": Cleansed " + str(cleanse_count) + " debuff(s) from " + hero.hero_data.get("name", ""))
 			
-			"damage_reduction":
-				# Guardian's Shield: Reduce damage to adjacent allies
-				# This is handled differently - checked when adjacent ally takes damage
+			"guardian":
+				# Guardian's Shield: Passive -5 damage dealt / -5 damage received
+				# Handled inline in _animate_attack and take_damage via _get_guardian_reduction
 				pass
 
-func _trigger_adjacent_equipment(target_hero: Hero, damage: int, attacker: Hero) -> int:
-	# Check if adjacent allies have Guardian's Shield to reduce damage
-	var reduced_damage = damage
-	var target_index = player_heroes.find(target_hero)
-	
-	if target_index == -1:
-		return reduced_damage
-	
-	# Check left neighbor
-	if target_index > 0:
-		var left_neighbor = player_heroes[target_index - 1]
-		if not left_neighbor.is_dead and left_neighbor.has_equipment():
-			for equip in left_neighbor.get_equipped_items():
-				if equip.get("effect", "") == "damage_reduction":
-					var reduction = int(equip.get("effect_value", equip.get("value", 0)))
-					reduced_damage = max(0, reduced_damage - reduction)
-					print("[Equipment] Guardian's Shield: Reduced damage by " + str(reduction))
-	
-	# Check right neighbor
-	if target_index < player_heroes.size() - 1:
-		var right_neighbor = player_heroes[target_index + 1]
-		if not right_neighbor.is_dead and right_neighbor.has_equipment():
-			for equip in right_neighbor.get_equipped_items():
-				if equip.get("effect", "") == "damage_reduction":
-					var reduction = int(equip.get("effect_value", equip.get("value", 0)))
-					reduced_damage = max(0, reduced_damage - reduction)
-					print("[Equipment] Guardian's Shield: Reduced damage by " + str(reduction))
-	
-	return reduced_damage
+func _get_guardian_reduction(hero: Hero) -> int:
+	## Returns the total Guardian's Shield reduction value for a hero.
+	## Used for both damage dealt reduction and damage received reduction.
+	if hero == null or not is_instance_valid(hero) or not hero.has_equipment():
+		return 0
+	var total_reduction = 0
+	for equip in hero.get_equipped_items():
+		if equip.get("effect", "") == "guardian":
+			total_reduction += int(equip.get("effect_value", equip.get("value", 0)))
+	return total_reduction
 
 # ============================================
 # DECK MANIPULATION CARD HANDLERS
@@ -2369,8 +2355,16 @@ func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 		var sprite_center = target.sprite.global_position + target.sprite.size / 2
 		VFX.spawn_particles(sprite_center, Color(1.0, 0.6, 0.2), 8)
 	
-	# Check Guardian's Shield (adjacent damage reduction)
-	var final_damage = _trigger_adjacent_equipment(target, damage, source)
+	# Guardian's Shield: reduce damage dealt by source, reduce damage received by target
+	var final_damage = damage
+	var source_guardian = _get_guardian_reduction(source)
+	if source_guardian > 0:
+		final_damage = max(1, final_damage - source_guardian)
+		print("[Guardian's Shield] " + source.hero_data.get("name", "") + " dealt " + str(source_guardian) + " less damage")
+	var target_guardian = _get_guardian_reduction(target)
+	if target_guardian > 0:
+		final_damage = max(1, final_damage - target_guardian)
+		print("[Guardian's Shield] " + target.hero_data.get("name", "") + " received " + str(target_guardian) + " less damage")
 	
 	# Then apply damage and hit animation
 	target.take_damage(final_damage)
@@ -2452,8 +2446,16 @@ func _animate_cast(source: Hero, target: Hero, damage: int) -> void:
 		var sprite_center = target.sprite.global_position + target.sprite.size / 2
 		VFX.spawn_particles(sprite_center, Color(0.5, 0.3, 1.0), 10)
 	
-	# Check Guardian's Shield (adjacent damage reduction)
-	var final_damage = _trigger_adjacent_equipment(target, damage, source)
+	# Guardian's Shield: reduce damage dealt by source, reduce damage received by target
+	var final_damage = damage
+	var source_guardian = _get_guardian_reduction(source)
+	if source_guardian > 0:
+		final_damage = max(1, final_damage - source_guardian)
+		print("[Guardian's Shield] " + source.hero_data.get("name", "") + " dealt " + str(source_guardian) + " less damage")
+	var target_guardian = _get_guardian_reduction(target)
+	if target_guardian > 0:
+		final_damage = max(1, final_damage - target_guardian)
+		print("[Guardian's Shield] " + target.hero_data.get("name", "") + " received " + str(target_guardian) + " less damage")
 	
 	# Apply damage
 	target.take_damage(final_damage)
@@ -3395,8 +3397,14 @@ func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 		attacker._play_attack_animation()
 		var total_damage = 0
 		for player in alive_players:
-			# Check Guardian's Shield (adjacent damage reduction)
-			var final_damage = _trigger_adjacent_equipment(player, damage, attacker)
+			# Guardian's Shield: reduce damage dealt by attacker, reduce damage received by target
+			var final_damage = damage
+			var atk_guardian = _get_guardian_reduction(attacker)
+			if atk_guardian > 0:
+				final_damage = max(1, final_damage - atk_guardian)
+			var def_guardian = _get_guardian_reduction(player)
+			if def_guardian > 0:
+				final_damage = max(1, final_damage - def_guardian)
 			player.take_damage(final_damage)
 			player.play_hit_anim()
 			total_damage += final_damage

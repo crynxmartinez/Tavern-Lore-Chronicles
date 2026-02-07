@@ -249,17 +249,20 @@ Mage:      Blue         (Color: 0.2, 0.6, 1.0)
 ================================================================================
 
 TIMING RULE:
-  All debuffs last until the end of the affected player's turn.
-  Damage debuffs trigger at end of turn, then clear/consume.
-  Status debuffs are active during that turn, then clear at end.
+  Buffs/debuffs use expire_on system:
+    own_turn_end     → removed when the affected hero's owner ends their turn
+    opponent_turn_end → removed when the opponent ends their turn
+    permanent        → never auto-expires (consumed by mechanic or removed manually)
+  Shield (block) expires at end of opponent's turn or when absorbed by damage.
 
 --------------------------------------------------------------------------------
 BUFFS
 --------------------------------------------------------------------------------
-Empower:   +50% damage dealt, +50% heal, +50% shield. Until end of turn.
-Taunt:     Enemies must target this hero. Until end of turn.
-Regen:     Heals 50% ATK at turn start. Until end of turn.
-Bolster:   Indicates equipment is attached (passive, no duration).
+Empower:   +50% damage dealt, +50% heal, +50% shield. Until end of own turn.
+Taunt:     Enemies must target this hero. Until end of opponent's turn.
+Regen:     Delayed heal at turn start. Stacks. Consumed after healing. (permanent)
+             Example: Regen 10 + Regen 10 = heals 20 at next turn start, then removed.
+Bolster:   Indicates equipment is attached (passive, permanent).
 
 --------------------------------------------------------------------------------
 DEBUFFS (Status) — Active during owner's turn, cleared at end
@@ -267,7 +270,7 @@ DEBUFFS (Status) — Active during owner's turn, cleared at end
 Weak:      -50% damage dealt, -50% heal, -50% shield. (Opposite of Empower)
 Break:     +50% damage taken, -50% shield and heal received.
 Stun:      Cannot act.
-Frost:     Cannot use normal attack.
+Frost:     +1 mana cost to all cards from the frosted hero.
 Chain:     Cannot use EX skill.
 Entangle:  +5 flat damage taken. Does not stack.
              Interaction: Break (+50%) applies first, then +5 flat.
@@ -290,5 +293,24 @@ Empower.webp  Taunt-0.webp  regen.webp    Block.webp    Shield-0.webp
 Bolster.webp  Weak.webp     Break.webp    Stun-0.webp   Frost.webp
 Chain.webp    Entangle.webp Target.webp   Thunder.webp  Bomb.webp
 Decaying.webp Star.webp     Fire.webp     Blood.webp
+
+================================================================================
+                              EQUIPMENT
+================================================================================
+
+All equipment costs 3 mana. Equip to a single ally.
+
+| Equipment        | Trigger         | Effect                                    |
+|------------------|-----------------|-------------------------------------------|
+| Vampiric Blade   | On damage dealt  | Heal 30% of damage dealt (lifesteal)      |
+| Thorned Armor    | On damage taken  | Reflect 20% damage back to attacker       |
+| Phoenix Feather  | On death         | Revive with 30% HP (one-time use)         |
+| Berserker's Axe  | On low HP (<50%) | Gain Empower                              |
+| Guardian's Shield| Passive          | -5 damage dealt, -5 damage received       |
+| Mana Siphon      | On kill          | Gain +2 mana                              |
+| Energy Pendant   | On damage dealt  | Gain +5 energy                            |
+| Cleansing Charm  | On turn start    | Remove 1 random debuff                    |
+| Frost Gauntlet   | On damage dealt  | Apply Frost (+1 card cost) to target      |
+| Battle Horn      | On kill          | Empower ALL allies                        |
 
 ================================================================================
