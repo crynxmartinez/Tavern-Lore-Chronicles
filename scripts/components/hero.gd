@@ -1020,6 +1020,8 @@ func get_hero_color() -> Color:
 			return Color(0.3, 1.0, 0.4, 1.0)
 		"purple", "violet":
 			return Color(0.8, 0.3, 1.0, 1.0)
+		"blue":
+			return Color(0.3, 0.5, 1.0, 1.0)
 		_:
 			return Color(1.0, 0.9, 0.3, 1.0)
 
