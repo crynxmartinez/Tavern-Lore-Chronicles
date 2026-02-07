@@ -1649,7 +1649,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 	var damage_mult = source.get_damage_multiplier() if source else 1.0
 	
 	match card_type:
-		"attack":
+		"attack", "basic_attack":
 			# Attack cards deal damage - use attack animation
 			var atk_mult = card_data.get("atk_multiplier", 1.0)
 			
