@@ -39,8 +39,8 @@ var queued_card_visuals: Array = []  # Flying card visuals for queued cards
 @onready var mulligan_button: Button = $MulliganPanel/ConfirmMulligan
 @onready var game_over_panel: Panel = $GameOverPanel
 @onready var game_over_label: Label = $GameOverPanel/ResultLabel
-@onready var card_display: Control = $CardDisplay/DisplayedCard
-@onready var card_display_art: TextureRect = $CardDisplay/DisplayedCard/CardArt
+@onready var card_display_container: Control = $CardDisplay
+var _displayed_card_instance: Card = null  # Instantiated Card scene for display
 @onready var deck_icon: TextureRect = $UI/DeckDisplay/DeckIcon
 @onready var mana_display: Control = $UI/ManaDisplay
 @onready var turn_icon: TextureRect = $UI/TurnDisplay/TurnIcon
@@ -101,9 +101,10 @@ func _ready() -> void:
 		_setup_button_hover(concede_button)
 	
 	game_over_panel.visible = false
-	if card_display:
-		card_display.visible = false
-		card_display.modulate.a = 0
+	# Hide the old DisplayedCard node (we use instantiated Card scenes now)
+	var old_displayed = card_display_container.get_node_or_null("DisplayedCard")
+	if old_displayed:
+		old_displayed.visible = false
 	
 	# Create animation layer for flying cards (above everything)
 	animation_layer = CanvasLayer.new()
@@ -2527,48 +2528,42 @@ func _animate_cast_debuff(source: Hero, target: Hero) -> void:
 	await get_tree().create_timer(0.2).timeout
 
 func _show_card_display(card_data: Dictionary) -> void:
-	if not card_display_art or not card_display:
+	if not card_display_container:
 		return
-	var image_path = card_data.get("image", "")
-	if not image_path.is_empty() and ResourceLoader.exists(image_path):
-		var texture = load(image_path)
-		if texture:
-			card_display_art.texture = texture
-	else:
-		card_display_art.texture = null
+	# Clean up any previous displayed card
+	if _displayed_card_instance and is_instance_valid(_displayed_card_instance):
+		_displayed_card_instance.queue_free()
+		_displayed_card_instance = null
 	
-	# Update card info labels
-	var cost_label = card_display.get_node_or_null("CostLabel")
-	var name_label = card_display.get_node_or_null("NameLabel")
-	var desc_label = card_display.get_node_or_null("DescriptionLabel")
+	# Instantiate a real Card scene (with template frame, art, labels)
+	_displayed_card_instance = card_scene.instantiate()
+	_displayed_card_instance.can_interact = false
+	# Center the card in the container
+	_displayed_card_instance.position = Vector2(0, 0)
+	_displayed_card_instance.scale = Vector2(1.3, 1.3)
+	card_display_container.add_child(_displayed_card_instance)
+	_displayed_card_instance.setup(card_data)
 	
-	if cost_label:
-		cost_label.text = str(card_data.get("cost", 0))
-	if name_label:
-		name_label.text = card_data.get("name", "")
-	if desc_label:
-		desc_label.text = card_data.get("description", "")
-	
-	card_display.modulate.a = 0
-	card_display.visible = true
+	# Fade in
+	_displayed_card_instance.modulate.a = 0
 	var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-	tween.tween_property(card_display, "modulate:a", 1.0, 0.2)
+	tween.tween_property(_displayed_card_instance, "modulate:a", 1.0, 0.2)
 	await get_tree().create_timer(0.2).timeout
 
 func _hide_card_display() -> void:
-	if not card_display:
+	if not _displayed_card_instance or not is_instance_valid(_displayed_card_instance):
 		return
 	var tween = create_tween().set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-	tween.tween_property(card_display, "modulate:a", 0.0, 0.15)
+	tween.tween_property(_displayed_card_instance, "modulate:a", 0.0, 0.15)
 	await get_tree().create_timer(0.15).timeout
-	card_display.visible = false
-	card_display.modulate.a = 0
+	if _displayed_card_instance and is_instance_valid(_displayed_card_instance):
+		_displayed_card_instance.queue_free()
+		_displayed_card_instance = null
 
 func _force_hide_card_display() -> void:
-	if not card_display:
-		return
-	card_display.visible = false
-	card_display.modulate.a = 0
+	if _displayed_card_instance and is_instance_valid(_displayed_card_instance):
+		_displayed_card_instance.queue_free()
+		_displayed_card_instance = null
 
 func _use_ex_skill(hero: Hero) -> void:
 	if hero.energy < hero.max_energy:
@@ -2941,9 +2936,7 @@ func _get_taunt_target(enemies: Array) -> Hero:
 func _cancel_ex_skill() -> void:
 	if ex_skill_hero:
 		ex_skill_hero = null
-	if card_display:
-		card_display.visible = false
-		card_display.modulate.a = 0
+	_force_hide_card_display()
 	_clear_highlights()
 	current_phase = BattlePhase.PLAYING
 	if turn_indicator:
@@ -2953,9 +2946,7 @@ func _deselect_card() -> void:
 	if selected_card and is_instance_valid(selected_card):
 		selected_card.set_selected(false)
 	selected_card = null
-	if card_display:
-		card_display.visible = false
-		card_display.modulate.a = 0
+	_force_hide_card_display()
 	_clear_highlights()
 	current_phase = BattlePhase.PLAYING
 	if turn_indicator:
