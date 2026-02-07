@@ -9,8 +9,8 @@
 		"target": "single_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Squire/attack.png",
-		"image": "res://asset/Hero/Squire/attack.png"
+		"art": "res://asset/Hero/Squire Knight, Joren Kydd/attack.png",
+		"image": "res://asset/Hero/Squire Knight, Joren Kydd/attack.png"
 	},
 	"squire_ex": {
 		"id": "squire_ex",
@@ -23,8 +23,8 @@
 		"target": "single_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (200% ATK) damage to target enemy. Stun the target.",
-		"art": "res://asset/Hero/Squire/ex.png",
-		"image": "res://asset/Hero/Squire/SquireEX.png"
+		"art": "res://asset/Hero/Squire Knight, Joren Kydd/ex.png",
+		"image": "res://asset/Hero/Squire Knight, Joren Kydd/SquireEX.png"
 	},
 	"squire_sk1": {
 		"id": "squire_sk1",
@@ -37,8 +37,8 @@
 		"effects": ["stun"],
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to target enemy. Stun it.",
-		"art": "res://asset/Hero/Squire/s1.png",
-		"image": "res://asset/Hero/Squire/SquireSk1.png"
+		"art": "res://asset/Hero/Squire Knight, Joren Kydd/s1.png",
+		"image": "res://asset/Hero/Squire Knight, Joren Kydd/SquireSk1.png"
 	},
 	"squire_sk2": {
 		"id": "squire_sk2",
@@ -50,8 +50,8 @@
 		"effects": ["empower_target"],
 		"hero_color": "yellow",
 		"description": "Empower target ally. (Next attack deals double damage.)",
-		"art": "res://asset/Hero/Squire/s2.png",
-		"image": "res://asset/Hero/Squire/SquireSk2.png"
+		"art": "res://asset/Hero/Squire Knight, Joren Kydd/s2.png",
+		"image": "res://asset/Hero/Squire Knight, Joren Kydd/SquireSk2.png"
 	},
 	"squire_sk3": {
 		"id": "squire_sk3",
@@ -64,8 +64,8 @@
 		"def_multiplier": 3.0,
 		"hero_color": "yellow",
 		"description": "All allies gain Shield. (5 + DEF×3)",
-		"art": "res://asset/Hero/Squire/s3.png",
-		"image": "res://asset/Hero/Squire/SquireSk3.png"
+		"art": "res://asset/Hero/Squire Knight, Joren Kydd/s3.png",
+		"image": "res://asset/Hero/Squire Knight, Joren Kydd/SquireSk3.png"
 	},
 	"priest_attack": {
 		"id": "priest_attack",
@@ -77,8 +77,8 @@
 		"target": "single_enemy",
 		"hero_color": "green",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Priest/attack.png",
-		"image": "res://asset/Hero/Priest/attack.png"
+		"art": "res://asset/Hero/Ms Priest, Sister Luciana Hale/attack.png",
+		"image": "res://asset/Hero/Ms Priest, Sister Luciana Hale/attack.png"
 	},
 	"priest_ex": {
 		"id": "priest_ex",
@@ -91,8 +91,8 @@
 		"effects": ["cleanse_all"],
 		"hero_color": "green",
 		"description": "Restore (30% max HP) to all allies. Cleanse all debuffs.",
-		"art": "res://asset/Hero/Priest/ex.png",
-		"image": "res://asset/Hero/Priest/PriestEX.png"
+		"art": "res://asset/Hero/Ms Priest, Sister Luciana Hale/ex.png",
+		"image": "res://asset/Hero/Ms Priest, Sister Luciana Hale/PriestEX.png"
 	},
 	"priest_sk1": {
 		"id": "priest_sk1",
@@ -104,8 +104,8 @@
 		"target": "single_ally",
 		"hero_color": "green",
 		"description": "Restore (15% max HP) to target ally.",
-		"art": "res://asset/Hero/Priest/s1.png",
-		"image": "res://asset/Hero/Priest/Priest_S1.png"
+		"art": "res://asset/Hero/Ms Priest, Sister Luciana Hale/s1.png",
+		"image": "res://asset/Hero/Ms Priest, Sister Luciana Hale/Priest_S1.png"
 	},
 	"priest_sk2": {
 		"id": "priest_sk2",
@@ -117,8 +117,8 @@
 		"target": "all_ally",
 		"hero_color": "green",
 		"description": "Restore (8% max HP) to all allies.",
-		"art": "res://asset/Hero/Priest/s2.png",
-		"image": "res://asset/Hero/Priest/Priest_S2.png"
+		"art": "res://asset/Hero/Ms Priest, Sister Luciana Hale/s2.png",
+		"image": "res://asset/Hero/Ms Priest, Sister Luciana Hale/Priest_S2.png"
 	},
 	"priest_sk3": {
 		"id": "priest_sk3",
@@ -131,8 +131,8 @@
 		"effects": ["cleanse"],
 		"hero_color": "green",
 		"description": "Restore (8% max HP) to target ally. Remove all debuffs.",
-		"art": "res://asset/Hero/Priest/s3.png",
-		"image": "res://asset/Hero/Priest/Priest_S3.png"
+		"art": "res://asset/Hero/Ms Priest, Sister Luciana Hale/s3.png",
+		"image": "res://asset/Hero/Ms Priest, Sister Luciana Hale/Priest_S3.png"
 	},
 	"markswoman_attack": {
 		"id": "markswoman_attack",
@@ -144,8 +144,8 @@
 		"target": "single_enemy",
 		"hero_color": "red",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Markswoman/attack.png",
-		"image": "res://asset/Hero/Markswoman/attack.png"
+		"art": "res://asset/Hero/The Markswoman, Rhea Valen/attack.png",
+		"image": "res://asset/Hero/The Markswoman, Rhea Valen/attack.png"
 	},
 	"markswoman_ex": {
 		"id": "markswoman_ex",
@@ -157,8 +157,8 @@
 		"target": "single_enemy",
 		"hero_color": "red",
 		"description": "Deal (300% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Markswoman/ex.png",
-		"image": "res://asset/Hero/Markswoman/MarkswomanEX.png"
+		"art": "res://asset/Hero/The Markswoman, Rhea Valen/ex.png",
+		"image": "res://asset/Hero/The Markswoman, Rhea Valen/MarkswomanEX.png"
 	},
 	"markswoman_sk1": {
 		"id": "markswoman_sk1",
@@ -170,8 +170,8 @@
 		"target": "single_enemy",
 		"hero_color": "red",
 		"description": "Deal (200% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Markswoman/s1.png",
-		"image": "res://asset/Hero/Markswoman/Markswoman_S1.png"
+		"art": "res://asset/Hero/The Markswoman, Rhea Valen/s1.png",
+		"image": "res://asset/Hero/The Markswoman, Rhea Valen/Markswoman_S1.png"
 	},
 	"markswoman_sk2": {
 		"id": "markswoman_sk2",
@@ -183,8 +183,8 @@
 		"target": "all_enemy",
 		"hero_color": "red",
 		"description": "Deal (70% ATK) damage to all enemies.",
-		"art": "res://asset/Hero/Markswoman/s2.png",
-		"image": "res://asset/Hero/Markswoman/Markswoman_S2.png"
+		"art": "res://asset/Hero/The Markswoman, Rhea Valen/s2.png",
+		"image": "res://asset/Hero/The Markswoman, Rhea Valen/Markswoman_S2.png"
 	},
 	"markswoman_sk3": {
 		"id": "markswoman_sk3",
@@ -196,8 +196,8 @@
 		"effects": ["empower"],
 		"hero_color": "red",
 		"description": "Gain Empower.",
-		"art": "res://asset/Hero/Markswoman/s3.png",
-		"image": "res://asset/Hero/Markswoman/Markswoman_S3.png"
+		"art": "res://asset/Hero/The Markswoman, Rhea Valen/s3.png",
+		"image": "res://asset/Hero/The Markswoman, Rhea Valen/Markswoman_S3.png"
 	},
 	"dana_attack": {
 		"id": "dana_attack",
@@ -209,8 +209,8 @@
 		"target": "single_enemy",
 		"hero_color": "purple",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Craftswoman/attack.png",
-		"image": "res://asset/Hero/Craftswoman/attack.png"
+		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/attack.png",
+		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/attack.png"
 	},
 	"dana_ex": {
 		"id": "dana_ex",
@@ -223,8 +223,8 @@
 		"target": "single_enemy",
 		"hero_color": "purple",
 		"description": "Deal (150% ATK) damage to target enemy. Empower all allies.",
-		"art": "res://asset/Hero/Craftswoman/EX.png",
-		"image": "res://asset/Hero/Craftswoman/CraftswomanEX.png"
+		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/EX.png",
+		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/CraftswomanEX.png"
 	},
 	"dana_sk1": {
 		"id": "dana_sk1",
@@ -237,8 +237,8 @@
 		"target": "none",
 		"hero_color": "purple",
 		"description": "Check the top 3 cards of your deck. Add 1 equipment to your hand.",
-		"art": "res://asset/Hero/Craftswoman/s1.png",
-		"image": "res://asset/Hero/Craftswoman/CraftswomanS1.png"
+		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/s1.png",
+		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/CraftswomanS1.png"
 	},
 	"dana_sk2": {
 		"id": "dana_sk2",
@@ -251,8 +251,8 @@
 		"target": "single_ally",
 		"hero_color": "purple",
 		"description": "Restore (18% max HP) to target ally. If target has equipment, Empower it.",
-		"art": "res://asset/Hero/Craftswoman/s2.png",
-		"image": "res://asset/Hero/Craftswoman/CraftswomanS2.png"
+		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/s2.png",
+		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/CraftswomanS2.png"
 	},
 	"dana_sk3": {
 		"id": "dana_sk3",
@@ -265,8 +265,8 @@
 		"def_multiplier": 5.0,
 		"hero_color": "purple",
 		"description": "Give target ally Shield. (15 + DEF×5)",
-		"art": "res://asset/Hero/Craftswoman/s3.png",
-		"image": "res://asset/Hero/Craftswoman/CraftswomanS3.png"
+		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/s3.png",
+		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/CraftswomanS3.png"
 	},
 	"manastone": {
 		"id": "manastone",
@@ -290,8 +290,8 @@
 		"target": "single_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Makash/attack.png",
-		"image": "res://asset/Hero/Makash/attack.png"
+		"art": "res://asset/Hero/The Cow, Makash Barok/attack.png",
+		"image": "res://asset/Hero/The Cow, Makash Barok/attack.png"
 	},
 	"makash_ex": {
 		"id": "makash_ex",
@@ -303,8 +303,8 @@
 		"target": "all_enemy",
 		"hero_color": "yellow",
 		"description": "Deal 30 damage to all enemies.",
-		"art": "res://asset/Hero/Makash/ex.png",
-		"image": "res://asset/Hero/Makash/MakashEX.png"
+		"art": "res://asset/Hero/The Cow, Makash Barok/ex.png",
+		"image": "res://asset/Hero/The Cow, Makash Barok/MakashEX.png"
 	},
 	"makash_sk1": {
 		"id": "makash_sk1",
@@ -316,8 +316,8 @@
 		"target": "front_enemy",
 		"hero_color": "yellow",
 		"description": "Deal 10 damage to the front enemy.",
-		"art": "res://asset/Hero/Makash/s1.png",
-		"image": "res://asset/Hero/Makash/AssaulterS1.png"
+		"art": "res://asset/Hero/The Cow, Makash Barok/s1.png",
+		"image": "res://asset/Hero/The Cow, Makash Barok/AssaulterS1.png"
 	},
 	"makash_sk2": {
 		"id": "makash_sk2",
@@ -329,8 +329,8 @@
 		"target": "self",
 		"hero_color": "yellow",
 		"description": "Gain 40 Energy (EX gauge).",
-		"art": "res://asset/Hero/Makash/s2.png",
-		"image": "res://asset/Hero/Makash/AssaulterS2.png"
+		"art": "res://asset/Hero/The Cow, Makash Barok/s2.png",
+		"image": "res://asset/Hero/The Cow, Makash Barok/AssaulterS2.png"
 	},
 	"makash_sk3": {
 		"id": "makash_sk3",
@@ -344,8 +344,8 @@
 		"effects": ["taunt"],
 		"hero_color": "yellow",
 		"description": "Gain Shield (5 + DEF×3) and Taunt.",
-		"art": "res://asset/Hero/Makash/s3.png",
-		"image": "res://asset/Hero/Makash/AssaulterS3.png"
+		"art": "res://asset/Hero/The Cow, Makash Barok/s3.png",
+		"image": "res://asset/Hero/The Cow, Makash Barok/AssaulterS3.png"
 	},
 	"stony_attack": {
 		"id": "stony_attack",
@@ -357,8 +357,8 @@
 		"target": "single_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/stony/attack.png",
-		"image": "res://asset/Hero/stony/attack.png"
+		"art": "res://asset/Hero/Stone Giant, Stony Granitefist/attack.png",
+		"image": "res://asset/Hero/Stone Giant, Stony Granitefist/attack.png"
 	},
 	"stony_ex": {
 		"id": "stony_ex",
@@ -372,8 +372,8 @@
 		"effects": ["taunt"],
 		"hero_color": "yellow",
 		"description": "Gain Shield (20 + DEF×10) and Taunt.",
-		"art": "res://asset/Hero/stony/ex.png",
-		"image": "res://asset/Hero/stony/StonyEX.png"
+		"art": "res://asset/Hero/Stone Giant, Stony Granitefist/ex.png",
+		"image": "res://asset/Hero/Stone Giant, Stony Granitefist/StonyEX.png"
 	},
 	"stony_sk1": {
 		"id": "stony_sk1",
@@ -385,8 +385,8 @@
 		"effects": ["taunt"],
 		"hero_color": "yellow",
 		"description": "Gain Taunt.",
-		"art": "res://asset/Hero/stony/s1.png",
-		"image": "res://asset/Hero/stony/stone call.png"
+		"art": "res://asset/Hero/Stone Giant, Stony Granitefist/s1.png",
+		"image": "res://asset/Hero/Stone Giant, Stony Granitefist/stone call.png"
 	},
 	"stony_sk2": {
 		"id": "stony_sk2",
@@ -398,8 +398,8 @@
 		"target": "front_enemy",
 		"hero_color": "yellow",
 		"description": "Deal 20 damage to the nearest enemy.",
-		"art": "res://asset/Hero/stony/s2.png",
-		"image": "res://asset/Hero/stony/stone punch.png"
+		"art": "res://asset/Hero/Stone Giant, Stony Granitefist/s2.png",
+		"image": "res://asset/Hero/Stone Giant, Stony Granitefist/stone punch.png"
 	},
 	"stony_sk3": {
 		"id": "stony_sk3",
@@ -412,8 +412,8 @@
 		"def_multiplier": 6.0,
 		"hero_color": "yellow",
 		"description": "Stony gains Shield. (15 + DEF×6)",
-		"art": "res://asset/Hero/stony/s3.png",
-		"image": "res://asset/Hero/stony/stone armor.png"
+		"art": "res://asset/Hero/Stone Giant, Stony Granitefist/s3.png",
+		"image": "res://asset/Hero/Stone Giant, Stony Granitefist/stone armor.png"
 	},
 	"caelum_attack": {
 		"id": "caelum_attack",
@@ -425,8 +425,8 @@
 		"target": "single_enemy",
 		"hero_color": "blue",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Caelum/attack.png",
-		"image": "res://asset/Hero/Caelum/attack.png"
+		"art": "res://asset/Hero/Mage Prodigy, Caelum Veyr/attack.png",
+		"image": "res://asset/Hero/Mage Prodigy, Caelum Veyr/attack.png"
 	},
 	"caelum_ex": {
 		"id": "caelum_ex",
@@ -438,8 +438,8 @@
 		"target": "all_enemy",
 		"hero_color": "blue",
 		"description": "Deal (160% ATK) damage to all enemies.",
-		"art": "res://asset/Hero/Caelum/ex.png",
-		"image": "res://asset/Hero/Caelum/CaelumEX.png"
+		"art": "res://asset/Hero/Mage Prodigy, Caelum Veyr/ex.png",
+		"image": "res://asset/Hero/Mage Prodigy, Caelum Veyr/CaelumEX.png"
 	},
 	"caelum_sk1": {
 		"id": "caelum_sk1",
@@ -452,8 +452,8 @@
 		"effects": ["mana_surge"],
 		"hero_color": "blue",
 		"description": "Cost: ALL mana. Deal (60% ATK) damage per mana spent.",
-		"art": "res://asset/Hero/Caelum/s1.png",
-		"image": "res://asset/Hero/Caelum/s1.png"
+		"art": "res://asset/Hero/Mage Prodigy, Caelum Veyr/s1.png",
+		"image": "res://asset/Hero/Mage Prodigy, Caelum Veyr/s1.png"
 	},
 	"caelum_sk2": {
 		"id": "caelum_sk2",
@@ -465,8 +465,8 @@
 		"target": "single_enemy",
 		"hero_color": "blue",
 		"description": "Deal (150% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Caelum/s2.png",
-		"image": "res://asset/Hero/Caelum/s2.png"
+		"art": "res://asset/Hero/Mage Prodigy, Caelum Veyr/s2.png",
+		"image": "res://asset/Hero/Mage Prodigy, Caelum Veyr/s2.png"
 	},
 	"caelum_sk3": {
 		"id": "caelum_sk3",
@@ -478,8 +478,8 @@
 		"effects": ["draw_1"],
 		"hero_color": "blue",
 		"description": "Draw 1 card.",
-		"art": "res://asset/Hero/Caelum/s3.png",
-		"image": "res://asset/Hero/Caelum/s3.png"
+		"art": "res://asset/Hero/Mage Prodigy, Caelum Veyr/s3.png",
+		"image": "res://asset/Hero/Mage Prodigy, Caelum Veyr/s3.png"
 	},
 	"raizel_attack": {
 		"id": "raizel_attack",
@@ -491,8 +491,8 @@
 		"target": "single_enemy",
 		"hero_color": "blue",
 		"description": "Deal (100% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Raizel/attack.png",
-		"image": "res://asset/Hero/Raizel/attack.png"
+		"art": "res://asset/Hero/The Eye of the Storm, Raizel Storme/attack.png",
+		"image": "res://asset/Hero/The Eye of the Storm, Raizel Storme/attack.png"
 	},
 	"raizel_ex": {
 		"id": "raizel_ex",
@@ -504,8 +504,8 @@
 		"effects": ["thunder_detonate"],
 		"hero_color": "blue",
 		"description": "Apply 2 stacks of Thunder to all enemies.",
-		"art": "res://asset/Hero/Raizel/ex.png",
-		"image": "res://asset/Hero/Raizel/RaizelEX.png"
+		"art": "res://asset/Hero/The Eye of the Storm, Raizel Storme/ex.png",
+		"image": "res://asset/Hero/The Eye of the Storm, Raizel Storme/RaizelEX.png"
 	},
 	"raizel_sk1": {
 		"id": "raizel_sk1",
@@ -518,8 +518,8 @@
 		"effects": ["thunder"],
 		"hero_color": "blue",
 		"description": "Deal (70% ATK) damage. Apply Thunder (1 stack).",
-		"art": "res://asset/Hero/Raizel/s1.png",
-		"image": "res://asset/Hero/Raizel/s1.png"
+		"art": "res://asset/Hero/The Eye of the Storm, Raizel Storme/s1.png",
+		"image": "res://asset/Hero/The Eye of the Storm, Raizel Storme/s1.png"
 	},
 	"raizel_sk2": {
 		"id": "raizel_sk2",
@@ -531,8 +531,8 @@
 		"effects": ["thunder_all"],
 		"hero_color": "blue",
 		"description": "Apply Thunder (1 stack) to ALL enemies.",
-		"art": "res://asset/Hero/Raizel/s2.png",
-		"image": "res://asset/Hero/Raizel/s2.png"
+		"art": "res://asset/Hero/The Eye of the Storm, Raizel Storme/s2.png",
+		"image": "res://asset/Hero/The Eye of the Storm, Raizel Storme/s2.png"
 	},
 	"raizel_sk3": {
 		"id": "raizel_sk3",
@@ -544,7 +544,7 @@
 		"effects": ["thunder_stack_2"],
 		"hero_color": "blue",
 		"description": "Target with Thunder: +2 stacks. No effect if no Thunder.",
-		"art": "res://asset/Hero/Raizel/s3.png",
-		"image": "res://asset/Hero/Raizel/s3.png"
+		"art": "res://asset/Hero/The Eye of the Storm, Raizel Storme/s3.png",
+		"image": "res://asset/Hero/The Eye of the Storm, Raizel Storme/s3.png"
 	}
 }
