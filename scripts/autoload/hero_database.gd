@@ -76,6 +76,54 @@ func set_hero_template(hero_id: String, template_id: String) -> void:
 	equipped_templates[hero_id] = template_id
 	save_data()
 
+# AI team for Train mode
+var ai_enemy_team: Array = []
+
+# Role categories for smart draft
+const FRONTLINE_ROLES = ["tank", "dps"]
+const SUSTAIN_ROLES = ["support", "scientist", "mage"]
+
+func generate_ai_team() -> Array:
+	var all_hero_ids = heroes.keys()
+	if all_hero_ids.size() < 4:
+		push_error("HeroDatabase: Not enough heroes to generate AI team")
+		return all_hero_ids.duplicate()
+	
+	var team: Array = []
+	var available = all_hero_ids.duplicate()
+	
+	# Step 1: Guarantee at least 1 frontline (tank or dps)
+	var frontline_pool = available.filter(func(id):
+		var role = heroes[id].get("role", "")
+		return role in FRONTLINE_ROLES
+	)
+	if not frontline_pool.is_empty():
+		var pick = frontline_pool[randi() % frontline_pool.size()]
+		team.append(pick)
+		available.erase(pick)
+	
+	# Step 2: Guarantee at least 1 sustain (support, scientist, or mage)
+	var sustain_pool = available.filter(func(id):
+		var role = heroes[id].get("role", "")
+		return role in SUSTAIN_ROLES
+	)
+	if not sustain_pool.is_empty():
+		var pick = sustain_pool[randi() % sustain_pool.size()]
+		team.append(pick)
+		available.erase(pick)
+	
+	# Step 3: Fill remaining slots randomly (no duplicates on AI team)
+	while team.size() < 4 and not available.is_empty():
+		var pick = available[randi() % available.size()]
+		team.append(pick)
+		available.erase(pick)
+	
+	# Shuffle so the guaranteed picks aren't always in slots 1-2
+	team.shuffle()
+	
+	ai_enemy_team = team
+	return team
+
 func save_data() -> void:
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:

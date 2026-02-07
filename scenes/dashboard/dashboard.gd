@@ -105,7 +105,8 @@ func _on_find_match_pressed() -> void:
 		return
 	match current_mode:
 		GameMode.VS_AI:
-			SceneTransition.change_scene("res://scenes/battle/battle.tscn")
+			HeroDatabase.generate_ai_team()
+			SceneTransition.change_scene("res://scenes/battle/vs_screen.tscn")
 		GameMode.VS_NORMAL:
 			# Use ENet multiplayer lobby for testing
 			SceneTransition.change_scene("res://scenes/ui/multiplayer_lobby.tscn")

@@ -128,9 +128,11 @@ func _setup_battle() -> void:
 		# In multiplayer, we need to exchange teams with opponent
 		await _setup_multiplayer_battle(player_team)
 	else:
-		# AI battle: enemy team is reversed player team
-		var enemy_team = player_team.duplicate()
-		enemy_team.reverse()
+		# AI battle: use generated AI team, fallback to reversed player team
+		var enemy_team = HeroDatabase.ai_enemy_team
+		if enemy_team.is_empty():
+			enemy_team = player_team.duplicate()
+			enemy_team.reverse()
 		_finalize_battle_setup(player_team, enemy_team)
 
 func _setup_multiplayer_battle(player_team: Array) -> void:
@@ -3201,15 +3203,31 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 	if non_stunned_enemies.is_empty():
 		return result  # All enemies are stunned, skip turn
 	
-	# Check for EX skills first (these don't use cards from hand)
+	# Check for EX skills — use strategically (not always immediately)
 	for enemy in non_stunned_enemies:
 		if enemy.energy >= enemy.max_energy:
-			var target = _ai_get_best_target(alive_players, "damage")
-			if target:
-				await _ai_use_ex_skill(enemy, target)
-				result.taken = true
-				result.cost = 0
-				return result
+			# Find best target for EX
+			var ex_data = enemy.hero_data.get("ex_skill", {})
+			var ex_target = _ai_get_best_target(alive_players, "damage", ex_data)
+			if ex_target:
+				# Use EX if: target has break, target is killable, or 3+ enemies alive
+				var should_ex = false
+				if ex_target.has_debuff("break"):
+					should_ex = true  # Amplified damage
+				elif ex_target.current_hp < ex_target.max_hp * 0.4:
+					should_ex = true  # Likely kill
+				elif alive_players.size() >= 3:
+					should_ex = true  # Good value
+				elif mana <= 1:
+					should_ex = true  # No mana for cards anyway
+				else:
+					should_ex = true  # Default: use it (don't waste full energy)
+				
+				if should_ex:
+					await _ai_use_ex_skill(enemy, ex_target)
+					result.taken = true
+					result.cost = 0
+					return result
 	
 	# Build possible actions from actual enemy hand
 	var possible_actions = []
@@ -3233,33 +3251,27 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 				possible_actions.append({
 					"enemy": matching_enemy, 
 					"card": card, 
-					"priority": _ai_get_card_priority(card, alive_players, alive_enemies)
+					"priority": _ai_get_card_priority(card, alive_players, alive_enemies, mana)
 				})
 	
 	if possible_actions.is_empty():
 		return result
 	
-	# Sort by priority and add some randomness
+	# Sort by priority — always pick the best action (no randomness)
 	possible_actions.sort_custom(func(a, b): return a.priority > b.priority)
-	
 	var chosen = possible_actions[0]
-	if randf() < 0.3 and possible_actions.size() > 1:
-		chosen = possible_actions[randi() % mini(3, possible_actions.size())]
 	
 	var card = chosen.card
 	var attacker = chosen.enemy
 	var card_type = card.get("type", "attack")
 	
 	if card_type == "mana":
-		# Enemy plays mana card - just discard it and gain mana (not tracked for enemy)
 		GameManager.enemy_play_card(card, attacker, null)
 		result.taken = true
 		result.cost = 0
 	elif card_type == "energy":
-		# Energy cards like Bull Rage - add energy to attacker
 		GameManager.enemy_play_card(card, attacker, null)
 		await _show_card_display(card)
-		# Play cast animation
 		await _animate_cast_buff(attacker, attacker)
 		var energy_gain = card.get("energy_gain", 0)
 		attacker.add_energy(energy_gain)
@@ -3267,19 +3279,22 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 		result.taken = true
 		result.cost = card.get("cost", 0)
 	elif card_type == "attack":
-		var target = _ai_get_best_target(alive_players, "damage")
+		var target = _ai_get_best_target(alive_players, "damage", card)
 		if target:
 			await _ai_play_attack(attacker, target, card)
 			result.taken = true
 			result.cost = card.get("cost", 0)
 	elif card_type == "heal":
-		var target = _ai_get_best_target(alive_enemies, "heal")
+		var target = _ai_get_best_target(alive_enemies, "heal", card)
 		if target:
 			await _ai_play_heal(attacker, target, card)
 			result.taken = true
 			result.cost = card.get("cost", 0)
+		else:
+			# Nobody needs healing — skip this card, try next action
+			return result
 	elif card_type == "buff":
-		var target = _ai_get_best_target(alive_enemies, "buff")
+		var target = _ai_get_best_target(alive_enemies, "buff", card)
 		if target:
 			await _ai_play_buff(attacker, target, card)
 			result.taken = true
@@ -3287,52 +3302,185 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 	
 	return result
 
-func _ai_get_card_priority(card: Dictionary, players: Array, enemies: Array) -> int:
+func _ai_get_card_priority(card: Dictionary, players: Array, enemies: Array, mana: int) -> int:
 	var card_type = card.get("type", "attack")
 	var cost = card.get("cost", 0)
 	var priority = 0
+	var target_type = card.get("target", "single")
 	
-	if card_type == "attack":
+	# --- PHASE SCORING: buffs/debuffs first, then attacks ---
+	
+	if card_type == "buff":
+		# Buffs are high priority early (setup phase)
+		priority += 50
+		var effects = card.get("effects", [])
+		for eff in effects:
+			var eff_type = eff.get("type", "")
+			if eff_type == "apply_empower":
+				priority += 20  # Empower before attacks = huge value
+			elif eff_type == "apply_taunt":
+				# Taunt is valuable if we have a high-HP tank
+				var has_tank = enemies.any(func(e): return e.hero_data.get("role", "") == "tank")
+				if has_tank:
+					priority += 15
+			elif eff_type == "apply_break" or eff_type == "apply_weak":
+				priority += 18  # Debuffs on enemies before attacking
+		# Shield value scales with how damaged allies are
+		var has_shield = card.get("base_shield", 0) > 0 or card.get("shield_multiplier", 0.0) > 0 or card.get("def_multiplier", 0.0) > 0
+		if has_shield:
+			var any_damaged = enemies.any(func(e): return float(e.current_hp) / float(max(e.max_hp, 1)) < 0.6)
+			priority += 15 if any_damaged else 5
+	
+	elif card_type == "attack":
+		priority += 30
 		var atk_mult = card.get("atk_multiplier", 1.0)
-		priority = int(atk_mult * 10)
-		var target_type = card.get("target", "single")
+		# Higher multiplier = higher priority
+		priority += int(atk_mult * 8)
+		# AoE bonus when many targets alive
 		if target_type == "all_enemy":
-			priority += players.size() * 2
-	elif card_type == "heal":
-		for enemy in enemies:
-			if enemy.current_hp < enemy.max_hp * 0.5:
-				priority += 5
-	elif card_type == "buff":
-		priority += 3
-	elif card_type == "energy":
-		priority += 2
+			priority += players.size() * 5
+			if players.size() >= 3:
+				priority += 10  # Big AoE bonus
+		# Bonus if any player has break debuff (attack will deal more)
+		var any_broken = players.any(func(p): return p.has_debuff("break"))
+		if any_broken:
+			priority += 12
+		# Bonus for effects on attack cards (burn, bleed, etc.)
+		var effects = card.get("effects", [])
+		priority += effects.size() * 3
 	
+	elif card_type == "heal":
+		# Heal priority scales with how much damage allies have taken
+		var most_damaged_pct = 1.0
+		for enemy in enemies:
+			var hp_pct = float(enemy.current_hp) / float(max(enemy.max_hp, 1))
+			if hp_pct < most_damaged_pct:
+				most_damaged_pct = hp_pct
+		if most_damaged_pct < 0.3:
+			priority += 60  # Emergency heal — top priority
+		elif most_damaged_pct < 0.5:
+			priority += 40
+		elif most_damaged_pct < 0.7:
+			priority += 20
+		else:
+			priority += 5  # Low priority if everyone is healthy
+		# AoE heal bonus
+		if target_type == "all_ally":
+			var damaged_count = enemies.filter(func(e): return float(e.current_hp) / float(max(e.max_hp, 1)) < 0.7).size()
+			priority += damaged_count * 5
+	
+	elif card_type == "energy":
+		priority += 15
+	
+	elif card_type == "mana":
+		priority += 10  # Free mana is always decent
+	
+	# --- COST EFFICIENCY ---
+	# Prefer cheaper cards when mana is low
 	if cost == 0:
-		priority += 1
+		priority += 5
+	elif mana <= 2 and cost <= 1:
+		priority += 3
 	
 	return priority
 
-func _ai_get_best_target(targets: Array, action_type: String) -> Hero:
+func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary = {}) -> Hero:
 	if targets.is_empty():
 		return null
 	
 	if action_type == "damage":
-		# Check for taunt - if any target has taunt, must target them
+		# 1. Must hit taunt target
 		var taunt_target = _get_taunt_target(targets)
 		if taunt_target:
 			return taunt_target
-		# Otherwise target the nearest player (last in array = position 4, closest to enemy)
-		return targets[targets.size() - 1]
+		
+		# 2. Score each target
+		var best_target = targets[0]
+		var best_score = -999.0
+		for t in targets:
+			var score = 0.0
+			var hp_pct = float(t.current_hp) / float(max(t.max_hp, 1))
+			
+			# Prefer low HP targets (focus fire / secure kills)
+			score += (1.0 - hp_pct) * 30.0
+			
+			# Bonus if target has break debuff (+50% damage taken)
+			if t.has_debuff("break"):
+				score += 25.0
+			
+			# Bonus if target has marked debuff
+			if t.has_debuff("marked"):
+				score += 15.0
+			
+			# Bonus if we can kill this target (estimate damage)
+			var atk_mult = card.get("atk_multiplier", 1.0)
+			var est_damage = int(15.0 * atk_mult)  # rough estimate
+			if t.current_hp <= est_damage:
+				score += 40.0  # Big bonus for securing kills
+			
+			# Small bonus for targets with high energy (deny EX skills)
+			var energy_pct = float(t.energy) / float(max(t.max_energy, 1))
+			if energy_pct >= 0.7:
+				score += 10.0
+			
+			if score > best_score:
+				best_score = score
+				best_target = t
+		
+		return best_target
+	
 	elif action_type == "heal":
-		var most_damaged = targets[0]
-		for target in targets:
-			var hp_percent = float(target.current_hp) / float(target.max_hp)
-			var most_damaged_percent = float(most_damaged.current_hp) / float(most_damaged.max_hp)
-			if hp_percent < most_damaged_percent:
-				most_damaged = target
-		return most_damaged
+		# Heal the most damaged ally (by HP%)
+		var best = targets[0]
+		var lowest_pct = 999.0
+		for t in targets:
+			var hp_pct = float(t.current_hp) / float(max(t.max_hp, 1))
+			if hp_pct < lowest_pct:
+				lowest_pct = hp_pct
+				best = t
+		# Don't heal if everyone is above 90%
+		if lowest_pct > 0.9:
+			return null
+		return best
+	
 	elif action_type == "buff":
-		return targets[randi() % targets.size()]
+		var buff_effects = card.get("effects", [])
+		var has_empower = false
+		var has_shield = card.get("base_shield", 0) > 0 or card.get("def_multiplier", 0.0) > 0 or card.get("shield_multiplier", 0.0) > 0
+		var has_taunt_buff = false
+		for eff in buff_effects:
+			if eff.get("type", "") == "apply_empower":
+				has_empower = true
+			if eff.get("type", "") == "apply_taunt":
+				has_taunt_buff = true
+		
+		if has_empower:
+			# Give empower to highest base_attack ally (DPS/mage)
+			var best = targets[0]
+			for t in targets:
+				if t.hero_data.get("base_attack", 0) > best.hero_data.get("base_attack", 0):
+					best = t
+			return best
+		elif has_taunt_buff:
+			# Give taunt to highest HP tank
+			var best = targets[0]
+			for t in targets:
+				if t.current_hp > best.current_hp:
+					best = t
+			return best
+		elif has_shield:
+			# Shield the most damaged ally
+			var best = targets[0]
+			var lowest_pct = 999.0
+			for t in targets:
+				var hp_pct = float(t.current_hp) / float(max(t.max_hp, 1))
+				if hp_pct < lowest_pct:
+					lowest_pct = hp_pct
+					best = t
+			return best
+		else:
+			# Generic buff — give to a random ally
+			return targets[randi() % targets.size()]
 	
 	return targets[0]
 

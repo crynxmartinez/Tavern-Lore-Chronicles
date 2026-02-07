@@ -1,0 +1,83 @@
+[gd_scene load_steps=2 format=3 uid="uid://vs_screen_001"]
+
+[ext_resource type="Script" path="res://scenes/battle/vs_screen.gd" id="1_script"]
+
+[node name="VSScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+offset_right = 1920.0
+offset_bottom = 1080.0
+color = Color(0.05, 0.05, 0.1, 1)
+
+[node name="PlayerSide" type="Control" parent="."]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 300.0
+offset_right = 800.0
+offset_bottom = 700.0
+
+[node name="TeamLabel" type="Label" parent="PlayerSide"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = -60.0
+offset_right = 700.0
+offset_bottom = -10.0
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "Player"
+horizontal_alignment = 1
+
+[node name="HeroContainer" type="HBoxContainer" parent="PlayerSide"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 0.0
+offset_right = 670.0
+offset_bottom = 200.0
+theme_override_constants/separation = 20
+
+[node name="EnemySide" type="Control" parent="."]
+layout_mode = 0
+offset_left = 1020.0
+offset_top = 300.0
+offset_right = 1820.0
+offset_bottom = 700.0
+
+[node name="TeamLabel" type="Label" parent="EnemySide"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = -60.0
+offset_right = 700.0
+offset_bottom = -10.0
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+text = "AI Challenger"
+horizontal_alignment = 1
+
+[node name="HeroContainer" type="HBoxContainer" parent="EnemySide"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 0.0
+offset_right = 670.0
+offset_bottom = 200.0
+theme_override_constants/separation = 20
+
+[node name="VSLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 860.0
+offset_top = 450.0
+offset_right = 1060.0
+offset_bottom = 550.0
+pivot_offset = Vector2(100, 50)
+theme_override_font_sizes/font_size = 80
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+text = "VS"
+horizontal_alignment = 1
+vertical_alignment = 1
