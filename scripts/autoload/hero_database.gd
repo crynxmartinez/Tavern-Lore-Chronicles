@@ -12,8 +12,8 @@ const ROLE_COLORS = {
 	"tank": Color(1.0, 0.85, 0.0),      # Yellow/Gold
 	"support": Color(0.2, 0.8, 0.2),    # Green
 	"dps": Color(0.9, 0.2, 0.2),        # Red
-	"mage": Color(0.6, 0.2, 0.8),       # Purple
-	"scientist": Color(0.85, 0.85, 0.85), # White/Light
+	"mage": Color(0.4, 0.7, 1.0),       # Light Blue
+	"scientist": Color(0.6, 0.2, 0.8),   # Violet/Purple
 	"assassin": Color(0.2, 0.6, 1.0)    # Blue
 }
 
