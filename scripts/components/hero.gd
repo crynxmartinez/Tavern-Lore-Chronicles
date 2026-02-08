@@ -4,6 +4,8 @@ class_name Hero
 signal hero_clicked(hero: Hero)
 signal hero_died(hero: Hero)
 signal energy_full(hero: Hero)
+signal shield_broken(hero: Hero)
+signal counter_triggered(defender: Hero, attacker: Hero, reflect_damage: int)
 
 @export var hero_id: String = ""  # Template/type ID (e.g. "priest", "squire")
 @export var is_player_hero: bool = true
@@ -42,7 +44,10 @@ const BUFF_ICONS = {
 	"block": "res://asset/buff debuff/Block.webp",
 	"bolster": "res://asset/buff debuff/Bolster.webp",
 	"star": "res://asset/buff debuff/Star.webp",
-	"equipped": "res://asset/buff debuff/Bolster.webp"  # Equipment indicator
+	"equipped": "res://asset/buff debuff/Bolster.webp",  # Equipment indicator
+	"dana_shield_draw": "res://asset/buff debuff/Shield-0.webp",  # Dana's shield-draw marker
+	"counter_50": "res://asset/buff debuff/Shield-0.webp",  # Counter 50% Reflect
+	"counter_100": "res://asset/buff debuff/Shield-0.webp"  # Counter 100% Reflect
 }
 
 const DEBUFF_ICONS = {
@@ -68,7 +73,10 @@ const BUFF_DESCRIPTIONS = {
 	"block": {"name": "Block", "effect": "Reduces incoming damage."},
 	"bolster": {"name": "Bolster", "effect": "Increased defense."},
 	"star": {"name": "Blessed", "effect": "Enhanced abilities."},
-	"equipped": {"name": "Equipped", "effect": "This hero has equipment attached."}
+	"equipped": {"name": "Equipped", "effect": "This hero has equipment attached."},
+	"dana_shield_draw": {"name": "Smart Shield", "effect": "When Shield expires, draw 1 card."},
+	"counter_50": {"name": "Counter", "effect": "Reflects 50% of damage back to the attacker."},
+	"counter_100": {"name": "Counter+", "effect": "Reflects 100% of damage back to the attacker."}
 }
 
 const DEBUFF_DESCRIPTIONS = {
@@ -242,7 +250,7 @@ func calculate_shield(card_base_shield: int, def_mult: float) -> int:
 	## Shield = card_base + (DEF × def_multiplier)
 	return max(0, card_base_shield + int(get_def() * def_mult))
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, attacker: Hero = null) -> void:
 	if is_dead:
 		return
 	
@@ -273,6 +281,7 @@ func take_damage(amount: int) -> void:
 			if sprite:
 				sprite_center = sprite.global_position + sprite.size / 2
 			VFX.spawn_shield_break(sprite_center)
+		shield_broken.emit(self)
 	
 	current_hp = max(0, current_hp - actual_damage)
 	
@@ -296,6 +305,20 @@ func take_damage(amount: int) -> void:
 	
 	_play_hit_animation()
 	_update_ui()
+	
+	# Counter (Reflect): iterate all counter_* buffs and sum reflect %
+	# Only triggers on direct attacks (attacker != null), not delayed damage (thunder, burn, etc.)
+	if attacker != null and modified_amount > 0:
+		var total_reflect_pct = 0
+		for buff_name in active_buffs:
+			if buff_name.begins_with("counter_"):
+				var pct_str = buff_name.substr(8)  # e.g. "50" from "counter_50"
+				total_reflect_pct += int(pct_str)
+		if total_reflect_pct > 0:
+			var reflect_damage = int(modified_amount * total_reflect_pct / 100.0)
+			if reflect_damage > 0 and not attacker.is_dead:
+				counter_triggered.emit(self, attacker, reflect_damage)
+				print(hero_data.get("name", "Hero") + " Counter! Reflecting " + str(total_reflect_pct) + "% (" + str(reflect_damage) + " damage) to " + attacker.hero_data.get("name", "Attacker"))
 	
 	if current_hp <= 0:
 		die()

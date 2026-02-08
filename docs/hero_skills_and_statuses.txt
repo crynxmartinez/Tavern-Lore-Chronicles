@@ -1,0 +1,394 @@
+================================================================================
+                  MY TURN - HERO SKILLS & STATUSES (REFERENCE)
+================================================================================
+
+Purpose:
+- Single place to look up Heroes, their cards (Attack / S1 / S2 / S3 / EX), and status effects.
+- Intended for design + testing + multiplayer sanity checks.
+
+Sources:
+- Heroes: data/heroes.json
+- Cards: data/cards.json
+- Status icon/name text: scripts/components/hero.gd
+- Default expire timings: scripts/battle/battle.gd (_get_buff_expire_on / _get_debuff_expire_on)
+
+--------------------------------------------------------------------------------
+ROLE IDENTITY RULES
+--------------------------------------------------------------------------------
+
+Tank:
+- MUST have Taunt (on a skill or EX).
+- Identity: protect allies by forcing enemy attacks onto themselves.
+- Heroes: Squire, Makash, Stony, Gavran
+
+Support:
+- MUST have Heal (single target, all allies, or EX).
+- Identity: keep the team alive, cleanse/buff.
+- Heroes: Priest, Amihan (hybrid support/tank)
+
+Scientist:
+- Gameplay revolves around controlling your deck/hand or opponent's deck/hand.
+- Identity: tempo, card advantage, equipment.
+- Heroes: Dana
+
+DPS:
+- Deals damage mostly to single targets.
+- Identity: high single-target burst.
+- Heroes: Markswoman, Valen
+
+Mage:
+- Deals damage with AoE, usually tied to debuffs (thunder, break, etc.).
+- Identity: AoE damage + debuff synergy.
+- Heroes: Caelum, Raizel
+
+Hybrid:
+- Amihan is the first hybrid class (support/tank). Has both heal and taunt.
+
+--------------------------------------------------------------------------------
+STATUS EFFECTS
+--------------------------------------------------------------------------------
+
+BUFFS (active_buffs)
+
+- shield
+  - Effect: Absorbs damage before HP.
+  - Default expire_on: own_turn_end
+
+- empower
+  - Effect: +50% damage dealt.
+  - Default expire_on: own_turn_end
+
+- taunt
+  - Effect: Enemies must target this hero.
+  - Default expire_on: opponent_turn_end
+
+- regen
+  - Effect: Delayed heal at turn start. Stacks.
+  - Default expire_on: permanent
+
+- block
+  - Effect: Reduces incoming damage.
+  - Default expire_on: own_turn_end
+
+- bolster
+  - Effect: Increased defense.
+  - Default expire_on: own_turn_end
+
+- star
+  - Effect: Enhanced abilities.
+  - Default expire_on: own_turn_end
+
+- equipped
+  - Effect: This hero has equipment attached.
+  - Default expire_on: permanent
+
+- dana_shield_draw
+  - Effect: When Shield expires (consumed by damage or turn-end expiry), draw 1 card.
+  - Default expire_on: own_turn_end
+  - Note: Does NOT trigger on dispel.
+
+- counter_50
+  - Effect: Reflects 50% of damage back to the attacker (true damage, ignores DEF/shield).
+  - Default expire_on: opponent_turn_end
+  - Stacks with other counter_* buffs (each shows its own icon).
+  - Only triggers on direct attacks (not delayed damage like thunder/burn).
+
+- counter_100
+  - Effect: Reflects 100% of damage back to the attacker (true damage, ignores DEF/shield).
+  - Default expire_on: opponent_turn_end
+  - Stacks with other counter_* buffs (each shows its own icon).
+  - Only triggers on direct attacks (not delayed damage like thunder/burn).
+
+- Note: Equipment reflect (e.g. Thorned Armor) is a separate system, shows bolster icon, not a counter buff.
+
+DEBUFFS (active_debuffs)
+
+- stun
+  - Effect: Cannot act next turn.
+  - Default expire_on: own_turn_end
+
+- weak
+  - Effect: -50% damage dealt.
+  - Default expire_on: own_turn_end
+
+- burn
+  - Effect: Takes damage at turn end.
+  - Default expire_on: own_turn_end
+
+- poison
+  - Effect: Takes damage at turn start.
+  - Default expire_on: own_turn_end
+
+- bleed
+  - Effect: Takes damage when acting.
+  - Default expire_on: own_turn_end
+
+- frost
+  - Effect: +1 mana cost to all cards.
+  - Default expire_on: own_turn_end
+
+- chain
+  - Effect: Cannot use skills.
+  - Default expire_on: own_turn_end
+
+- entangle
+  - Effect: Cannot move or dodge.
+  - Default expire_on: own_turn_end
+
+- break
+  - Effect: +50% damage taken.
+  - Default expire_on: own_turn_end
+
+- bomb
+  - Effect: Explodes after duration.
+  - Default expire_on: own_turn_end
+
+- thunder
+  - Effect: Lightning strikes at turn end. Stacks.
+  - Expiration: handled separately (not removed by standard expire_on loops).
+
+- marked
+  - Effect: Takes increased damage.
+  - Default expire_on: own_turn_end
+
+--------------------------------------------------------------------------------
+HEROES & CARDS
+--------------------------------------------------------------------------------
+
+Format:
+- Attack Card: basic attack card id
+- Skills: S1/S2/S3 card ids
+- EX:
+  - ex_card: EX card id
+  - ex_skill: hero-defined EX payload (heroes.json)
+
+--------------------------------------------------------------------------------
+SQUIRE (id: squire) | color: yellow | role: tank
+Stats: max_hp=168 | base_attack=10 | base_def=5
+Attack Card: squire_attack
+Skills: squire_sk1, squire_sk2, squire_sk3
+EX Card: squire_ex
+EX Skill (heroes.json):
+- name: Guardian's Oath
+- description: Deal (200% ATK) damage to target enemy. Stun the target.
+- atk_multiplier: 2.0
+- effects: stun
+
+Cards (cards.json):
+- squire_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- squire_sk1: cost 2 | type attack | target single_enemy | atk_multiplier 1.0 | effects: stun | desc: Deal (100% ATK) damage to target enemy. Stun it.
+- squire_sk2: cost 2 | type buff | target self | effects: taunt | desc: Gain Taunt.
+- squire_sk3: cost 2 | type buff | target all_ally | base_shield 5 | def_multiplier 3.0 | desc: All allies gain Shield. (5 + DEF×3)
+- squire_ex: cost -1 | type ex | target single_enemy | atk_multiplier 2.0 | effects: stun | desc: Deal (200% ATK) damage to target enemy. Stun the target.
+
+--------------------------------------------------------------------------------
+PRIEST (id: priest) | color: green | role: support
+Stats: max_hp=132 | base_attack=12 | base_def=3
+Attack Card: priest_attack
+Skills: priest_sk1, priest_sk2, priest_sk3
+EX Card: priest_ex
+EX Skill (heroes.json):
+- name: Divine Light
+- description: Heal the target. If the target is dead, revive it.
+- type: revive
+- hp_multiplier: 0.30
+
+Cards (cards.json):
+- priest_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- priest_sk1: cost 1 | type heal | target single_ally | hp_multiplier 0.15 | desc: Restore (15% max HP) to target ally.
+- priest_sk2: cost 2 | type heal | target all_ally | hp_multiplier 0.08 | desc: Restore (8% max HP) to all allies.
+- priest_sk3: cost 2 | type heal | target single_ally | hp_multiplier 0.08 | effects: cleanse | desc: Restore (8% max HP) to target ally. Remove all debuffs.
+- priest_ex: cost -1 | type ex | target all_ally | hp_multiplier 0.30 | effects: cleanse_all | desc: Heal the target. If the target is dead, revive it.
+
+--------------------------------------------------------------------------------
+MARKSWOMAN (id: markswoman) | color: red | role: dps
+Stats: max_hp=143 | base_attack=18 | base_def=1
+Attack Card: markswoman_attack
+Skills: markswoman_sk1, markswoman_sk2, markswoman_sk3
+EX Card: markswoman_ex
+EX Skill (heroes.json):
+- name: Bullseye
+- description: Deal (300% ATK) damage to target enemy.
+- atk_multiplier: 3.0
+
+Cards (cards.json):
+- markswoman_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- markswoman_sk1: cost 3 | type attack | target single_enemy | atk_multiplier 2.0 | desc: Deal (200% ATK) damage to target enemy.
+- markswoman_sk2: cost 2 | type attack | target all_enemy | atk_multiplier 0.7 | desc: Deal (70% ATK) damage to all enemies.
+- markswoman_sk3: cost 2 | type buff | target self | effects: empower | desc: Gain Empower.
+- markswoman_ex: cost -1 | type ex | target single_enemy | atk_multiplier 3.0 | desc: Deal (300% ATK) damage to target enemy.
+
+--------------------------------------------------------------------------------
+DANA (id: dana) | color: purple | role: scientist
+Stats: max_hp=110 | base_attack=14 | base_def=1
+Attack Card: dana_attack
+Skills: dana_sk1, dana_sk2, dana_sk3
+EX Card: dana_ex
+EX Skill (heroes.json):
+- name: Mech Overdrive
+- description: Deal (150% ATK) damage to target enemy. Empower all allies.
+- atk_multiplier: 1.5
+- effects: empower_all
+
+Cards (cards.json):
+- dana_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- dana_sk1: cost 3 | type dig | target none | dig_count 3 | dig_filter equipment | desc: Check the top 3 cards of your deck. Add 1 equipment to your hand.
+- dana_sk2: cost 2 | type heal | target single_ally | hp_multiplier 0.18 | empower_if_equipped true | desc: Restore (18% max HP) to target ally. If target has equipment, Empower it.
+- dana_sk3: cost 2 | type buff | target single_ally | base_shield 15 | def_multiplier 5.0 | effects: dana_shield_draw | desc: Give an ally Shield (15 + DEF×5). When this Shield expires, draw 1.
+- dana_ex: cost -1 | type ex | target single_enemy | atk_multiplier 1.5 | effects: empower_all | desc: Deal (150% ATK) damage to target enemy. Empower all allies.
+
+--------------------------------------------------------------------------------
+MAKASH (id: makash) | color: yellow | role: tank
+Stats: max_hp=195 | base_attack=10 | base_def=5
+Attack Card: makash_attack
+Skills: makash_sk1, makash_sk2, makash_sk3
+EX Card: makash_ex
+EX Skill (heroes.json):
+- name: Rampage
+- description: Deal (300% ATK) damage to target enemy. Penetrate. Apply Weak.
+- atk_multiplier: 3.0
+- effects: weak, penetrate
+
+Cards (cards.json):
+- makash_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- makash_sk1: cost 1 | type attack | target front_enemy | atk_multiplier 1.0 | desc: Deal 10 damage to the front enemy.
+- makash_sk2: cost 2 | type energy | target self | energy_gain 40 | desc: Gain 40 Energy (EX gauge).
+- makash_sk3: cost 2 | type buff | target self | base_shield 5 | def_multiplier 3.0 | effects: taunt | desc: Gain Shield (5 + DEF×3) and Taunt.
+- makash_ex: cost -1 | type ex | target single_enemy | atk_multiplier 3.0 | effects: penetrate, weak | desc: Deal (300% ATK) damage to target enemy. Penetrate. Apply Weak.
+
+--------------------------------------------------------------------------------
+STONY (id: stony) | color: yellow | role: tank
+Stats: max_hp=182 | base_attack=11 | base_def=4
+Attack Card: stony_attack
+Skills: stony_sk1, stony_sk2, stony_sk3
+EX Card: stony_ex
+EX Skill (heroes.json):
+- name: Goliath Strength
+- description: Gain Taunt. Stony gains Shield equal to its current HP.
+- type: self_buff
+- effects: taunt, shield_current_hp
+
+Cards (cards.json):
+- stony_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- stony_sk1: cost 1 | type buff | target self | effects: taunt | desc: Gain Taunt.
+- stony_sk2: cost 1 | type attack | target front_enemy | atk_multiplier 2.0 | desc: Deal 20 damage to the nearest enemy.
+- stony_sk3: cost 3 | type buff | target self | base_shield 15 | def_multiplier 6.0 | desc: Stony gains Shield. (15 + DEF×6)
+- stony_ex: cost -1 | type ex | target self | effects: shield_current_hp, taunt | desc: Gain Shield equal to current HP. Gain Taunt.
+
+--------------------------------------------------------------------------------
+CAELUM (id: caelum) | color: blue | role: mage
+Stats: max_hp=120 | base_attack=16 | base_def=0
+Attack Card: caelum_attack
+Skills: caelum_sk1, caelum_sk2, caelum_sk3
+EX Card: caelum_ex
+EX Skill (heroes.json):
+- name: Arcane Storm
+- description: Deal (160% ATK) damage to all enemies.
+- atk_multiplier: 1.6
+- effects: break
+
+Cards (cards.json):
+- caelum_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- caelum_sk1: cost -1 | type attack | target single_enemy | atk_multiplier 0.6 | effects: mana_surge | desc: Cost: ALL mana. Deal (60% ATK) damage per mana spent.
+- caelum_sk2: cost 2 | type attack | target single_enemy | atk_multiplier 1.5 | desc: Deal (150% ATK) damage to target enemy.
+- caelum_sk3: cost 0 | type buff | target self | effects: draw_1 | desc: Draw 1 card.
+- caelum_ex: cost -1 | type ex | target all_enemy | atk_multiplier 1.6 | desc: Deal (160% ATK) damage to all enemies.
+
+--------------------------------------------------------------------------------
+RAIZEL (id: raizel) | color: blue | role: mage
+Stats: max_hp=130 | base_attack=15 | base_def=1
+Attack Card: raizel_attack
+Skills: raizel_sk1, raizel_sk2, raizel_sk3
+EX Card: raizel_ex
+EX Skill (heroes.json):
+- name: Thunder God
+- description: Apply 2 stacks of Thunder to all enemies.
+- type: thunder_all
+- effects: thunder_all
+
+Cards (cards.json):
+- raizel_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- raizel_sk1: cost 2 | type attack | target single_enemy | atk_multiplier 0.7 | effects: thunder | desc: Deal (70% ATK) damage. Apply Thunder (1 stack).
+- raizel_sk2: cost 3 | type debuff | target all_enemy | effects: thunder_all | desc: Apply Thunder (1 stack) to ALL enemies.
+- raizel_sk3: cost 1 | type debuff | target single_enemy | effects: thunder_stack_2 | desc: Target with Thunder: +2 stacks. No effect if no Thunder.
+- raizel_ex: cost -1 | type ex | target all_enemy | effects: thunder_detonate | desc: Apply 2 stacks of Thunder to all enemies.
+
+--------------------------------------------------------------------------------
+AMIHAN (id: amihan) | color: green | role: support
+Stats: max_hp=132 | base_attack=11 | base_def=3
+Attack Card: amihan_attack
+Skills: amihan_sk1, amihan_sk2, amihan_sk3
+EX Card: amihan_ex
+EX Skill (heroes.json):
+- name: Bayani's Hymn
+- description: Cleanse all allies. Dispel all enemy buffs.
+- type: self_buff
+- effects: cleanse_all, dispel_all
+
+Cards (cards.json):
+- amihan_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- amihan_sk1: cost 1 | type buff | target self | base_shield 8 | def_multiplier 2.0 | effects: taunt | desc: Gain Shield (8 + DEF×2). Gain Taunt.
+- amihan_sk2: cost 2 | type heal | target all_ally | hp_multiplier 0.08 | desc: Restore (8% max HP) to all allies.
+- amihan_sk3: cost 2 | type buff | target all_ally | effects: cleanse_all | desc: Cleanse all allies.
+- amihan_ex: cost -1 | type ex | target none | effects: cleanse_all, dispel_all | desc: Cleanse all allies. Dispel all enemy buffs.
+
+--------------------------------------------------------------------------------
+VALEN (id: valen) | color: red | role: dps
+Stats: max_hp=120 | base_attack=16 | base_def=1
+Attack Card: valen_attack
+Skills: valen_sk1, valen_sk2, valen_sk3
+EX Card: valen_ex
+EX Skill (heroes.json):
+- name: Crimson Verdict
+- description: Deal (300% ATK) damage to target enemy.
+- atk_multiplier: 3.0
+
+Cards (cards.json):
+- valen_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- valen_sk1: cost 0 | type mana | target none | mana_gain 2 | hp_cost_pct 0.15 | desc: Lose 15% max HP. Gain 2 mana this turn.
+- valen_sk2: cost 1 | type debuff | target single_enemy | effects: bleed | desc: Apply Bleed.
+- valen_sk3: cost 2 | type heal | target self | hp_multiplier 0.20 | hp_cost_pct 0.10 | desc: Lose 10% max HP. Restore (20% max HP) to self.
+- valen_ex: cost -1 | type ex | target single_enemy | atk_multiplier 3.0 | desc: Deal (300% ATK) damage to target enemy.
+
+--------------------------------------------------------------------------------
+GAVRAN (id: gavran) | color: yellow | role: tank
+Stats: max_hp=210 | base_attack=9 | base_def=6
+Attack Card: gavran_attack
+Skills: gavran_sk1, gavran_sk2, gavran_sk3
+EX Card: gavran_ex
+EX Skill (heroes.json):
+- name: Boneforge Aegis
+- description: Apply Break to self. Gain Counter (Reflect 100%). Both expire at opponent's turn end.
+- type: self_buff
+- effects: counter_100, self_break
+
+Cards (cards.json):
+- gavran_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- gavran_sk1: cost 2 | type buff | target self | effects: taunt, counter_50 | desc: Gain Taunt. Gain Counter (Reflect 50%).
+- gavran_sk2: cost 1 | type attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- gavran_sk3: cost 3 | type attack | target front_enemy | atk_multiplier 2.0 | desc: Deal (200% ATK) damage to the front enemy.
+- gavran_ex: cost -1 | type ex | target self | effects: counter_100, self_break | desc: Apply Break to self. Gain Counter (Reflect 100%). Both expire at opponent's turn end.
+
+--------------------------------------------------------------------------------
+CINDER (id: cinder) | color: red | role: dps
+Stats: max_hp=100 | base_attack=19 | base_def=0
+Attack Card: cinder_attack
+Skills: cinder_sk1, cinder_sk2, cinder_sk3
+EX Card: cinder_ex
+EX Skill (heroes.json):
+- name: Cinder Storm
+- description: Add 3 Cinder Strike cards to your hand (temporary).
+- type: generate_cards
+- generate_card_id: cinder_sk2
+- generate_count: 3
+
+Cards (cards.json):
+- cinder_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- cinder_sk1: cost 1 | type attack | target front_enemy | atk_multiplier 1.5 | desc: Deal (150% ATK) damage to the front enemy.
+- cinder_sk2: cost 0 | type attack | target single_enemy | atk_multiplier 1.0 | energy_on_hit 5 | desc: Deal (100% ATK) damage to target enemy. (5 energy on hit.)
+- cinder_sk3: cost 3 | type attack | target front_enemy | atk_multiplier 1.5 | effects: penetrate | desc: Deal (150% ATK) damage to the front enemy. Penetrate.
+- cinder_ex: cost -1 | type ex | target self | effects: generate_cinder_strike | desc: Add 3 Cinder Strike cards to your hand (temporary).
+
+================================================================================
+END
+================================================================================

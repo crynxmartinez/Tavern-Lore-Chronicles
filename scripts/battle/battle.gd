@@ -24,6 +24,8 @@ var card_queue: Array = []  # Array of {card: Card, target: Hero or null}
 var is_casting: bool = false
 var queued_card_visuals: Array = []  # Flying card visuals for queued cards
 
+var _pending_dig: Dictionary = {}
+
 @onready var hand_container: HBoxContainer = $HandArea/HandContainer
 @onready var mana_label: Label = $UI/ManaDisplay/ManaLabel
 @onready var deck_label: Label = $UI/DeckDisplay/DeckLabel
@@ -296,6 +298,8 @@ func _spawn_heroes(team: Array, is_player: bool) -> void:
 			hero_instance.owner_id = owner_pid
 		hero_instance.hero_clicked.connect(_on_hero_clicked)
 		hero_instance.hero_died.connect(_on_hero_died)
+		hero_instance.shield_broken.connect(_on_shield_broken)
+		hero_instance.counter_triggered.connect(_on_counter_triggered)
 		
 		# Append to the correct array directly
 		if is_player:
@@ -733,8 +737,9 @@ func _add_card_to_stack(card: Card) -> void:
 			GameManager.hand.remove_at(i)
 			break
 	
-	# Add to discard pile
-	GameManager.discard_pile.append(card.card_data.duplicate())
+	# Add to discard pile (skip temporary and equipment cards)
+	if not card.card_data.get("temporary", false) and card.card_data.get("type", "") != "equipment":
+		GameManager.discard_pile.append(card.card_data.duplicate())
 	
 	# Calculate stack position (0 = front, 1+ = behind)
 	var stack_position = card_queue.size() - 1
@@ -859,7 +864,9 @@ func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 		return
 	
 	if card_type == "mana":
-		GameManager.play_mana_card()
+		var mana_gain := int(card_data.get("mana_gain", 1))
+		GameManager.current_mana += mana_gain
+		GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 		await _fade_out_visual(visual)
 		_finish_card_play()
 	elif card_type == "energy":
@@ -1007,7 +1014,8 @@ func _play_queued_attack(card_data: Dictionary, visual: Card, target: Hero) -> v
 	
 	# Mana already spent when queued, just execute the effect
 	if source_hero and source_hero.has_method("add_energy"):
-		source_hero.add_energy(10)
+		var energy_gain = int(card_data.get("energy_on_hit", GameConstants.ENERGY_ON_ATTACK))
+		source_hero.add_energy(energy_gain)
 	
 	await _show_card_display(card_data)
 	await _resolve_card_effect(card_data, source_hero, target)
@@ -1021,7 +1029,8 @@ func _play_queued_attack_all(card_data: Dictionary, visual: Card) -> void:
 	
 	# Mana already spent when queued, just execute the effect
 	if source_hero and source_hero.has_method("add_energy"):
-		source_hero.add_energy(10)
+		var energy_gain = int(card_data.get("energy_on_hit", GameConstants.ENERGY_ON_ATTACK))
+		source_hero.add_energy(energy_gain)
 	
 	await _show_card_display(card_data)
 	
@@ -1043,7 +1052,7 @@ func _play_queued_attack_all(card_data: Dictionary, visual: Card) -> void:
 	var total_damage = 0
 	for enemy in alive_enemies:
 		enemy.spawn_attack_effect(attacker_id, attacker_color)
-		enemy.take_damage(damage)
+		enemy.take_damage(damage, source_hero)
 		enemy.play_hit_anim()
 		total_damage += damage
 		# Trigger on_damage_dealt for each enemy hit
@@ -2181,7 +2190,7 @@ func _play_attack_on_all_enemies(card: Card) -> void:
 		var total_damage = 0
 		for enemy in alive_enemies:
 			enemy.spawn_attack_effect(attacker_id, attacker_color)
-			enemy.take_damage(damage)
+			enemy.take_damage(damage, source_hero)
 			enemy.play_hit_anim()
 			total_damage += damage
 		
@@ -2306,7 +2315,9 @@ func _play_mana_card(card: Card) -> void:
 	selected_card = null
 	await _animate_card_to_display(card)
 	
-	GameManager.play_mana_card()
+	var mana_gain := int(card.card_data.get("mana_gain", 1))
+	GameManager.current_mana += mana_gain
+	GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 	
 	var card_index = -1
 	for i in range(GameManager.hand.size()):
@@ -2368,7 +2379,7 @@ func _animate_card_to_display(card: Card) -> void:
 
 func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 	if source == null or not is_instance_valid(source):
-		target.take_damage(damage)
+		target.take_damage(damage, null)
 		target.play_hit_anim()
 		return
 	
@@ -2400,7 +2411,7 @@ func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 		print("[Guardian's Shield] " + target.hero_data.get("name", "") + " received " + str(target_guardian) + " less damage")
 	
 	# Then apply damage and hit animation
-	target.take_damage(final_damage)
+	target.take_damage(final_damage, source)
 	target.play_hit_anim()
 	
 	# Play sound and flash (damage number already spawned by take_damage)
@@ -2467,7 +2478,7 @@ func _guest_animate_attack(source: Hero, target: Hero, damage: int) -> void:
 func _animate_cast(source: Hero, target: Hero, damage: int) -> void:
 	# Cast animation for spells that deal damage (like Turret Deploy)
 	if source == null or not is_instance_valid(source):
-		target.take_damage(damage)
+		target.take_damage(damage, null)
 		target.play_hit_anim()
 		return
 	
@@ -2491,7 +2502,7 @@ func _animate_cast(source: Hero, target: Hero, damage: int) -> void:
 		print("[Guardian's Shield] " + target.hero_data.get("name", "") + " received " + str(target_guardian) + " less damage")
 	
 	# Apply damage
-	target.take_damage(final_damage)
+	target.take_damage(final_damage, source)
 	target.play_hit_anim()
 	
 	# Trigger on_damage_dealt equipment effects
@@ -2646,8 +2657,8 @@ func _use_ex_skill(hero: Hero) -> void:
 			network_manager.send_action_result(ex_result)
 		else:
 			_execute_ex_skill(hero, hero)
-	elif ex_type == "thunder_all":
-		# Raizel's Storm Judgment: Apply Thunder to ALL enemies - no targeting needed
+	elif ex_type == "thunder_all" or ex_type == "generate_cards":
+		# No-targeting EX skills (thunder_all, generate_cards) - execute immediately
 		if is_multiplayer and network_manager and not is_host:
 			# GUEST: Send EX skill request to Host
 			var request = {
@@ -2661,7 +2672,7 @@ func _use_ex_skill(hero: Hero) -> void:
 			}
 			network_manager.send_action_request(request)
 			ex_skill_hero = null
-			print("Battle: [GUEST] Sent EX skill request (thunder_all)")
+			print("Battle: [GUEST] Sent EX skill request (" + ex_type + ")")
 			return
 		# HOST: Execute and send results to Guest
 		if is_multiplayer and network_manager and is_host:
@@ -2774,6 +2785,20 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 				_apply_effects(effects, hero, null, base_atk)
 				done = true
 		)
+	elif ex_type == "generate_cards":
+		# Cinder Storm: Add temporary cards to hand
+		var gen_card_id = ex_data.get("generate_card_id", "")
+		var gen_count = int(ex_data.get("generate_count", 3))
+		hero.play_ex_skill_anim(func():
+			if not done:
+				# VFX Library: fire burst effect
+				if VFX and hero.sprite:
+					var sprite_center = hero.sprite.global_position + hero.sprite.size / 2
+					VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.4, 0.1))
+				# Generate temporary cards and add to hand
+				_generate_temporary_cards(gen_card_id, gen_count, hero)
+				done = true
+		)
 	else:
 		var atk_mult = ex_data.get("atk_multiplier", 2.0)
 		var damage_mult = hero.get_damage_multiplier()  # Apply weak/empower
@@ -2785,7 +2810,7 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 				if VFX and target.sprite:
 					var sprite_center = target.sprite.global_position + target.sprite.size / 2
 					VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.5, 0.2))
-				target.take_damage(damage)
+				target.take_damage(damage, hero)
 				target.play_hit_anim()
 				# Apply effects immediately with damage (weak, penetrate, etc.)
 				_apply_effects(effects, hero, target, base_atk)
@@ -2805,6 +2830,20 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 	if turn_indicator:
 		turn_indicator.text = "YOUR TURN"
 	_update_ui()
+
+func _generate_temporary_cards(card_id: String, count: int, source_hero: Hero) -> void:
+	# Load the card template from cards.json and create temporary copies
+	var template = CardDatabase.get_card(card_id)
+	if template.is_empty():
+		print("[Generate Cards] ERROR: Card template not found: " + card_id)
+		return
+	for i in range(count):
+		var temp_card = template.duplicate()
+		temp_card["temporary"] = true  # Mark as temporary — won't go to discard
+		temp_card["hero_id"] = source_hero.hero_id
+		GameManager.hand.append(temp_card)
+	_refresh_hand()
+	print("[Generate Cards] " + source_hero.hero_data.get("name", "Hero") + " generated " + str(count) + "x " + template.get("name", card_id) + " (temporary)")
 
 # ============================================
 # BUFF/DEBUFF EFFECT PROCESSING
@@ -2879,6 +2918,7 @@ const OP_DEBUFF := "debuff"
 const OP_ENERGY := "energy"
 const OP_CLEANSE := "cleanse"
 const OP_DRAW := "draw"
+const OP_REMOVE_BUFF := "remove_buff"
 
 func _apply_ops(ops: Array) -> void:
 	if ops == null or ops.is_empty():
@@ -2981,16 +3021,25 @@ func _eh_apply_debuff(ctx: Dictionary, spec: Dictionary) -> Array:
 	var source: Hero = ctx.get("source", null)
 	var default_value: int = int(source.hero_data.get("base_attack", 10)) if source else 10
 	var value := int(spec.get("value", default_value))
+	var stacks := int(spec.get("stacks", 1))
 	var ops: Array = []
 	for target in targets:
 		if target == null or target.is_dead:
 			continue
+		# Apply to Host state if we're executing effects immediately (singleplayer / host local execution).
+		if bool(ctx.get("apply_now", false)):
+			if debuff_id == "thunder" and stacks > 1:
+				target.add_thunder_stacks(stacks, value)
+			else:
+				target.apply_debuff(debuff_id, duration, value, expire_on)
 		var op := _op_base_for_hero(target)
 		op["type"] = OP_DEBUFF
 		op["debuff_type"] = debuff_id
 		op["duration"] = duration
 		op["expire_on"] = expire_on
 		op["value"] = value
+		if debuff_id == "thunder" and stacks > 1:
+			op["stacks"] = stacks
 		ops.append(op)
 	return ops
 
@@ -3007,6 +3056,19 @@ func _eh_apply_buff(ctx: Dictionary, spec: Dictionary) -> Array:
 	var default_value: int = int(source.hero_data.get("base_attack", 10)) if source else 10
 	var value := int(spec.get("value", default_value))
 	var ops: Array = []
+	# Multiplayer bulletproofing: taunt must be unique on a team.
+	# Emit explicit ops to remove taunt from all other allies before applying it.
+	if buff_id == "taunt" and source != null:
+		var allies: Array = player_heroes if source.is_player_hero else enemy_heroes
+		for ally in allies:
+			if ally == null or ally.is_dead:
+				continue
+			if ally == source:
+				continue
+			var rop := _op_base_for_hero(ally)
+			rop["type"] = OP_REMOVE_BUFF
+			rop["buff_type"] = "taunt"
+			ops.append(rop)
 	for target in targets:
 		if target == null or target.is_dead:
 			continue
@@ -3299,6 +3361,16 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 					"duration": 1,
 					"expire_on": _get_debuff_expire_on("thunder")
 				})
+			"thunder_detonate":
+				# Raizel EX: apply 2 Thunder stacks to all enemies.
+				specs.append({
+					"type": EFFECT_APPLY_DEBUFF,
+					"id": "thunder",
+					"target": "enemies",
+					"stacks": 2,
+					"duration": -1,
+					"expire_on": "permanent"
+				})
 			"thunder_stack_2":
 				specs.append({
 					"type": EFFECT_THUNDER_STACK_2,
@@ -3329,6 +3401,42 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 				specs.append({
 					"type": EFFECT_PENETRATE,
 					"target": "primary"
+				})
+			"dana_shield_draw":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "dana_shield_draw",
+					"target": "primary",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "own_turn_end"
+				})
+			"counter_50":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "counter_50",
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "opponent_turn_end"
+				})
+			"counter_100":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "counter_100",
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "opponent_turn_end"
+				})
+			"self_break":
+				specs.append({
+					"type": EFFECT_APPLY_DEBUFF,
+					"id": "break",
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "opponent_turn_end"
 				})
 			_:
 				# Leave unknown effects as a passthrough for now to preserve compatibility.
@@ -3453,7 +3561,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						var behind_target = target_team[behind_index]
 						if not behind_target.is_dead:
 							var damage = int(source_atk * 1.0)  # Same damage as main hit
-							behind_target.take_damage(damage)
+							behind_target.take_damage(damage, source)
 							behind_target.play_hit_anim()
 							# Apply weak to behind target too
 							behind_target.apply_debuff("weak", 1, source_atk, "own_turn_end")
@@ -3480,12 +3588,37 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 				for enemy in enemies:
 					if not enemy.is_dead:
 						enemy.apply_debuff("thunder", 1, source_atk)
+			"thunder_detonate":
+				# Raizel EX: Apply 2 Thunder stacks to all enemies.
+				var enemies = enemy_heroes if source.is_player_hero else player_heroes
+				for enemy in enemies:
+					if not enemy.is_dead:
+						enemy.add_thunder_stacks(2, source_atk)
 			"thunder_stack_2":
 				# Add 2 Thunder stacks to target (only if they have Thunder)
 				_dispatch_effect_spec(ctx, {"type": EFFECT_THUNDER_STACK_2, "target": "primary", "amount": 2})
 			"draw_1":
 				# Draw 1 card
 				_dispatch_effect_spec(ctx, {"type": EFFECT_DRAW, "target": "source", "amount": 1})
+			"dana_shield_draw":
+				# Dana's Smart Shield: attach marker buff to target
+				if target and not target.is_dead:
+					target.apply_buff("dana_shield_draw", 1, 0, "own_turn_end")
+			"counter_50":
+				# Gavran SK1: Reflect 50% of damage back to attacker
+				if source and not source.is_dead:
+					source.apply_buff("counter_50", 1, 0, "opponent_turn_end")
+					print(source.hero_data.get("name", "Hero") + " gained Counter (50% reflect)")
+			"counter_100":
+				# Gavran EX: Reflect 100% of damage back to attacker
+				if source and not source.is_dead:
+					source.apply_buff("counter_100", 1, 0, "opponent_turn_end")
+					print(source.hero_data.get("name", "Hero") + " gained Counter (100% reflect)")
+			"self_break":
+				# Gavran EX: Apply Break to self (expires at opponent_turn_end, not own_turn_end)
+				if source and not source.is_dead:
+					source.apply_debuff("break", 1, source_atk, "opponent_turn_end")
+					print(source.hero_data.get("name", "Hero") + " applied Break to self (opponent_turn_end)")
 
 func _apply_upgrade_shuffle(card_data: Dictionary) -> void:
 	# Upgrade the card's atk_multiplier and shuffle back into deck
@@ -3609,6 +3742,12 @@ func _on_end_turn_pressed() -> void:
 		# Clear ENEMY shields at end of player turn (enemy used them last turn, now they expire)
 		for enemy in enemy_heroes:
 			if enemy.block > 0:
+				# Dana's Smart Shield: trigger draw before clearing shield
+				if enemy.has_buff("dana_shield_draw"):
+					enemy.remove_buff("dana_shield_draw")
+					GameManager.enemy_draw_cards(1)
+					_refresh_enemy_hand_display()
+					print("[Dana Shield Draw] " + enemy.hero_data.get("name", "Hero") + " (enemy) shield expired → draw 1")
 				enemy.block = 0
 				enemy._update_ui()
 				enemy._hide_shield_effect()
@@ -3769,6 +3908,12 @@ func _do_enemy_turn() -> void:
 	# Clear PLAYER shields at end of enemy turn (player used them last turn, now they expire)
 	for ally in player_heroes:
 		if ally.block > 0:
+			# Dana's Smart Shield: trigger draw before clearing shield
+			if ally.has_buff("dana_shield_draw"):
+				ally.remove_buff("dana_shield_draw")
+				GameManager.draw_cards(1)
+				_refresh_hand()
+				print("[Dana Shield Draw] " + ally.hero_data.get("name", "Hero") + " shield expired → draw 1")
 			ally.block = 0
 			ally._update_ui()
 			ally._hide_shield_effect()
@@ -4138,7 +4283,7 @@ func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 			var def_guardian = _get_guardian_reduction(player)
 			if def_guardian > 0:
 				final_damage = max(1, final_damage - def_guardian)
-			player.take_damage(final_damage)
+			player.take_damage(final_damage, attacker)
 			player.play_hit_anim()
 			total_damage += final_damage
 			# Trigger on_damage_taken equipment effects (Thorned Armor)
@@ -4158,7 +4303,8 @@ func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 		await _animate_attack(attacker, target, damage)
 		GameManager.add_damage_dealt(enemy_stat_id, damage)
 	
-	attacker.add_energy(10)
+	var energy_gain = int(card.get("energy_on_hit", GameConstants.ENERGY_ON_ATTACK))
+	attacker.add_energy(energy_gain)
 	await _hide_card_display()
 
 func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
@@ -4242,6 +4388,35 @@ func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
 			GameManager.add_shield_given(enemy_stat_id, shield)
 	
 	await _hide_card_display()
+
+func _on_counter_triggered(defender: Hero, attacker: Hero, reflect_damage: int) -> void:
+	# Counter (Reflect): apply reflect damage to the attacker as true damage (ignores DEF/shield)
+	if attacker == null or attacker.is_dead or reflect_damage <= 0:
+		return
+	attacker.current_hp = max(0, attacker.current_hp - reflect_damage)
+	attacker._spawn_floating_number(reflect_damage, Color(1.0, 0.6, 0.2))
+	attacker._play_hit_animation()
+	attacker._update_ui()
+	# VFX: reflect spark on attacker
+	if VFX and attacker.sprite:
+		var sprite_center = attacker.sprite.global_position + attacker.sprite.size / 2
+		VFX.spawn_particles(sprite_center, Color(1.0, 0.8, 0.2), 8)
+	print("[Counter] " + defender.hero_data.get("name", "") + " reflected " + str(reflect_damage) + " to " + attacker.hero_data.get("name", ""))
+	if attacker.current_hp <= 0:
+		attacker.die()
+
+func _on_shield_broken(hero: Hero) -> void:
+	# Dana's Smart Shield: when shield is fully consumed by damage, trigger draw 1
+	if hero.has_buff("dana_shield_draw"):
+		hero.remove_buff("dana_shield_draw")
+		if hero.is_player_hero:
+			GameManager.draw_cards(1)
+			_refresh_hand()
+			print("[Dana Shield Draw] " + hero.hero_data.get("name", "Hero") + " shield broken → draw 1")
+		else:
+			GameManager.enemy_draw_cards(1)
+			_refresh_enemy_hand_display()
+			print("[Dana Shield Draw] " + hero.hero_data.get("name", "Hero") + " (enemy) shield broken → draw 1")
 
 func _on_hero_died(hero: Hero) -> void:
 	print(hero.hero_data.get("name", "Hero") + " has died!")
@@ -4546,6 +4721,9 @@ func _deferred_process_action_request(request: Dictionary) -> void:
 		"play_card":
 			print("  → Calling _host_execute_card_request")
 			await _host_execute_card_request(request)
+		"dig_choice":
+			print("  → Calling _host_execute_dig_choice_request")
+			await _host_execute_dig_choice_request(request)
 		"use_ex_skill":
 			print("  → Calling _host_execute_ex_skill_request")
 			await _host_execute_ex_skill_request(request)
@@ -4609,10 +4787,16 @@ func _host_execute_card_request(request: Dictionary) -> void:
 		return
 	if source == null:
 		print("  NOTE: Source is null (equipment card - this is OK)")
+
+	# Multiplayer bulletproofing: dig requires a player choice and deterministic deck mutation.
+	# For Guest-played dig cards, send a prompt to the Guest and wait for a dig_choice request.
+	var card_type = str(card_data.get("type", ""))
+	if card_type == "dig" and source != null and not source.is_player_hero:
+		await _host_send_dig_prompt(request, card_data, source)
+		return
 	
 	# RC1: Auto-resolve target for cards that don't need an explicit target
 	var card_target_type = card_data.get("target", "")
-	var card_type = card_data.get("type", "")
 	if target == null:
 		if card_target_type in ["all_ally", "all_enemy"]:
 			# Multi-target cards: null target is OK, resolved inside _execute_card_and_collect_results
@@ -4656,6 +4840,129 @@ func _host_execute_card_request(request: Dictionary) -> void:
 	# Execute: pre-compute → send via callback → animate on Host
 	print("  → Executing card...")
 	await _execute_card_and_collect_results(card_data, source, target, send_cb)
+
+func _host_send_dig_prompt(request: Dictionary, card_data: Dictionary, source: Hero) -> void:
+	if network_manager == null:
+		return
+	var dig_count := int(card_data.get("dig_count", 3))
+	var dig_filter := str(card_data.get("dig_filter", "equipment"))
+	var deck: Array = GameManager.enemy_deck
+	var revealed_cards: Array = []
+	for i in range(min(dig_count, deck.size())):
+		revealed_cards.append(deck[deck.size() - 1 - i])
+	if revealed_cards.is_empty():
+		return
+	var reveal_iids: Array = []
+	for c in revealed_cards:
+		reveal_iids.append(str(c.get("instance_id", c.get("id", ""))))
+	var dig_request_id := str(Time.get_unix_time_from_system()) + "_" + str(randi())
+	_pending_dig = {
+		"dig_request_id": dig_request_id,
+		"card_data": card_data,
+		"source_instance_id": source.instance_id,
+		"source_hero_id": source.hero_id,
+		"reveal_iids": reveal_iids,
+		"dig_filter": dig_filter,
+		"dig_count": dig_count
+	}
+	var prompt := {
+		"action_type": "dig_prompt",
+		"played_by": opponent_player_id,
+		"card_id": card_data.get("base_id", card_data.get("id", "")),
+		"card_name": card_data.get("name", "Dig"),
+		"card_type": "dig",
+		"source_hero_id": source.hero_id,
+		"source_instance_id": source.instance_id,
+		"dig_request_id": dig_request_id,
+		"dig_filter": dig_filter,
+		"reveal_iids": reveal_iids
+	}
+	network_manager.send_action_result(prompt)
+
+func _host_execute_dig_choice_request(request: Dictionary) -> void:
+	if _pending_dig.is_empty():
+		return
+	var dig_request_id := str(request.get("dig_request_id", ""))
+	if dig_request_id.is_empty() or dig_request_id != str(_pending_dig.get("dig_request_id", "")):
+		return
+	var chosen_iid := str(request.get("chosen_instance_id", ""))
+	var card_data: Dictionary = _pending_dig.get("card_data", {})
+	var source_iid := str(_pending_dig.get("source_instance_id", ""))
+	var source: Hero = _find_hero_by_instance_id(source_iid)
+	if source == null:
+		_pending_dig = {}
+		return
+	var deck: Array = GameManager.enemy_deck
+	var hand: Array = GameManager.enemy_hand
+	var discard: Array = GameManager.enemy_discard_pile
+	var selected_card: Dictionary = {}
+	if not chosen_iid.is_empty():
+		for i in range(deck.size()):
+			var iid = str(deck[i].get("instance_id", deck[i].get("id", "")))
+			if iid == chosen_iid:
+				selected_card = deck[i]
+				deck.remove_at(i)
+				break
+	var effects: Array = []
+	if not selected_card.is_empty():
+		effects.append({
+			"type": "deck_remove_card",
+			"is_host_hero": false,
+			"card_instance_id": chosen_iid
+		})
+		if hand.size() < GameManager.HAND_SIZE:
+			hand.append(selected_card)
+			effects.append({
+				"type": "hand_add_card",
+				"is_host_hero": false,
+				"card_instance_id": chosen_iid,
+				"card_data": selected_card
+			})
+		else:
+			discard.append(selected_card)
+			effects.append({
+				"type": "discard_add_card",
+				"is_host_hero": false,
+				"card_instance_id": chosen_iid,
+				"card_data": selected_card
+			})
+	var shuffle_seed := int(randi())
+	deck = _deterministic_shuffle_with_seed(deck, shuffle_seed)
+	GameManager.enemy_deck_manager.deck = deck
+	effects.append({
+		"type": "deck_shuffle",
+		"is_host_hero": false,
+		"seed": shuffle_seed
+	})
+	_refresh_hand()
+	_update_ui()
+	var result := {
+		"action_type": "play_card",
+		"played_by": opponent_player_id,
+		"card_id": card_data.get("base_id", card_data.get("id", "")),
+		"card_name": card_data.get("name", "Dig"),
+		"card_type": "dig",
+		"source_hero_id": source.hero_id,
+		"source_instance_id": source.instance_id,
+		"target_hero_id": "",
+		"target_instance_id": "",
+		"target_is_enemy": false,
+		"success": true,
+		"effects": effects
+	}
+	network_manager.send_action_result(result)
+	_pending_dig = {}
+
+func _deterministic_shuffle_with_seed(array: Array, seed_value: int) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var shuffled := array.duplicate()
+	for i in range(shuffled.size() - 1, 0, -1):
+		var j = int(rng.randi() % (i + 1))
+		var temp = shuffled[i]
+		shuffled[i] = shuffled[j]
+		shuffled[j] = temp
+	return shuffled
 
 func _host_execute_ex_skill_request(request: Dictionary) -> void:
 	## HOST: Execute an EX skill request from Guest and send results
@@ -4741,6 +5048,9 @@ func _deferred_process_action_result(result: Dictionary) -> void:
 		"play_card":
 			print("  → Calling _guest_apply_card_result")
 			await _guest_apply_card_result(result)
+		"dig_prompt":
+			print("  → Calling _guest_handle_dig_prompt")
+			await _guest_handle_dig_prompt(result)
 		"use_ex_skill":
 			print("  → Calling _guest_apply_ex_skill_result")
 			await _guest_apply_ex_skill_result(result)
@@ -4900,6 +5210,46 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	_refresh_enemy_hand_display()
 	print("Battle: [GUEST] Card result fully applied\n")
 
+func _guest_handle_dig_prompt(result: Dictionary) -> void:
+	# Guest receives a dig prompt from Host, chooses a card locally, then sends dig_choice back.
+	var dig_request_id := str(result.get("dig_request_id", ""))
+	var dig_filter := str(result.get("dig_filter", "equipment"))
+	var reveal_iids: Array = result.get("reveal_iids", [])
+	if dig_request_id.is_empty() or reveal_iids.is_empty():
+		return
+
+	# Rebuild the revealed card dictionaries from our local deck using instance_id.
+	var deck: Array = GameManager.deck
+	var revealed_cards: Array = []
+	for iid in reveal_iids:
+		for c in deck:
+			var cid := str(c.get("instance_id", c.get("id", "")))
+			if cid == str(iid):
+				revealed_cards.append(c)
+				break
+	if revealed_cards.is_empty():
+		return
+
+	var selected: Dictionary = await _show_card_selection(revealed_cards, dig_filter, "Dig - Select a Card")
+	var chosen_iid := ""
+	if not selected.is_empty():
+		chosen_iid = str(selected.get("instance_id", selected.get("id", "")))
+
+	var req := {
+		"action_type": "dig_choice",
+		"dig_request_id": dig_request_id,
+		"chosen_instance_id": chosen_iid,
+		"card_data": {},
+		"source_hero_id": result.get("source_hero_id", ""),
+		"source_instance_id": result.get("source_instance_id", ""),
+		"target_hero_id": "",
+		"target_instance_id": "",
+		"target_is_enemy": false,
+		"timestamp": Time.get_unix_time_from_system()
+	}
+	if network_manager:
+		network_manager.send_action_request(req)
+
 func _guest_apply_ex_skill_result(result: Dictionary) -> void:
 	## GUEST: Apply EX skill results from Host
 	var effects = result.get("effects", [])
@@ -4934,6 +5284,45 @@ func _apply_effect(effect: Dictionary) -> void:
 	var hero_id = effect.get("hero_id", "")
 	var instance_id = effect.get("instance_id", "")
 	var is_host_hero = effect.get("is_host_hero", true)
+
+	# Deck/hand/discard ops do not target a hero. Handle them before hero lookup.
+	match effect_type:
+		"deck_remove_card", "hand_add_card", "discard_add_card", "deck_shuffle":
+			var dm: DeckManager = GameManager.enemy_deck_manager if is_host_hero else GameManager.player_deck_manager
+			if dm == null:
+				return
+			match effect_type:
+				"deck_remove_card":
+					var iid := str(effect.get("card_instance_id", ""))
+					if iid.is_empty():
+						return
+					for i in range(dm.deck.size()):
+						var cid := str(dm.deck[i].get("instance_id", dm.deck[i].get("id", "")))
+						if cid == iid:
+							dm.deck.remove_at(i)
+							break
+				"hand_add_card":
+					var card_data: Dictionary = effect.get("card_data", {})
+					if card_data.is_empty():
+						return
+					if dm.hand.size() < GameManager.HAND_SIZE:
+						dm.hand.append(card_data)
+					else:
+						dm.discard_pile.append(card_data)
+				"discard_add_card":
+					var card_data: Dictionary = effect.get("card_data", {})
+					if card_data.is_empty():
+						return
+					dm.discard_pile.append(card_data)
+				"deck_shuffle":
+					var seed_value := int(effect.get("seed", 0))
+					if seed_value == 0:
+						return
+					dm.deck = _deterministic_shuffle_with_seed(dm.deck, seed_value)
+			_refresh_hand()
+			_refresh_enemy_hand_display()
+			_update_ui()
+			return
 	
 	print("Battle: [GUEST] _apply_effect - type: ", effect_type, " hero_id: ", hero_id, " iid: ", instance_id, " is_host_hero: ", is_host_hero)
 	
@@ -4986,13 +5375,24 @@ func _apply_effect(effect: Dictionary) -> void:
 			var expire_on = effect.get("expire_on", _get_buff_expire_on(buff_type))
 			if not buff_type.is_empty():
 				hero.apply_buff(buff_type, duration, value, expire_on)
+		"remove_buff":
+			var buff_type = effect.get("buff_type", "")
+			if not buff_type.is_empty():
+				hero.remove_buff(buff_type)
 		"debuff":
 			var debuff_type = effect.get("debuff_type", "")
 			var duration = effect.get("duration", 1)
 			var value = effect.get("value", 0)
 			var expire_on = effect.get("expire_on", _get_debuff_expire_on(debuff_type))
 			if not debuff_type.is_empty():
-				hero.apply_debuff(debuff_type, duration, value, expire_on)
+				if debuff_type == "thunder":
+					var stacks := int(effect.get("stacks", 1))
+					if stacks > 1:
+						hero.add_thunder_stacks(stacks, value)
+					else:
+						hero.apply_debuff(debuff_type, duration, value, expire_on)
+				else:
+					hero.apply_debuff(debuff_type, duration, value, expire_on)
 		"energy":
 			var new_energy = effect.get("new_energy", hero.energy)
 			hero.energy = new_energy
@@ -5101,6 +5501,18 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 	var precomputed: Dictionary = {}
 	
 	match card_type:
+		"mana":
+			var mana_gain := int(card_data.get("mana_gain", 1))
+			var new_mana := int(GameManager.current_mana + mana_gain)
+			effects.append({
+				"type": "mana",
+				"hero_id": source.hero_id if source else "",
+				"instance_id": source.instance_id if source else "",
+				"is_host_hero": source.is_player_hero if source else true,
+				"amount": mana_gain,
+				"new_mana": new_mana
+			})
+			precomputed["new_mana"] = new_mana
 		"attack", "basic_attack":
 			var atk_mult = card_data.get("atk_multiplier", 1.0)
 			var damage = int(base_atk * atk_mult * damage_mult)
@@ -5299,6 +5711,12 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 	await _show_card_display(card_data)
 	
 	match card_type:
+		"mana":
+			var new_mana := int(precomputed.get("new_mana", GameManager.current_mana))
+			GameManager.current_mana = new_mana
+			GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
+			if source:
+				await _animate_cast_buff(source, source)
 		"attack", "basic_attack":
 			var damage = precomputed.get("damage", 10)
 			for t in targets:

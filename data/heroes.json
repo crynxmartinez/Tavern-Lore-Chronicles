@@ -169,7 +169,7 @@
 		],
 		"ex_skill": {
 			"name": "Rampage",
-			"description": "Deal (300% ATK) damage to all enemies.",
+			"description": "Deal (300% ATK) damage to target enemy. Penetrate. Apply Weak.",
 			"atk_multiplier": 3.0,
 			"effects": ["weak", "penetrate"],
 			"image": "res://asset/Hero/The Cow, Makash Barok/ex.png"
@@ -303,10 +303,10 @@
 		"attack_sprite": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/attack.png",
 		"cast_sprite": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/cast.png",
 		"hit_sprite": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "amihan"}
@@ -339,25 +339,24 @@
 		"attack_sprite": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/attack.png",
 		"cast_sprite": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/cast.png",
 		"hit_sprite": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "gavran"}
 		],
 		"ex_skill": {
 			"name": "Boneforge Aegis",
-			"description": "All allies gain Shield (20 + DEF×5). Gain Taunt.",
-			"base_shield": 20,
-			"def_multiplier": 5.0,
-			"effects": ["taunt"],
+			"description": "Apply Break to self. Gain Counter (Reflect 100%). Both expire at opponent's turn end.",
+			"type": "self_buff",
+			"effects": ["counter_100", "self_break"],
 			"image": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/splash.png"
 		},
 		"ex_card": "gavran_ex",
 		"attack_card": "gavran_attack",
-		"cards": []
+		"cards": ["gavran_sk1", "gavran_sk2", "gavran_sk3"]
 	},
 	"cinder": {
 		"id": "cinder",
@@ -365,10 +364,10 @@
 		"color": "red",
 		"role": "dps",
 		"base_hp": 10,
-		"hp_multiplier": 12,
-		"max_hp": 120,
+		"hp_multiplier": 10,
+		"max_hp": 100,
 		"base_attack": 19,
-		"base_def": 1,
+		"base_def": 0,
 		"portrait": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/idle.png",
 		"splash": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/splash.png",
 		"full_art": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/splash.png",
@@ -376,23 +375,25 @@
 		"attack_sprite": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/attack.png",
 		"cast_sprite": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/cast.png",
 		"hit_sprite": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "cinder"}
 		],
 		"ex_skill": {
-			"name": "Inferno Blade",
-			"description": "Deal (350% ATK) damage to target enemy.",
-			"atk_multiplier": 3.5,
+			"name": "Cinder Storm",
+			"description": "Add 3 Cinder Strike cards to your hand (temporary).",
+			"type": "generate_cards",
+			"generate_card_id": "cinder_sk2",
+			"generate_count": 3,
 			"image": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/splash.png"
 		},
 		"ex_card": "cinder_ex",
 		"attack_card": "cinder_attack",
-		"cards": []
+		"cards": ["cinder_sk1", "cinder_sk2", "cinder_sk3"]
 	},
 	"nyra": {
 		"id": "nyra",
@@ -411,10 +412,10 @@
 		"attack_sprite": "res://asset/Hero/Hush Engineer, Nyra Sato/attack.png",
 		"cast_sprite": "res://asset/Hero/Hush Engineer, Nyra Sato/cast.png",
 		"hit_sprite": "res://asset/Hero/Hush Engineer, Nyra Sato/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Hush Engineer, Nyra Sato/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "nyra"}
@@ -447,10 +448,10 @@
 		"attack_sprite": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png",
 		"cast_sprite": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/cast.png",
 		"hit_sprite": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "kalasag"}
@@ -483,10 +484,10 @@
 		"attack_sprite": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png",
 		"cast_sprite": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/cast.png",
 		"hit_sprite": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "scrap"}
@@ -518,10 +519,10 @@
 		"attack_sprite": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
 		"cast_sprite": "res://asset/Hero/Storm Lancer, Dax Aerwyn/cast.png",
 		"hit_sprite": "res://asset/Hero/Storm Lancer, Dax Aerwyn/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Storm Lancer, Dax Aerwyn/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "dax"}
@@ -554,10 +555,10 @@
 		"attack_sprite": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/attack.png",
 		"cast_sprite": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
 		"hit_sprite": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "ysolde"}
@@ -590,10 +591,10 @@
 		"attack_sprite": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/attack.png",
 		"cast_sprite": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/cast.png",
 		"hit_sprite": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/on hit.png",
-		"idle_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/idle.png",
-		"attack_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/attack.png",
-		"cast_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/cast.png",
-		"hit_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/on hit flip.png",
 		"equipped_skin": "default",
 		"skins": [
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "valen"}

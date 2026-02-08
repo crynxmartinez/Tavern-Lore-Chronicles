@@ -114,8 +114,8 @@ func play_card(card_data: Dictionary) -> bool:
 	
 	if card_index != -1:
 		hand.remove_at(card_index)
-		# Equipment cards are consumed - don't add to discard
-		if card_data.get("type", "") != "equipment":
+		# Equipment and temporary cards are consumed - don't add to discard
+		if card_data.get("type", "") != "equipment" and not card_data.get("temporary", false):
 			discard_pile.append(card_data)
 		return true
 	return false
