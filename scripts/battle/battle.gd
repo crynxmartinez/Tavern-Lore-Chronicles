@@ -94,6 +94,8 @@ func _ready() -> void:
 	if concede_button:
 		concede_button.pressed.connect(_on_concede_pressed)
 	
+	_init_effect_registry()
+	
 	# Setup button hover effects
 	_setup_button_hover(end_turn_button)
 	_setup_button_hover(mulligan_button)
@@ -483,7 +485,8 @@ func _refresh_hand(animate: bool = false) -> void:
 		if current_phase == BattlePhase.MULLIGAN:
 			card_instance.can_interact = true
 		else:
-			var can_play = card_instance.can_play(GameManager.current_mana)
+			var source_hero = _get_source_hero(card_data)
+			var can_play = card_instance.can_play(GameManager.current_mana) and _can_pay_hp_cost(card_data, source_hero)
 			card_instance.set_playable(can_play)
 		
 		if animate:
@@ -515,7 +518,8 @@ func _deal_hand_animated() -> void:
 		if current_phase == BattlePhase.MULLIGAN:
 			card_instance.can_interact = true
 		else:
-			var can_play = card_instance.can_play(GameManager.current_mana)
+			var source_hero = _get_source_hero(card_data)
+			var can_play = card_instance.can_play(GameManager.current_mana) and _can_pay_hp_cost(card_data, source_hero)
 			card_instance.set_playable(can_play)
 		cards_to_animate.append(card_instance)
 	
@@ -566,9 +570,9 @@ func _on_card_clicked(card: Card) -> void:
 		_toggle_mulligan_selection(card)
 	elif current_phase == BattlePhase.PLAYING and GameManager.is_player_turn:
 		# Only allow playing cards during player's turn
-		if card.can_play(GameManager.current_mana):
+		var source_hero = _get_source_hero(card.card_data)
+		if card.can_play(GameManager.current_mana) and _can_pay_hp_cost(card.card_data, source_hero):
 			# Check if the source hero is stunned
-			var source_hero = _get_source_hero(card.card_data)
 			if source_hero and source_hero.is_stunned():
 				print("Cannot play card - " + source_hero.hero_data.get("name", "Hero") + " is stunned!")
 				return
@@ -616,6 +620,9 @@ func _toggle_mulligan_selection(card: Card) -> void:
 func _add_card_to_stack(card: Card) -> void:
 	var card_id = card.card_data.get("id", "")
 	var this_cost = card.card_data.get("cost", 0)
+	var source_hero = _get_source_hero(card.card_data)
+	if not _can_pay_hp_cost(card.card_data, source_hero):
+		return
 	
 	# Check if card is already in stack
 	for queued in card_queue:
@@ -631,7 +638,6 @@ func _add_card_to_stack(card: Card) -> void:
 		card.card_data["mana_spent"] = this_cost
 	else:
 		# Frost debuff: +1 card cost for each frosted hero on the source's team
-		var source_hero = _get_source_hero(card.card_data)
 		if source_hero and source_hero.has_debuff("frost"):
 			this_cost += 1
 	
@@ -658,7 +664,6 @@ func _add_card_to_stack(card: Card) -> void:
 	
 	# HOST-AUTHORITATIVE MULTIPLAYER
 	if is_multiplayer and network_manager:
-		var source_hero = _get_source_hero(card.card_data)
 		var role = "[HOST]" if is_host else "[GUEST]"
 		
 		print("\n--- CARD PLAY: ", role, " _add_card_to_stack ---")
@@ -676,6 +681,8 @@ func _add_card_to_stack(card: Card) -> void:
 			pass  # Continue to normal execution below
 		else:
 			# GUEST: Send REQUEST to Host, do NOT execute locally
+			if not _can_pay_hp_cost(card.card_data, source_hero):
+				return
 			var request = {
 				"action_type": "play_card",
 				"card_data": card.card_data.duplicate(),
@@ -816,6 +823,11 @@ func _play_front_card() -> void:
 func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 	var card_type = card_data.get("type", "")
 	var target_type = card_data.get("target", "single")
+	var source_hero = _get_source_hero(card_data)
+	if not _can_pay_hp_cost(card_data, source_hero):
+		await _fade_out_visual(visual)
+		_finish_card_play()
+		return
 	
 	# Safety check
 	if visual == null or not is_instance_valid(visual):
@@ -839,6 +851,12 @@ func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 	if is_multiplayer and is_host and network_manager:
 		await _play_queued_card_as_host(card_data, visual)
 		return
+
+	# Single-player (or Guest local-only UI): apply HP cost + Bleed self-damage BEFORE resolving
+	if not _apply_pre_action_self_effects(card_data, source_hero, false):
+		await _fade_out_visual(visual)
+		_finish_card_play()
+		return
 	
 	if card_type == "mana":
 		GameManager.play_mana_card()
@@ -846,7 +864,6 @@ func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 		_finish_card_play()
 	elif card_type == "energy":
 		# Energy cards like Bull Rage - add energy to source hero
-		var source_hero = _get_source_hero(card_data)
 		await _show_card_display(card_data)
 		# Play cast animation
 		if source_hero:
@@ -884,7 +901,6 @@ func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 			await _play_queued_buff_all(card_data, visual)
 		elif target_type == "self":
 			# Self-buff: target the source hero
-			var source_hero = _get_source_hero(card_data)
 			if source_hero and not source_hero.is_dead:
 				await _play_queued_buff(card_data, visual, source_hero)
 			else:
@@ -1554,10 +1570,20 @@ func _on_hero_clicked(hero: Hero) -> void:
 func _play_card_on_target(card: Card, target: Hero) -> void:
 	var source_hero = _get_source_hero(card.card_data)
 	var card_data_copy = card.card_data.duplicate()
+	if not _can_pay_hp_cost(card_data_copy, source_hero):
+		_refresh_hand()
+		_clear_highlights()
+		current_phase = BattlePhase.PLAYING
+		return
 	
 	# HOST-AUTHORITATIVE MULTIPLAYER: Route through request/result system
 	if is_multiplayer and network_manager:
 		if not is_host:
+			if not _can_pay_hp_cost(card_data_copy, source_hero):
+				_refresh_hand()
+				_clear_highlights()
+				current_phase = BattlePhase.PLAYING
+				return
 			# GUEST: Send request to Host, do NOT execute locally
 			var request = {
 				"action_type": "play_card",
@@ -1596,6 +1622,7 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 		if is_host:
 			selected_card = null
 			_play_audio("play_card_play")
+			# Host will apply HP cost + Bleed inside _execute_card_and_collect_results
 			
 			if GameManager.play_card(card_data_copy, source_hero, target):
 				# Build send callback
@@ -1630,6 +1657,12 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 	selected_card = null
 	_play_audio("play_card_play")
 	await _animate_card_to_display(card)
+	# Apply HP cost + Bleed self-damage BEFORE spending mana / resolving
+	if not _apply_pre_action_self_effects(card_data_copy, source_hero, false):
+		_refresh_hand()
+		_clear_highlights()
+		current_phase = BattlePhase.PLAYING
+		return
 	
 	if GameManager.play_card(card_data_copy, source_hero, target):
 		await _show_card_display(card_data_copy)
@@ -1657,7 +1690,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			var effects = card_data.get("effects", [])
 			if effects.has("mana_surge"):
 				var mana_spent = card_data.get("mana_spent", 1)
-				atk_mult = float(mana_spent)  # X × 100% ATK
+				atk_mult *= float(mana_spent)  # X × 100% ATK
 				print("[Mana Surge] Spent " + str(mana_spent) + " mana, dealing " + str(int(base_atk * atk_mult * damage_mult)) + " damage")
 			
 			var damage = int(base_atk * atk_mult * damage_mult)
@@ -2819,7 +2852,558 @@ func _get_debuff_expire_on(debuff_type: String) -> String:
 		_:
 			return "own_turn_end"  # Default: expires at end of own turn
 
+const EFFECT_APPLY_DEBUFF := "apply_debuff"
+const EFFECT_APPLY_BUFF := "apply_buff"
+const EFFECT_DAMAGE := "damage"
+const EFFECT_HEAL := "heal"
+const EFFECT_CLEANSE := "cleanse"
+const EFFECT_CLEANSE_ALL := "cleanse_all"
+const EFFECT_DISPEL := "dispel"
+const EFFECT_DISPEL_ALL := "dispel_all"
+
+const EFFECT_HP_COST_PCT := "hp_cost_pct"
+const EFFECT_BLEED_ON_ACTION := "bleed_on_action"
+
+const EFFECT_THUNDER_STACK_2 := "thunder_stack_2"
+const EFFECT_DRAW := "draw"
+
+const EFFECT_SHIELD_CURRENT_HP := "shield_current_hp"
+
+const EFFECT_PENETRATE := "penetrate"
+
+const OP_DAMAGE := "damage"
+const OP_HEAL := "heal"
+const OP_BLOCK := "block"
+const OP_BUFF := "buff"
+const OP_DEBUFF := "debuff"
+const OP_ENERGY := "energy"
+const OP_CLEANSE := "cleanse"
+const OP_DRAW := "draw"
+
+func _apply_ops(ops: Array) -> void:
+	if ops == null or ops.is_empty():
+		return
+	for op in ops:
+		if op is Dictionary:
+			_apply_effect(op)
+
+var _effect_registry: Dictionary = {}
+
+func _init_effect_registry() -> void:
+	# Phase 2: registry maps EffectSpec.type -> handler callable
+	_effect_registry.clear()
+	_effect_registry[EFFECT_APPLY_DEBUFF] = Callable(self, "_eh_apply_debuff")
+	_effect_registry[EFFECT_APPLY_BUFF] = Callable(self, "_eh_apply_buff")
+	_effect_registry[EFFECT_CLEANSE] = Callable(self, "_eh_cleanse")
+	_effect_registry[EFFECT_CLEANSE_ALL] = Callable(self, "_eh_cleanse_all")
+	_effect_registry[EFFECT_DISPEL] = Callable(self, "_eh_dispel")
+	_effect_registry[EFFECT_DISPEL_ALL] = Callable(self, "_eh_dispel_all")
+	_effect_registry[EFFECT_DAMAGE] = Callable(self, "_eh_damage")
+	_effect_registry[EFFECT_HEAL] = Callable(self, "_eh_heal")
+	_effect_registry[EFFECT_HP_COST_PCT] = Callable(self, "_eh_hp_cost_pct")
+	_effect_registry[EFFECT_BLEED_ON_ACTION] = Callable(self, "_eh_bleed_on_action")
+	_effect_registry[EFFECT_THUNDER_STACK_2] = Callable(self, "_eh_thunder_stack_2")
+	_effect_registry[EFFECT_DRAW] = Callable(self, "_eh_draw")
+	_effect_registry[EFFECT_SHIELD_CURRENT_HP] = Callable(self, "_eh_shield_current_hp")
+	_effect_registry[EFFECT_PENETRATE] = Callable(self, "_eh_penetrate")
+
+func _dispatch_effect_spec(ctx: Dictionary, spec: Dictionary) -> Array:
+	if spec == null or spec.is_empty():
+		return []
+	var t := str(spec.get("type", ""))
+	if t.is_empty():
+		return []
+	var handler: Callable = _effect_registry.get(t, Callable())
+	if handler.is_null():
+		return []
+	return handler.call(ctx, spec)
+
+func _ctx_primary_target(ctx: Dictionary) -> Hero:
+	return ctx.get("primary_target", null)
+
+func _ctx_targets(ctx: Dictionary) -> Array:
+	var targets = ctx.get("targets", [])
+	if targets == null:
+		return []
+	return targets
+
+func _resolve_effect_target(ctx: Dictionary, spec: Dictionary) -> Hero:
+	var target_mode := str(spec.get("target", "primary"))
+	match target_mode:
+		"source":
+			return ctx.get("source", null)
+		"primary":
+			return _ctx_primary_target(ctx)
+		_:
+			return _ctx_primary_target(ctx)
+
+func _resolve_effect_targets(ctx: Dictionary, spec: Dictionary) -> Array:
+	var source: Hero = ctx.get("source", null)
+	var target_mode := str(spec.get("target", "primary"))
+	match target_mode:
+		"source":
+			return [source] if source != null else []
+		"primary":
+			var t = _ctx_primary_target(ctx)
+			return [t] if t != null else []
+		"all_targets":
+			return _ctx_targets(ctx)
+		"allies":
+			if source == null:
+				return []
+			return player_heroes if source.is_player_hero else enemy_heroes
+		"enemies":
+			if source == null:
+				return []
+			return enemy_heroes if source.is_player_hero else player_heroes
+		_:
+			var t = _ctx_primary_target(ctx)
+			return [t] if t != null else []
+
+func _op_base_for_hero(hero: Hero) -> Dictionary:
+	if hero == null:
+		return {}
+	return {
+		"hero_id": hero.hero_id,
+		"instance_id": hero.instance_id,
+		"is_host_hero": hero.is_player_hero
+	}
+
+func _eh_apply_debuff(ctx: Dictionary, spec: Dictionary) -> Array:
+	var targets: Array = _resolve_effect_targets(ctx, spec)
+	if targets.is_empty():
+		return []
+	var debuff_id := str(spec.get("id", ""))
+	if debuff_id.is_empty():
+		return []
+	var duration := int(spec.get("duration", 1))
+	var expire_on := str(spec.get("expire_on", _get_debuff_expire_on(debuff_id)))
+	var source: Hero = ctx.get("source", null)
+	var default_value: int = int(source.hero_data.get("base_attack", 10)) if source else 10
+	var value := int(spec.get("value", default_value))
+	var ops: Array = []
+	for target in targets:
+		if target == null or target.is_dead:
+			continue
+		var op := _op_base_for_hero(target)
+		op["type"] = OP_DEBUFF
+		op["debuff_type"] = debuff_id
+		op["duration"] = duration
+		op["expire_on"] = expire_on
+		op["value"] = value
+		ops.append(op)
+	return ops
+
+func _eh_apply_buff(ctx: Dictionary, spec: Dictionary) -> Array:
+	var targets: Array = _resolve_effect_targets(ctx, spec)
+	if targets.is_empty():
+		return []
+	var buff_id := str(spec.get("id", ""))
+	if buff_id.is_empty():
+		return []
+	var duration := int(spec.get("duration", 1))
+	var expire_on := str(spec.get("expire_on", _get_buff_expire_on(buff_id)))
+	var source: Hero = ctx.get("source", null)
+	var default_value: int = int(source.hero_data.get("base_attack", 10)) if source else 10
+	var value := int(spec.get("value", default_value))
+	var ops: Array = []
+	for target in targets:
+		if target == null or target.is_dead:
+			continue
+		var op := _op_base_for_hero(target)
+		op["type"] = OP_BUFF
+		op["buff_type"] = buff_id
+		op["duration"] = duration
+		op["expire_on"] = expire_on
+		op["value"] = value
+		ops.append(op)
+	return ops
+
+func _eh_cleanse(ctx: Dictionary, spec: Dictionary) -> Array:
+	var target: Hero = _ctx_primary_target(ctx)
+	if target == null or target.is_dead:
+		return []
+	var op := _op_base_for_hero(target)
+	op["type"] = OP_CLEANSE
+	return [op]
+
+func _eh_cleanse_all(ctx: Dictionary, spec: Dictionary) -> Array:
+	var ops: Array = []
+	for t in _ctx_targets(ctx):
+		if t != null and not t.is_dead:
+			var op := _op_base_for_hero(t)
+			op["type"] = OP_CLEANSE
+			ops.append(op)
+	return ops
+
+func _eh_dispel(ctx: Dictionary, spec: Dictionary) -> Array:
+	# For now, reuse the legacy op shape already supported by _apply_effect.
+	var target: Hero = _ctx_primary_target(ctx)
+	if target == null or target.is_dead:
+		return []
+	var op := _op_base_for_hero(target)
+	op["type"] = EFFECT_DISPEL
+	return [op]
+
+func _eh_dispel_all(ctx: Dictionary, spec: Dictionary) -> Array:
+	var ops: Array = []
+	for t in _ctx_targets(ctx):
+		if t != null and not t.is_dead:
+			var op := _op_base_for_hero(t)
+			op["type"] = EFFECT_DISPEL
+			ops.append(op)
+	return ops
+
+func _eh_damage(ctx: Dictionary, spec: Dictionary) -> Array:
+	# NOTE: Host will compute new_hp/new_block during Phase 3/5.
+	# This handler only builds the op scaffold.
+	var target: Hero = _ctx_primary_target(ctx)
+	if target == null or target.is_dead:
+		return []
+	var amount := int(spec.get("amount", 0))
+	var op := _op_base_for_hero(target)
+	op["type"] = OP_DAMAGE
+	op["amount"] = amount
+	return [op]
+
+func _eh_heal(ctx: Dictionary, spec: Dictionary) -> Array:
+	# NOTE: Host will compute new_hp during Phase 3/5.
+	var target: Hero = _ctx_primary_target(ctx)
+	if target == null or target.is_dead:
+		return []
+	var amount := int(spec.get("amount", 0))
+	var op := _op_base_for_hero(target)
+	op["type"] = OP_HEAL
+	op["amount"] = amount
+	return [op]
+
+func _eh_hp_cost_pct(ctx: Dictionary, spec: Dictionary) -> Array:
+	# Phase 4: Host pre-action HP cost. Emits a damage op on source and applies true damage on Host.
+	# Must ignore block. Must allow suicide casts. Must block if current_hp < hp_cost.
+	var source: Hero = ctx.get("source", null)
+	if source == null or not is_instance_valid(source) or source.is_dead:
+		return []
+	var pct := float(spec.get("pct", 0.0))
+	if pct <= 0.0:
+		return []
+	var hp_cost := int(source.max_hp * pct)
+	if hp_cost <= 0:
+		return []
+	if source.current_hp < hp_cost:
+		# Signal failure to caller via ctx flag (caller decides to abort)
+		ctx["blocked"] = true
+		return []
+	var new_hp: int = int(max(0, source.current_hp - hp_cost))
+	var op := _op_base_for_hero(source)
+	op["type"] = OP_DAMAGE
+	op["amount"] = hp_cost
+	op["new_hp"] = new_hp
+	op["new_block"] = source.block
+	_apply_true_damage(source, hp_cost)
+	return [op]
+
+func _eh_bleed_on_action(ctx: Dictionary, spec: Dictionary) -> Array:
+	# Phase 4: Bleed trigger (10 true self-damage) on any non-EX action.
+	var source: Hero = ctx.get("source", null)
+	if source == null or not is_instance_valid(source) or source.is_dead:
+		return []
+	if bool(ctx.get("is_ex", false)):
+		return []
+	if not source.has_debuff("bleed"):
+		return []
+	var dmg := int(spec.get("amount", 10))
+	if dmg <= 0:
+		return []
+	var new_hp: int = int(max(0, source.current_hp - dmg))
+	var op := _op_base_for_hero(source)
+	op["type"] = OP_DAMAGE
+	op["amount"] = dmg
+	op["new_hp"] = new_hp
+	op["new_block"] = source.block
+	_apply_true_damage(source, dmg)
+	return [op]
+
+func _eh_thunder_stack_2(ctx: Dictionary, spec: Dictionary) -> Array:
+	# Phase 5: Add 2 Thunder stacks only if target already has Thunder.
+	var target: Hero = _resolve_effect_target(ctx, spec)
+	if target == null or target.is_dead:
+		return []
+	if not target.has_debuff("thunder"):
+		return []
+	var amount := int(spec.get("amount", 2))
+	if amount <= 0:
+		return []
+	var source: Hero = ctx.get("source", null)
+	var base_atk: int = int(source.hero_data.get("base_attack", 10)) if source else 10
+	# Do not mutate Host state during snapshot/precompute.
+	# Host authoritative application occurs during the actual execution phase.
+	if bool(ctx.get("apply_now", false)) and is_instance_valid(target):
+		target.add_thunder_stacks(amount, base_atk)
+	# Emit debuff op for Guest replication.
+	var op := _op_base_for_hero(target)
+	op["type"] = OP_DEBUFF
+	op["debuff_type"] = "thunder"
+	op["duration"] = 1
+	op["expire_on"] = _get_debuff_expire_on("thunder")
+	op["value"] = base_atk
+	return [op]
+
+func _eh_draw(ctx: Dictionary, spec: Dictionary) -> Array:
+	# Phase 5: Draw cards (player only). Guest will apply the draw op locally.
+	var source: Hero = ctx.get("source", null)
+	if source == null:
+		return []
+	var amount := int(spec.get("amount", 1))
+	if amount <= 0:
+		return []
+	if bool(ctx.get("apply_now", false)) and source.is_player_hero:
+		GameManager.draw_cards(amount)
+		_refresh_hand()
+	var op := _op_base_for_hero(source)
+	op["type"] = OP_DRAW
+	op["amount"] = amount
+	return [op]
+
+func _eh_shield_current_hp(ctx: Dictionary, spec: Dictionary) -> Array:
+	# Phase 5: Give Shield equal to current HP (used by some EX skills).
+	var source: Hero = ctx.get("source", null)
+	if source == null or not is_instance_valid(source) or source.is_dead:
+		return []
+	var shield_amount := int(source.current_hp)
+	if shield_amount <= 0:
+		return []
+	var op := _op_base_for_hero(source)
+	op["type"] = OP_BLOCK
+	op["amount"] = shield_amount
+	op["new_block"] = source.block + shield_amount
+	if bool(ctx.get("apply_now", false)):
+		source.add_block(shield_amount)
+	return [op]
+
+func _eh_penetrate(ctx: Dictionary, spec: Dictionary) -> Array:
+	# Phase 5/7: Emit ops for penetrate (behind-target damage + weak).
+	# Host application remains handled by existing legacy logic; this only unifies replication.
+	var primary_target: Hero = _ctx_primary_target(ctx)
+	if primary_target == null or not is_instance_valid(primary_target) or primary_target.is_dead:
+		return []
+	var target_team: Array = player_heroes if primary_target.is_player_hero else enemy_heroes
+	var target_index := target_team.find(primary_target)
+	if target_index < 0:
+		return []
+	var behind_index := target_index - 1 if primary_target.is_player_hero else target_index + 1
+	if behind_index < 0 or behind_index >= target_team.size():
+		return []
+	var behind_target: Hero = target_team[behind_index]
+	if behind_target == null or not is_instance_valid(behind_target) or behind_target.is_dead:
+		return []
+	var source: Hero = ctx.get("source", null)
+	var base_atk: int = int(source.hero_data.get("base_attack", 10)) if source else 10
+	var ops: Array = []
+	# Damage op uses the current post-application HP/block on host when snapshotting.
+	# (Host application is already performed in precompute for penetrate.)
+	ops.append({
+		"type": OP_DAMAGE,
+		"hero_id": behind_target.hero_id,
+		"instance_id": behind_target.instance_id,
+		"is_host_hero": behind_target.is_player_hero,
+		"amount": int(base_atk * 1.0),
+		"new_hp": behind_target.current_hp,
+		"new_block": behind_target.block
+	})
+	ops.append({
+		"type": OP_DEBUFF,
+		"hero_id": behind_target.hero_id,
+		"instance_id": behind_target.instance_id,
+		"is_host_hero": behind_target.is_player_hero,
+		"debuff_type": "weak",
+		"duration": 1,
+		"expire_on": "own_turn_end",
+		"value": base_atk
+	})
+	return ops
+
+func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) -> Array:
+	# Phase 0: Convert legacy `effects: ["stun", "bleed"]` into structured EffectSpecs.
+	# This does NOT execute effects; it only normalizes the data model.
+	#
+	# Output format (EffectSpec Dictionary examples):
+	# - {"type":"apply_debuff","id":"stun","stacks":1,"duration":1,"expire_on":"own_turn_end"}
+	# - {"type":"cleanse"}
+	var specs: Array = []
+	if raw_effects == null or raw_effects.is_empty():
+		return specs
+	for e in raw_effects:
+		if e is Dictionary:
+			specs.append(e)
+			continue
+		var name := str(e)
+		match name:
+			"stun", "weak", "frost", "break", "burn", "poison", "bleed", "chain", "entangle", "marked", "bomb", "thunder":
+				specs.append({
+					"type": EFFECT_APPLY_DEBUFF,
+					"id": name,
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_debuff_expire_on(name)
+				})
+			"empower":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": name,
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on(name)
+				})
+			"taunt":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": name,
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "opponent_turn_end"
+				})
+			"cleanse":
+				specs.append({"type": EFFECT_CLEANSE})
+			"cleanse_all":
+				specs.append({"type": EFFECT_CLEANSE_ALL})
+			"dispel":
+				specs.append({"type": EFFECT_DISPEL})
+			"dispel_all":
+				specs.append({"type": EFFECT_DISPEL_ALL})
+			"empower_target":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "empower",
+					"target": "primary",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on("empower")
+				})
+			"empower_all":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "empower",
+					"target": "allies",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on("empower")
+				})
+			"thunder_all":
+				specs.append({
+					"type": EFFECT_APPLY_DEBUFF,
+					"id": "thunder",
+					"target": "enemies",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_debuff_expire_on("thunder")
+				})
+			"thunder_stack_2":
+				specs.append({
+					"type": EFFECT_THUNDER_STACK_2,
+					"target": "primary",
+					"amount": 2
+				})
+			"regen":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "regen",
+					"target": "primary",
+					"stacks": 1,
+					"duration": -1,
+					"expire_on": "permanent"
+				})
+			"draw_1":
+				specs.append({
+					"type": EFFECT_DRAW,
+					"target": "source",
+					"amount": 1
+				})
+			"shield_current_hp":
+				specs.append({
+					"type": EFFECT_SHIELD_CURRENT_HP,
+					"target": "source"
+				})
+			"penetrate":
+				specs.append({
+					"type": EFFECT_PENETRATE,
+					"target": "primary"
+				})
+			_:
+				# Leave unknown effects as a passthrough for now to preserve compatibility.
+				specs.append({"type": name})
+	return specs
+
+func _get_hp_cost(card_data: Dictionary, source_hero: Hero) -> int:
+	var hp_cost_pct = float(card_data.get("hp_cost_pct", 0.0))
+	if hp_cost_pct <= 0.0:
+		return 0
+	if source_hero == null:
+		return 0
+	return int(source_hero.max_hp * hp_cost_pct)
+
+func _apply_true_damage(hero: Hero, amount: int) -> void:
+	if hero == null or not is_instance_valid(hero):
+		return
+	if amount <= 0:
+		return
+	hero.current_hp = max(0, hero.current_hp - amount)
+	hero._update_ui()
+	if hero.current_hp <= 0:
+		hero._die()
+
+func _can_pay_hp_cost(card_data: Dictionary, source_hero: Hero) -> bool:
+	var hp_cost = _get_hp_cost(card_data, source_hero)
+	if hp_cost <= 0:
+		return true
+	if source_hero == null:
+		return false
+	# Suicide cast allowed: current_hp == hp_cost is OK
+	return source_hero.current_hp >= hp_cost
+
+func _apply_pre_action_self_effects(card_data: Dictionary, source_hero: Hero, is_ex_action: bool) -> bool:
+	# Phase 4: unified pre-action self effects via registry.
+	# - hp_cost_pct (true damage to self, ignores block, blocks if insufficient HP)
+	# - bleed_on_action (10 true self-damage on non-EX actions)
+	if source_hero == null:
+		return true
+	var ctx := {
+		"source": source_hero,
+		"primary_target": null,
+		"targets": [],
+		"card_data": card_data,
+		"is_ex": is_ex_action,
+		"battle": self
+	}
+	if is_ex_action:
+		return true
+	var hp_cost_pct_val := float(card_data.get("hp_cost_pct", 0.0))
+	if hp_cost_pct_val > 0.0:
+		_dispatch_effect_spec(ctx, {
+			"type": EFFECT_HP_COST_PCT,
+			"pct": hp_cost_pct_val,
+			"target": "source"
+		})
+		if bool(ctx.get("blocked", false)):
+			return false
+	_dispatch_effect_spec(ctx, {
+		"type": EFFECT_BLEED_ON_ACTION,
+		"amount": 10,
+		"target": "source"
+	})
+	return true
+
 func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int, card_data: Dictionary = {}) -> void:
+	var ctx := {
+		"source": source,
+		"primary_target": target,
+		"targets": [target] if target != null else [],
+		"card_data": card_data,
+		"is_ex": bool(card_data.get("is_ex", false)),
+		"apply_now": true,
+		"battle": self
+	}
 	for effect in effects:
 		match effect:
 			"stun":
@@ -2828,6 +3412,9 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 			"weak":
 				if target and not target.is_dead:
 					target.apply_debuff("weak", 1, source_atk, "own_turn_end")
+			"bleed":
+				if target and not target.is_dead:
+					target.apply_debuff("bleed", 1, source_atk, "own_turn_end")
 			"empower":
 				if source and not source.is_dead:
 					source.apply_buff("empower", 1, source_atk, "own_turn_end")
@@ -2877,7 +3464,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 				# Stony's EX: Gain shield equal to current HP
 				if source and not source.is_dead:
 					var shield_amount = source.current_hp
-					source.add_block(shield_amount)
+					_dispatch_effect_spec(ctx, {"type": EFFECT_SHIELD_CURRENT_HP, "target": "source"})
 					print(source.hero_data.get("name", "Hero") + " gained " + str(shield_amount) + " Shield from current HP!")
 			"break":
 				# Caelum's EX: Apply Break debuff (+50% damage taken)
@@ -2895,13 +3482,10 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						enemy.apply_debuff("thunder", 1, source_atk)
 			"thunder_stack_2":
 				# Add 2 Thunder stacks to target (only if they have Thunder)
-				if target and not target.is_dead and target.has_debuff("thunder"):
-					target.add_thunder_stacks(2, source_atk)
+				_dispatch_effect_spec(ctx, {"type": EFFECT_THUNDER_STACK_2, "target": "primary", "amount": 2})
 			"draw_1":
 				# Draw 1 card
-				if source and source.is_player_hero:
-					GameManager.draw_cards(1)
-					_refresh_hand()
+				_dispatch_effect_spec(ctx, {"type": EFFECT_DRAW, "target": "source", "amount": 1})
 
 func _apply_upgrade_shuffle(card_data: Dictionary) -> void:
 	# Upgrade the card's atk_multiplier and shuffle back into deck
@@ -3265,10 +3849,14 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 	
 	if card_type == "mana":
 		GameManager.enemy_play_card(card, attacker, null)
+		_apply_pre_action_self_effects(card, attacker, false)
 		result.taken = true
 		result.cost = 0
 	elif card_type == "energy":
 		GameManager.enemy_play_card(card, attacker, null)
+		if not _apply_pre_action_self_effects(card, attacker, false):
+			await _hide_card_display()
+			return result
 		await _show_card_display(card)
 		await _animate_cast_buff(attacker, attacker)
 		var energy_gain = card.get("energy_gain", 0)
@@ -3522,6 +4110,9 @@ func _ai_use_ex_skill(attacker: Hero, target: Hero) -> void:
 func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	# Remove card from enemy hand
 	GameManager.enemy_play_card(card, attacker, target)
+	if not _apply_pre_action_self_effects(card, attacker, false):
+		await _hide_card_display()
+		return
 	
 	await _show_card_display(card)
 	
@@ -3573,6 +4164,9 @@ func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	# Remove card from enemy hand
 	GameManager.enemy_play_card(card, attacker, target)
+	if not _apply_pre_action_self_effects(card, attacker, false):
+		await _hide_card_display()
+		return
 	
 	await _show_card_display(card)
 	
@@ -3615,6 +4209,9 @@ func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	# Remove card from enemy hand
 	GameManager.enemy_play_card(card, attacker, target)
+	if not _apply_pre_action_self_effects(card, attacker, false):
+		await _hide_card_display()
+		return
 	
 	await _show_card_display(card)
 	
@@ -4298,10 +4895,7 @@ func _guest_apply_card_result(result: Dictionary) -> void:
 	
 	# Apply each effect (set authoritative values from Host after animation)
 	print("Battle: [GUEST] Applying ", effects.size(), " effects...")
-	for i in range(effects.size()):
-		var effect = effects[i]
-		print("Battle: [GUEST]   Applying effect[", i, "]: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"))
-		_apply_effect(effect)
+	_apply_ops(effects)
 	
 	_refresh_enemy_hand_display()
 	print("Battle: [GUEST] Card result fully applied\n")
@@ -4314,10 +4908,7 @@ func _guest_apply_ex_skill_result(result: Dictionary) -> void:
 	
 	print("Battle: [GUEST] Applying EX skill result - source: ", source_hero_id, " target: ", target_hero_id, " effects: ", effects.size())
 	
-	for i in range(effects.size()):
-		var effect = effects[i]
-		print("Battle: [GUEST]   EX effect[", i, "]: ", effect.get("type", "?"), " on ", effect.get("hero_id", "?"))
-		_apply_effect(effect)
+	_apply_ops(effects)
 	
 	print("Battle: [GUEST] EX skill result fully applied\n")
 
@@ -4382,7 +4973,7 @@ func _apply_effect(effect: Dictionary) -> void:
 				hero._die()
 		"heal":
 			var new_hp = effect.get("new_hp", hero.current_hp)
-			hero.current_hp = mini(new_hp, hero.max_hp)
+			hero.current_hp = min(new_hp, hero.max_hp)
 			hero._update_ui()
 		"block":
 			var new_block = effect.get("new_block", 0)
@@ -4416,6 +5007,8 @@ func _apply_effect(effect: Dictionary) -> void:
 			GameManager.mana_changed.emit(new_mana, GameManager.max_mana)
 		"cleanse":
 			hero.clear_all_debuffs()
+		"dispel":
+			hero.clear_all_buffs()
 		"draw":
 			var amount = effect.get("amount", 1)
 			if hero.is_player_hero:
@@ -4450,9 +5043,8 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 	var base_atk = source.hero_data.get("base_attack", 10) if source else 10
 	var damage_mult = source.get_damage_multiplier() if source else 1.0
 	var card_effects = card_data.get("effects", [])
-	
-	# Resolve target list for multi-target cards
 	var targets: Array = []
+	
 	if target_type == "all_ally":
 		var ally_team = player_heroes if (source and source.is_player_hero) else enemy_heroes
 		for h in ally_team:
@@ -4465,8 +5057,42 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 			if not h.is_dead:
 				targets.append(h)
 		print("Battle: [HOST] Multi-target all_enemy: ", targets.size(), " targets")
+	elif target_type == "self" or card_type == "energy":
+		if source:
+			targets.append(source)
 	elif target:
 		targets.append(target)
+	
+	# Phase 4: Pre-action self effects (HP cost + Bleed trigger) via registry.
+	# These are true-damage effects on the source and must be replicated to Guest.
+	if source:
+		var pre_ctx := {
+			"source": source,
+			"primary_target": target,
+			"targets": targets,
+			"card_data": card_data,
+			"is_ex": bool(card_data.get("is_ex", false)),
+			"battle": self
+		}
+		if not bool(pre_ctx.get("is_ex", false)):
+			var hp_cost_pct_val := float(card_data.get("hp_cost_pct", 0.0))
+			if hp_cost_pct_val > 0.0:
+				var hp_ops = _dispatch_effect_spec(pre_ctx, {
+					"type": EFFECT_HP_COST_PCT,
+					"pct": hp_cost_pct_val,
+					"target": "source"
+				})
+				if bool(pre_ctx.get("blocked", false)):
+					return {"success": false, "effects": []}
+				for op in hp_ops:
+					effects.append(op)
+			var bleed_ops = _dispatch_effect_spec(pre_ctx, {
+				"type": EFFECT_BLEED_ON_ACTION,
+				"amount": 10,
+				"target": "source"
+			})
+			for op in bleed_ops:
+				effects.append(op)
 	
 	# ========================================
 	# PRE-COMPUTE: Calculate all effect values (NO animations, NO state changes yet)
@@ -4516,7 +5142,10 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 			# Pre-compute card effects
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
-				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				# Avoid mutating Host state during precompute.
+				# Only apply effects here if they inherently perform extra damage logic that must be snapshotted.
+				if card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"heal":
@@ -4542,7 +5171,8 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 			
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
-				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				if card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"buff":
@@ -4580,7 +5210,8 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 			
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
-				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				if card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"debuff":
@@ -4599,7 +5230,8 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					})
 			if card_effects.size() > 0 and source:
 				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
-				_apply_effects(card_effects, source, primary_target, base_atk, card_data)
+				if card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 				_collect_effects_snapshot(effects, card_effects, source, primary_target, targets)
 		
 		"equipment":
@@ -4677,6 +5309,11 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				else:
 					t.take_damage(damage)
 				print("Battle: [HOST] After attack - ", t.hero_id, " HP: ", t.current_hp, " (was ", old_hp, ")")
+			# Apply card effects (buffs/debuffs/etc.) on Host after attack.
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				if not card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 		
 		"heal":
 			var heal_amount = precomputed.get("heal_amount", 0)
@@ -4684,6 +5321,10 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				t.heal(heal_amount)
 				if source and t == targets[0]:
 					await _animate_cast_heal(source, t)
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				if not card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 		
 		"buff":
 			var card_base_shield = card_data.get("base_shield", 0)
@@ -4703,6 +5344,10 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					t.apply_buff(buff_type, 1, base_atk, buff_expire)
 			if source and targets.size() > 0:
 				await _animate_cast_buff(source, targets[0])
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				if not card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 		
 		"debuff":
 			var debuff_type = card_data.get("debuff_type", "")
@@ -4712,6 +5357,10 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					t.apply_debuff(debuff_type, 1, base_atk, debuff_expire)
 			if source and targets.size() > 0:
 				await _animate_cast_debuff(source, targets[0])
+			if card_effects.size() > 0 and source:
+				var primary_target = target if target else (targets[0] if targets.size() > 0 else null)
+				if not card_effects.has("penetrate"):
+					_apply_effects(card_effects, source, primary_target, base_atk, card_data)
 		
 		"equipment":
 			if target:
@@ -4747,210 +5396,31 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 	## After _apply_effects has been called, snapshot any state changes caused by
 	## the card's effects array so the Guest can replicate them.
 	## This collects buff/debuff/block/hp/energy changes from effects like stun, empower, taunt, etc.
+	# Phase 3: generate ops for common effects via registry (keeps special cases below).
+	var ctx := {
+		"source": source,
+		"primary_target": primary_target,
+		"targets": targets,
+		"card_data": {},
+		"is_ex": false,
+		"apply_now": false,
+		"battle": self
+	}
+	var normalized_specs = _normalize_effects(card_effects, source, primary_target)
+	for spec in normalized_specs:
+		if not (spec is Dictionary):
+			continue
+		var t := str(spec.get("type", ""))
+		if t in [EFFECT_APPLY_DEBUFF, EFFECT_APPLY_BUFF, EFFECT_CLEANSE, EFFECT_CLEANSE_ALL, EFFECT_DISPEL, EFFECT_DISPEL_ALL, EFFECT_THUNDER_STACK_2, EFFECT_DRAW, EFFECT_SHIELD_CURRENT_HP, EFFECT_PENETRATE]:
+			var ops = _dispatch_effect_spec(ctx, spec)
+			for op in ops:
+				effects.append(op)
 	for effect_name in card_effects:
+		# Skip effects already emitted via registry above.
+		if str(effect_name) in ["stun", "weak", "bleed", "thunder", "break", "empower", "taunt", "cleanse", "cleanse_all", "dispel", "dispel_all", "empower_target", "empower_all", "thunder_all", "regen", "thunder_stack_2", "draw_1", "shield_current_hp", "penetrate", "mana_surge"]:
+			continue
 		match effect_name:
-			"stun":
-				if primary_target and not primary_target.is_dead:
-					effects.append({
-						"type": "debuff",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero,
-						"debuff_type": "stun",
-						"duration": 1,
-						"expire_on": "own_turn_end",
-						"value": source.hero_data.get("base_attack", 10) if source else 10
-					})
-			"weak":
-				if primary_target and not primary_target.is_dead:
-					effects.append({
-						"type": "debuff",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero,
-						"debuff_type": "weak",
-						"duration": 1,
-						"expire_on": "own_turn_end",
-						"value": source.hero_data.get("base_attack", 10) if source else 10
-					})
-			"empower":
-				if source and not source.is_dead:
-					effects.append({
-						"type": "buff",
-						"hero_id": source.hero_id,
-						"instance_id": source.instance_id,
-						"is_host_hero": source.is_player_hero,
-						"buff_type": "empower",
-						"duration": 1,
-						"expire_on": "own_turn_end",
-						"value": source.hero_data.get("base_attack", 10)
-					})
-			"empower_target":
-				if primary_target and not primary_target.is_dead:
-					effects.append({
-						"type": "buff",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero,
-						"buff_type": "empower",
-						"duration": 1,
-						"expire_on": "own_turn_end",
-						"value": source.hero_data.get("base_attack", 10) if source else 10
-					})
-			"empower_all":
-				var allies = player_heroes if (source and source.is_player_hero) else enemy_heroes
-				for ally in allies:
-					if not ally.is_dead:
-						effects.append({
-							"type": "buff",
-							"hero_id": ally.hero_id,
-							"instance_id": ally.instance_id,
-							"is_host_hero": ally.is_player_hero,
-							"buff_type": "empower",
-							"duration": 1,
-							"expire_on": "own_turn_end",
-							"value": source.hero_data.get("base_attack", 10) if source else 10
-						})
-			"taunt":
-				if source and not source.is_dead:
-					effects.append({
-						"type": "buff",
-						"hero_id": source.hero_id,
-						"instance_id": source.instance_id,
-						"is_host_hero": source.is_player_hero,
-						"buff_type": "taunt",
-						"duration": 1,
-						"expire_on": "opponent_turn_end",
-						"value": source.hero_data.get("base_attack", 10)
-					})
-			"regen":
-				if primary_target and not primary_target.is_dead:
-					effects.append({
-						"type": "buff",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero,
-						"buff_type": "regen",
-						"duration": -1,
-						"expire_on": "permanent",
-						"value": source.hero_data.get("base_attack", 10) if source else 10
-					})
-			"cleanse":
-				if primary_target and not primary_target.is_dead:
-					effects.append({
-						"type": "cleanse",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero
-					})
-			"cleanse_all":
-				var allies = player_heroes if (source and source.is_player_hero) else enemy_heroes
-				for ally in allies:
-					if not ally.is_dead:
-						effects.append({
-							"type": "cleanse",
-							"hero_id": ally.hero_id,
-							"instance_id": ally.instance_id,
-							"is_host_hero": ally.is_player_hero
-						})
-			"thunder":
-				if primary_target and not primary_target.is_dead:
-					effects.append({
-						"type": "debuff",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero,
-						"debuff_type": "thunder",
-						"duration": 1,
-						"value": source.hero_data.get("base_attack", 10) if source else 10
-					})
-			"thunder_all":
-				var enemies = enemy_heroes if (source and source.is_player_hero) else player_heroes
-				for enemy in enemies:
-					if not enemy.is_dead:
-						effects.append({
-							"type": "debuff",
-							"hero_id": enemy.hero_id,
-							"instance_id": enemy.instance_id,
-							"is_host_hero": enemy.is_player_hero,
-							"debuff_type": "thunder",
-							"duration": 1,
-							"value": source.hero_data.get("base_attack", 10) if source else 10
-						})
-			"thunder_stack_2":
-				if primary_target and not primary_target.is_dead and primary_target.has_debuff("thunder"):
-					effects.append({
-						"type": "debuff",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero,
-						"debuff_type": "thunder_stack_2",
-						"duration": 1,
-						"value": source.hero_data.get("base_attack", 10) if source else 10
-					})
-			"penetrate":
-				# Penetrate damage is already applied by _apply_effects
-				# Snapshot the behind-target's HP
-				if primary_target and not primary_target.is_dead:
-					var target_team = player_heroes if primary_target.is_player_hero else enemy_heroes
-					var target_index = target_team.find(primary_target)
-					var behind_index = target_index - 1 if primary_target.is_player_hero else target_index + 1
-					if behind_index >= 0 and behind_index < target_team.size():
-						var behind_target = target_team[behind_index]
-						if not behind_target.is_dead:
-							effects.append({
-								"type": "damage",
-								"hero_id": behind_target.hero_id,
-								"instance_id": behind_target.instance_id,
-								"is_host_hero": behind_target.is_player_hero,
-								"amount": int(source.hero_data.get("base_attack", 10) * 1.0),
-								"new_hp": behind_target.current_hp,
-								"new_block": behind_target.block
-							})
-							effects.append({
-								"type": "debuff",
-								"hero_id": behind_target.hero_id,
-								"instance_id": behind_target.instance_id,
-								"is_host_hero": behind_target.is_player_hero,
-								"debuff_type": "weak",
-								"duration": 1,
-								"expire_on": "own_turn_end",
-								"value": source.hero_data.get("base_attack", 10)
-							})
-			"shield_current_hp":
-				if source and not source.is_dead:
-					effects.append({
-						"type": "block",
-						"hero_id": source.hero_id,
-						"instance_id": source.instance_id,
-						"is_host_hero": source.is_player_hero,
-						"amount": source.current_hp,
-						"new_block": source.block
-					})
-			"break":
-				if primary_target and not primary_target.is_dead:
-					effects.append({
-						"type": "debuff",
-						"hero_id": primary_target.hero_id,
-						"instance_id": primary_target.instance_id,
-						"is_host_hero": primary_target.is_player_hero,
-						"debuff_type": "break",
-						"duration": 1,
-						"expire_on": "own_turn_end",
-						"value": source.hero_data.get("base_attack", 10) if source else 10
-					})
-			"draw_1":
-				if source and source.is_player_hero:
-					effects.append({
-						"type": "draw",
-						"hero_id": source.hero_id,
-						"instance_id": source.instance_id,
-						"is_host_hero": source.is_player_hero,
-						"amount": 1
-					})
-			"mana_surge":
-				# Mana surge bonus damage is already applied by _apply_effects
-				# Just note it for the Guest (no extra snapshot needed)
+			_:
 				pass
 
 func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictionary:
@@ -5057,7 +5527,13 @@ func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictio
 	
 	# Collect buff/debuff effects from the EX skill's effects array
 	# These are applied by _apply_effects inside _execute_ex_skill
-	_collect_effects_snapshot(effects, ex_effects, source, target, [])
+	# Avoid duplicating stateful ops already captured by pre/post snapshots (e.g. shield_current_hp -> block).
+	var ex_effects_for_snapshot: Array = []
+	for eff in ex_effects:
+		if str(eff) in ["shield_current_hp"]:
+			continue
+		ex_effects_for_snapshot.append(eff)
+	_collect_effects_snapshot(effects, ex_effects_for_snapshot, source, target, [])
 	
 	print("Battle: [HOST] EX skill collected ", effects.size(), " effects")
 	for i in range(effects.size()):

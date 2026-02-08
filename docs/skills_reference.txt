@@ -354,6 +354,72 @@ THUNDER DEBUFF:
 - At turn end: Lightning strikes dealing (Stacks × 100% ATK) damage
 - Stacks are consumed after triggering
 
+
+--------------------------------------------------------------------------------
+AMIHAN (Support - Green) | HP: 132 | ATK: 11 | DEF: 3
+--------------------------------------------------------------------------------
+
+1. Chanter's Challenge
+   - Cost: 1 Mana
+   - Type: buff | Target: self
+   - Shield: 8 + DEF×2 (= 14)
+   - Effects: taunt
+   - Description: Gain Shield (8 + DEF×2). Gain Taunt.
+
+2. Soothing Chorus
+   - Cost: 2 Mana
+   - Type: heal | Target: all_ally
+   - Heal: 8% max HP (= 11 each)
+   - Description: Restore (8% max HP) to all allies.
+
+3. Purifying Hymn
+   - Cost: 2 Mana
+   - Type: buff | Target: all_ally
+   - Effects: cleanse_all
+   - Description: Cleanse all allies.
+
+EX: Bayani's Hymn
+   - Type: self_buff | Target: none
+   - Effects: cleanse_all, dispel_all
+   - Description: Cleanse all allies. Dispel all enemy buffs.
+
+
+
+
+--------------------------------------------------------------------------------
+VALEN (Bloodmath - Red) | HP: 120 | ATK: 16 | DEF: 1
+--------------------------------------------------------------------------------
+
+1. Blood Offering
+   - Cost: 0 Mana
+   - Type: mana | Target: none
+   - HP Cost: 15% max HP (= 18)
+   - Gain: +2 Mana this turn
+   - Description: Lose 15% max HP. Gain 2 mana this turn.
+
+2. Hemorrhage
+   - Cost: 1 Mana
+   - Type: debuff | Target: single_enemy
+   - Effects: bleed
+   - Description: Apply Bleed.
+
+3. Sanguine Recovery
+   - Cost: 2 Mana
+   - Type: heal | Target: self
+   - HP Cost: 10% max HP (= 12)
+   - Heal: 20% max HP (= 24)
+   - Description: Lose 10% max HP. Restore (20% max HP) to self.
+
+EX: Crimson Verdict
+   - Type: attack | Target: single_enemy
+   - Damage: 300% ATK (= 48)
+   - Description: Deal (300% ATK) damage to target enemy.
+
+BLEED DEBUFF:
+- When a hero with Bleed acts (non-EX): take 10 true damage
+- Bleed is applied as a debuff (default expires at end of own turn)
+
+
 ================================================================================
                       CREATING NEW SKILLS - TEMPLATE
 ================================================================================

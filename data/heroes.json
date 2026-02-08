@@ -313,14 +313,14 @@
 		],
 		"ex_skill": {
 			"name": "Bayani's Hymn",
-			"description": "Restore (25% max HP) to all allies. Empower all allies.",
-			"hp_multiplier": 0.25,
-			"effects": ["empower_all"],
+			"description": "Cleanse all allies. Dispel all enemy buffs.",
+			"type": "self_buff",
+			"effects": ["cleanse_all", "dispel_all"],
 			"image": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/splash.png"
 		},
 		"ex_card": "amihan_ex",
 		"attack_card": "amihan_attack",
-		"cards": []
+		"cards": ["amihan_sk1", "amihan_sk2", "amihan_sk3"]
 	},
 	"gavran": {
 		"id": "gavran",
@@ -572,5 +572,40 @@
 		"ex_card": "ysolde_ex",
 		"attack_card": "ysolde_attack",
 		"cards": []
+	},
+	"valen": {
+		"id": "valen",
+		"name": "Valen",
+		"color": "red",
+		"role": "dps",
+		"base_hp": 10,
+		"hp_multiplier": 12,
+		"max_hp": 120,
+		"base_attack": 16,
+		"base_def": 1,
+		"portrait": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/idle.png",
+		"splash": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/splash.png",
+		"full_art": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/splash.png",
+		"idle_sprite": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/idle.png",
+		"attack_sprite": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/attack.png",
+		"cast_sprite": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/cast.png",
+		"hit_sprite": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/idle.png",
+		"attack_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/attack.png",
+		"cast_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/cast.png",
+		"hit_sprite_flip": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/on hit.png",
+		"equipped_skin": "default",
+		"skins": [
+			{"id": "default", "name": "Default", "unlocked": true, "prefix": "valen"}
+		],
+		"ex_skill": {
+			"name": "Crimson Verdict",
+			"description": "Deal (300% ATK) damage to target enemy.",
+			"atk_multiplier": 3.0,
+			"image": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/ex.png"
+		},
+		"ex_card": "valen_ex",
+		"attack_card": "valen_attack",
+		"cards": ["valen_sk1", "valen_sk2", "valen_sk3"]
 	}
 }

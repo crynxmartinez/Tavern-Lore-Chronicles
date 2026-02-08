@@ -626,6 +626,10 @@ func clear_all_debuffs() -> void:
 	_update_buff_icons()
 	print(hero_data.get("name", "Hero") + " cleansed all debuffs")
 
+func clear_all_buffs() -> void:
+	active_buffs.clear()
+	_update_buff_icons()
+
 func clear_all_buffs_and_debuffs() -> void:
 	active_buffs.clear()
 	active_debuffs.clear()
