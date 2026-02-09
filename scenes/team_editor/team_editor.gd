@@ -734,11 +734,11 @@ func _on_thumbnail_pressed(hero_id: String) -> void:
 		if slot.get_meta("hero_id") == hero_id:
 			return  # Already in team
 	
-	# Check role limit (max 2 of same role)
+	# Check color limit (max 2 of same color/class per team)
 	var hero_data = HeroDatabase.get_hero(hero_id)
-	var hero_role = hero_data.get("role", "")
-	if _count_role_in_team(hero_role) >= 2:
-		_show_role_limit_notification(hero_role)
+	var hero_color = hero_data.get("color", "")
+	if _count_color_in_team(hero_color) >= 2:
+		_show_color_limit_notification(hero_color)
 		return
 	
 	dragging_hero = hero_id
@@ -778,7 +778,24 @@ func _handle_drop() -> void:
 	
 	if target_slot != -1:
 		if dragging_from_slot == -1:
-			# Dragging from roster to slot
+			# Dragging from roster to slot — re-check color limit
+			var drop_hero_data = HeroDatabase.get_hero(dragging_hero)
+			var drop_color = drop_hero_data.get("color", "")
+			var existing_in_slot = team_slots[target_slot].get_meta("hero_id")
+			# Count excluding the hero being replaced in target slot
+			var color_count = _count_color_in_team(drop_color)
+			if existing_in_slot != "":
+				var existing_data = HeroDatabase.get_hero(existing_in_slot)
+				if existing_data.get("color", "") == drop_color:
+					color_count -= 1
+			if color_count >= 2:
+				_show_color_limit_notification(drop_color)
+				dragging_hero = ""
+				dragging_from_slot = -1
+				if drag_preview:
+					drag_preview.queue_free()
+					drag_preview = null
+				return
 			_remove_hero_from_slot(target_slot)
 			_assign_hero_to_slot(dragging_hero, target_slot)
 		else:
@@ -902,17 +919,17 @@ func _on_confirm_pressed() -> void:
 	print("Equipment saved: ", new_equipment)
 	_show_save_notification()
 
-func _count_role_in_team(role: String) -> int:
+func _count_color_in_team(color: String) -> int:
 	var count = 0
 	for slot in team_slots:
 		var hero_id = slot.get_meta("hero_id")
 		if hero_id != "":
 			var hero_data = HeroDatabase.get_hero(hero_id)
-			if hero_data.get("role", "") == role:
+			if hero_data.get("color", "") == color:
 				count += 1
 	return count
 
-func _show_role_limit_notification(role: String) -> void:
+func _show_color_limit_notification(color: String) -> void:
 	var popup = Panel.new()
 	popup.custom_minimum_size = Vector2(300, 60)
 	popup.position = Vector2(get_viewport_rect().size.x / 2 - 150, 100)
@@ -926,7 +943,7 @@ func _show_role_limit_notification(role: String) -> void:
 	popup.add_theme_stylebox_override("panel", style)
 	
 	var label = Label.new()
-	label.text = "Max 2 " + role.capitalize() + "s allowed!"
+	label.text = "Max 2 " + color.capitalize() + " heroes allowed!"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.custom_minimum_size = Vector2(300, 60)

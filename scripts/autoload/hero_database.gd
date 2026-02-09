@@ -20,6 +20,7 @@ const ROLE_COLORS = {
 func _ready() -> void:
 	_load_heroes_from_json()
 	load_data()
+	_validate_hero_data()
 
 func _load_heroes_from_json() -> void:
 	var file = FileAccess.open(DATA_PATH, FileAccess.READ)
@@ -99,7 +100,7 @@ func generate_ai_team() -> Array:
 	# Step 1: Guarantee at least 1 frontline (tank or dps)
 	var frontline_pool = available.filter(func(id):
 		var role = heroes[id].get("role", "")
-		return role in FRONTLINE_ROLES
+		return role in FRONTLINE_ROLES and _can_add_color(team, heroes[id].get("color", ""))
 	)
 	if not frontline_pool.is_empty():
 		var pick = frontline_pool[randi() % frontline_pool.size()]
@@ -109,16 +110,21 @@ func generate_ai_team() -> Array:
 	# Step 2: Guarantee at least 1 sustain (support, scientist, or mage)
 	var sustain_pool = available.filter(func(id):
 		var role = heroes[id].get("role", "")
-		return role in SUSTAIN_ROLES
+		return role in SUSTAIN_ROLES and _can_add_color(team, heroes[id].get("color", ""))
 	)
 	if not sustain_pool.is_empty():
 		var pick = sustain_pool[randi() % sustain_pool.size()]
 		team.append(pick)
 		available.erase(pick)
 	
-	# Step 3: Fill remaining slots randomly (no duplicates on AI team)
+	# Step 3: Fill remaining slots randomly (max 2 per color, no duplicates)
 	while team.size() < 4 and not available.is_empty():
-		var pick = available[randi() % available.size()]
+		var valid_pool = available.filter(func(id):
+			return _can_add_color(team, heroes[id].get("color", ""))
+		)
+		if valid_pool.is_empty():
+			break
+		var pick = valid_pool[randi() % valid_pool.size()]
 		team.append(pick)
 		available.erase(pick)
 	
@@ -127,6 +133,55 @@ func generate_ai_team() -> Array:
 	
 	ai_enemy_team = team
 	return team
+
+func _can_add_color(team: Array, color: String) -> bool:
+	var count = 0
+	for hero_id in team:
+		if heroes[hero_id].get("color", "") == color:
+			count += 1
+	return count < 2
+
+func _validate_hero_data() -> void:
+	var required_fields = ["color", "role", "portrait"]
+	var asset_fields = ["portrait", "splash", "idle_sprite", "attack_sprite", "cast_sprite", "hit_sprite",
+		"idle_sprite_flip", "attack_sprite_flip", "cast_sprite_flip", "hit_sprite_flip"]
+	var valid_colors = ["yellow", "green", "red", "blue", "purple", "violet"]
+	var valid_roles = ["tank", "support", "dps", "mage", "scientist", "assassin"]
+	var warnings = 0
+	
+	for hero_id in heroes:
+		var data = heroes[hero_id]
+		var name = data.get("name", hero_id)
+		
+		# Check required fields
+		for field in required_fields:
+			if not data.has(field) or str(data[field]).is_empty():
+				push_warning("HeroDatabase: [%s] missing required field '%s'" % [name, field])
+				warnings += 1
+		
+		# Validate color value
+		var color = data.get("color", "")
+		if not color.is_empty() and color not in valid_colors:
+			push_warning("HeroDatabase: [%s] invalid color '%s' (valid: %s)" % [name, color, str(valid_colors)])
+			warnings += 1
+		
+		# Validate role value
+		var role = data.get("role", "")
+		if not role.is_empty() and role not in valid_roles:
+			push_warning("HeroDatabase: [%s] invalid role '%s' (valid: %s)" % [name, role, str(valid_roles)])
+			warnings += 1
+		
+		# Check asset paths exist
+		for field in asset_fields:
+			var path = data.get(field, "")
+			if not path.is_empty() and not ResourceLoader.exists(path):
+				push_warning("HeroDatabase: [%s] asset not found: %s = '%s'" % [name, field, path])
+				warnings += 1
+	
+	if warnings == 0:
+		print("HeroDatabase: All %d heroes validated OK" % heroes.size())
+	else:
+		push_warning("HeroDatabase: Validation found %d warnings across %d heroes" % [warnings, heroes.size()])
 
 func save_data() -> void:
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)

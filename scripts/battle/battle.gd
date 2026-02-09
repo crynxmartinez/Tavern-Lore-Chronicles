@@ -37,6 +37,14 @@ var _card_select_source: Hero = null  # Hero who cast the skill
 var _hp_snapshot_last_turn: Dictionary = {}
 var _hp_snapshot_this_turn: Dictionary = {}
 
+# Battle Log
+var battle_log_entries: Array = []
+var battle_log_panel: PanelContainer = null
+var battle_log_scroll: ScrollContainer = null
+var battle_log_container: VBoxContainer = null
+var battle_log_button: Button = null
+var battle_log_visible: bool = false
+
 @onready var hand_container: HBoxContainer = $HandArea/HandContainer
 @onready var mana_label: Label = $UI/ManaDisplay/ManaLabel
 @onready var deck_label: Label = $UI/DeckDisplay/DeckLabel
@@ -131,6 +139,7 @@ func _ready() -> void:
 	add_child(card_selection_ui)
 	card_selection_ui.visible = false
 	
+	_setup_battle_log()
 	_setup_battle()
 
 func _setup_battle() -> void:
@@ -296,6 +305,7 @@ func _spawn_heroes(team: Array, is_player: bool) -> void:
 		$Board.add_child(hero_instance)
 		hero_instance.setup(hero_id)
 		hero_instance.is_player_hero = is_player
+		hero_instance.team_index = i
 		# Generate deterministic instance_id: ownerShort_heroId_originalPosition
 		# Note: i is the spawn position (may be reversed for enemy in MP), 
 		# but we use the ORIGINAL team index for consistency.
@@ -1544,12 +1554,21 @@ func _highlight_valid_targets(target_allies: bool, is_equipment: bool = false) -
 		hero.z_index = 0
 		hero.modulate = Color(1.0, 1.0, 1.0)
 	
+	# Check for taunt when targeting enemies
+	var taunt_hero: Hero = null
+	if not target_allies:
+		taunt_hero = _get_taunt_target(targets)
+	
 	# Highlight valid targets with circle animation (bring above vignette)
 	for hero in targets:
 		if not hero.is_dead:
 			# For equipment, check if hero already has one
 			if is_equipment and hero.has_equipment():
 				# Hero already has equipment - dim them
+				hero.z_index = 0
+				hero.modulate = Color(0.5, 0.5, 0.5)
+			elif taunt_hero and hero != taunt_hero:
+				# Taunt active — only the taunt target is selectable
 				hero.z_index = 0
 				hero.modulate = Color(0.5, 0.5, 0.5)
 			else:
@@ -1674,6 +1693,11 @@ func _on_hero_clicked(hero: Hero) -> void:
 					_execute_ex_skill(ex_skill_hero, hero)
 		else:
 			if not hero.is_player_hero and not hero.is_dead:
+				# Enforce taunt: if an enemy has taunt, only allow targeting them
+				var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
+				var taunt_target = _get_taunt_target(alive_enemies)
+				if taunt_target and hero != taunt_target:
+					return  # Can't target non-taunt enemy
 				if is_multiplayer and network_manager and not is_host:
 					# GUEST: Send EX skill request to Host
 					var request = {
@@ -1849,6 +1873,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			if source:
 				await _animate_attack(source, target, damage)
 				GameManager.add_damage_dealt(source_id, damage)
+				_log_attack(source.hero_data.get("name", "Hero"), card_data.get("name", "Attack"), target.hero_data.get("name", "Enemy"), damage, true, card_data.get("art", card_data.get("image", "")), target.hero_data.get("portrait", ""))
 			else:
 				target.take_damage(damage)
 				target.play_hit_anim()
@@ -1865,6 +1890,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 				heal_amount = int(base_atk * heal_mult)
 			target.heal(heal_amount)
 			GameManager.add_healing_done(source_id, heal_amount)
+			_log_heal(source.hero_data.get("name", "Hero") if source else "Unknown", card_data.get("name", "Heal"), target.hero_data.get("name", "Ally"), heal_amount, true, card_data.get("art", card_data.get("image", "")), target.hero_data.get("portrait", ""))
 			# Check if card also gives shield
 			var card_base_shield = card_data.get("base_shield", 0)
 			var def_mult = card_data.get("def_multiplier", 0.0)
@@ -1897,6 +1923,10 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			if shield_amount > 0:
 				target.add_block(shield_amount)
 				GameManager.add_shield_given(source_id, shield_amount)
+			var buff_text = card_data.get("name", "Buff")
+			if shield_amount > 0:
+				buff_text = "+" + str(shield_amount) + " Shield"
+			_log_buff(source.hero_data.get("name", "Hero") if source else "Unknown", card_data.get("name", "Buff"), target.hero_data.get("name", "Ally"), buff_text, true, card_data.get("art", card_data.get("image", "")), target.hero_data.get("portrait", ""))
 		"debuff":
 			# Play cast animation for debuffs targeting enemies
 			if source:
@@ -1905,6 +1935,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			var effects = card_data.get("effects", [])
 			if not effects.is_empty():
 				_apply_effects(effects, source, target, base_atk, card_data)
+			_log_buff(source.hero_data.get("name", "Hero") if source else "Unknown", card_data.get("name", "Debuff"), target.hero_data.get("name", "Enemy"), card_data.get("name", "Debuff"), true, card_data.get("art", card_data.get("image", "")), target.hero_data.get("portrait", ""))
 			return  # Don't apply effects again at the end
 		"equipment":
 			# Play cast animation for equipping - use target as caster if no source
@@ -1930,6 +1961,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 				"trigger": equip_trigger,
 				"value": equip_value
 			})
+			_log_equip(card_data.get("art", card_data.get("image", "")), target.hero_data.get("portrait", ""), equip_name)
 		"dig":
 			# Dig: Reveal top X cards, pick one matching filter
 			await _handle_dig_card(card_data, source)
@@ -1976,12 +2008,14 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				if heal_amount > 0:
 					hero.heal(heal_amount)
 					print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " healed " + str(heal_amount) + " HP")
+					_log_status(hero.hero_data.get("portrait", ""), equip_name + ": +" + str(heal_amount) + " HP", Color(0.4, 1.0, 0.4))
 			
 			"energy_gain":
 				# Energy Pendant: Gain energy on dealing damage
 				var energy_amount = int(value)
 				hero.add_energy(energy_amount)
 				print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " gained " + str(energy_amount) + " energy")
+				_log_status(hero.hero_data.get("portrait", ""), equip_name + ": +" + str(energy_amount) + " Energy", Color(1.0, 0.87, 0.4))
 			
 			"apply_frost":
 				# Frost Gauntlet: Apply Frost to target (+1 card cost)
@@ -1989,6 +2023,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				if target and is_instance_valid(target) and not target.is_dead:
 					target.apply_debuff("frost", 1, 0, "own_turn_end")
 					print("[Equipment] " + equip_name + ": Applied Frost to " + target.hero_data.get("name", ""))
+					_log_status(target.hero_data.get("portrait", ""), equip_name + ": Frost", Color(0.5, 0.8, 1.0))
 			
 			"reflect":
 				# Thorned Armor: Reflect damage back to attacker
@@ -1998,6 +2033,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				if reflect_damage > 0 and attacker and is_instance_valid(attacker) and not attacker.is_dead:
 					attacker.take_damage(reflect_damage)
 					print("[Equipment] " + equip_name + ": Reflected " + str(reflect_damage) + " damage to " + attacker.hero_data.get("name", ""))
+					_log_status(hero.hero_data.get("portrait", ""), equip_name + ": " + str(reflect_damage) + " DMG", Color(1.0, 0.6, 0.2))
 			
 			"mana_gain":
 				# Mana Siphon: Gain mana on kill
@@ -2006,6 +2042,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 				_update_ui()
 				print("[Equipment] " + equip_name + ": Gained " + str(mana_amount) + " mana")
+				_log_status(hero.hero_data.get("portrait", ""), equip_name + ": +" + str(mana_amount) + " Mana", Color(0.5, 0.6, 1.0))
 			
 			"empower_all":
 				# Battle Horn: Empower all allies on kill
@@ -2014,6 +2051,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 					if not ally.is_dead:
 						ally.apply_buff("empower", 1, 0, "own_turn_end")
 				print("[Equipment] " + equip_name + ": Empowered all allies!")
+				_log_status(hero.hero_data.get("portrait", ""), equip_name + ": Empower All", Color(1.0, 0.87, 0.4))
 			
 			"auto_revive":
 				# Phoenix Feather: Revive with % HP on death (one-time use)
@@ -2026,6 +2064,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				# Remove the equipment after use (one-time)
 				hero.remove_equipment(equip.get("id", ""))
 				print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " revived with " + str(revive_hp) + " HP!")
+				_log_status(hero.hero_data.get("portrait", ""), equip_name + ": Revived! +" + str(revive_hp) + " HP", Color(1.0, 0.85, 0.3))
 				return  # Exit early since we modified the array
 			
 			"empower":
@@ -2036,6 +2075,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 					if not hero.has_buff("empower"):
 						hero.apply_buff("empower", 1, 0, "own_turn_end")
 						print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " gained Empower (low HP)!")
+						_log_status(hero.hero_data.get("portrait", ""), equip_name + ": Empower", Color(1.0, 0.87, 0.4))
 			
 			"cleanse":
 				# Cleansing Charm: Remove debuffs at turn start
@@ -2043,6 +2083,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				for i in range(cleanse_count):
 					hero.remove_random_debuff()
 				print("[Equipment] " + equip_name + ": Cleansed " + str(cleanse_count) + " debuff(s) from " + hero.hero_data.get("name", ""))
+				_log_status(hero.hero_data.get("portrait", ""), equip_name + ": Cleansed", Color(0.9, 0.95, 1.0))
 			
 			"guardian":
 				# Guardian's Shield: Passive -5 damage dealt / -5 damage received
@@ -2098,9 +2139,11 @@ func _handle_dig_card(card_data: Dictionary, source: Hero) -> void:
 			GameManager.hand.append(selected_card)
 			print("[" + card_name + "] Added " + selected_card.get("name", "card") + " to hand")
 			_refresh_hand()
+			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Dug → Hand")
 		else:
 			GameManager.discard_pile.append(selected_card)
 			print("[" + card_name + "] Hand full! " + selected_card.get("name", "card") + " goes to discard")
+			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Dug → Discard (full)")
 	
 	# Shuffle remaining revealed cards back into deck
 	deck.shuffle()
@@ -2139,9 +2182,11 @@ func _handle_search_deck_card(card_data: Dictionary, source: Hero) -> void:
 			GameManager.hand.append(selected_card)
 			print("[" + card_name + "] Added " + selected_card.get("name", "card") + " to hand")
 			_refresh_hand()
+			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Search → Hand")
 		else:
 			GameManager.discard_pile.append(selected_card)
 			print("[" + card_name + "] Hand full! " + selected_card.get("name", "card") + " goes to discard")
+			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Search → Discard (full)")
 	
 	# Shuffle deck after searching
 	deck.shuffle()
@@ -2180,9 +2225,11 @@ func _handle_check_discard_card(card_data: Dictionary, source: Hero) -> void:
 			GameManager.hand.append(selected_card)
 			print("[" + card_name + "] Returned " + selected_card.get("name", "card") + " to hand")
 			_refresh_hand()
+			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Recycle → Hand")
 		else:
 			discard.append(selected_card)
 			print("[" + card_name + "] Hand full! Card stays in discard")
+			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Recycle → Full")
 	
 	_update_ui()
 
@@ -2235,17 +2282,14 @@ func _trigger_thunder_damage(heroes: Array) -> void:
 		
 		if damage > 0:
 			# Thunder is ready to strike!
-			# Spawn lightning VFX
-			if VFX:
-				var sprite_center = hero.global_position
-				if hero.sprite:
-					sprite_center = hero.sprite.global_position + hero.sprite.size / 2
-				VFX.spawn_lightning_strike(sprite_center)
+			# Spawn blue lightning VFX on the target hero
+			hero._spawn_lightning_effect()
 			
 			# Deal damage
 			hero.take_damage(damage)
 			hero.play_hit_anim()
 			print("[Thunder] " + hero.hero_data.get("name", "Hero") + " struck by lightning for " + str(damage) + " damage (" + str(stacks) + " stacks)")
+			_log_status(hero.hero_data.get("portrait", ""), "Thunder: " + str(damage) + " DMG!", Color(0.6, 0.7, 1.0))
 			
 			await get_tree().create_timer(0.3).timeout
 	
@@ -2289,7 +2333,8 @@ func _get_nearest_enemy() -> Hero:
 	var taunt_target = _get_taunt_target(alive_enemies)
 	if taunt_target:
 		return taunt_target
-	return alive_enemies[0]
+	# Use team_index to find the front enemy reliably
+	return _get_front_hero(enemy_heroes)
 
 func _play_attack_on_nearest(card: Card) -> void:
 	var target = _get_nearest_enemy()
@@ -2946,6 +2991,7 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 	
 	# Track EX skill usage
 	GameManager.add_ex_skill_used(hero.hero_id)
+	_log_ex_skill(hero.hero_data.get("name", "Hero"), target.hero_data.get("name", "Target"), hero.is_player_hero, hero.hero_data.get("portrait", ""), target.hero_data.get("portrait", ""))
 	
 	var ex_data = hero.hero_data.get("ex_skill", {})
 	var ex_type = ex_data.get("type", "damage")
@@ -3140,6 +3186,11 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 	await get_tree().create_timer(0.3).timeout
 	_force_hide_card_display()
 	
+	# Reset EX caster sprite back to idle
+	if not hero.is_dead:
+		var idle = hero._resolve_flip_sprite("idle_sprite")
+		hero._load_sprite(idle.path, idle.flip_h)
+	
 	ex_skill_hero = null
 	_clear_highlights()
 	current_phase = BattlePhase.PLAYING
@@ -3194,6 +3245,7 @@ func _detonate_time_bombs(heroes: Array, is_player_team: bool) -> void:
 		_apply_true_damage(hero, 10)
 		hero.play_hit_anim()
 		print("[Time Bomb] " + hero.hero_data.get("name", "Hero") + " took 10 damage!")
+		_log_status(hero.hero_data.get("portrait", ""), "Time Bomb: 10 DMG!", Color(1.0, 0.4, 0.1))
 		# Remove 1 random card belonging to this hero from the opponent's hand
 		# If bomb is on enemy hero → remove from enemy hand; if on player hero → remove from player hand
 		if is_player_team:
@@ -3582,6 +3634,7 @@ func _eh_bleed_on_action(ctx: Dictionary, spec: Dictionary) -> Array:
 	op["new_hp"] = new_hp
 	op["new_block"] = source.block
 	_apply_true_damage(source, dmg)
+	_log_status(source.hero_data.get("portrait", ""), "Bleed: " + str(dmg) + " DMG", Color(0.9, 0.2, 0.2))
 	return [op]
 
 func _eh_thunder_stack_2(ctx: Dictionary, spec: Dictionary) -> Array:
@@ -4020,49 +4073,61 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 			"stun":
 				if target and not target.is_dead:
 					target.apply_debuff("stun", 1, source_atk, "own_turn_end")
+					_log_status(target.hero_data.get("portrait", ""), "Stunned!", Color(1.0, 0.5, 0.2))
 			"weak":
 				if target and not target.is_dead:
 					target.apply_debuff("weak", 1, source_atk, "own_turn_end")
+					_log_status(target.hero_data.get("portrait", ""), "Weakened", Color(0.8, 0.6, 1.0))
 			"bleed":
 				if target and not target.is_dead:
 					target.apply_debuff("bleed", 1, source_atk, "own_turn_end")
+					_log_status(target.hero_data.get("portrait", ""), "Bleeding", Color(0.9, 0.2, 0.2))
 			"empower":
 				if source and not source.is_dead:
 					source.apply_buff("empower", 1, source_atk, "own_turn_end")
+					_log_status(source.hero_data.get("portrait", ""), "Empower", Color(1.0, 0.87, 0.4))
 			"empower_target":
 				if target and not target.is_dead:
 					target.apply_buff("empower", 1, source_atk, "own_turn_end")
+					_log_status(target.hero_data.get("portrait", ""), "Empower", Color(1.0, 0.87, 0.4))
 			"empower_all":
 				var allies = player_heroes if source.is_player_hero else enemy_heroes
 				for ally in allies:
 					if not ally.is_dead:
 						ally.apply_buff("empower", 1, source_atk, "own_turn_end")
+				_log_status(source.hero_data.get("portrait", ""), "Empower All", Color(1.0, 0.87, 0.4))
 			"empower_heal":
 				if source and not source.is_dead:
 					source.apply_buff("empower_heal", 1, source_atk, "own_turn_end")
+					_log_status(source.hero_data.get("portrait", ""), "Empower Heal", Color(0.4, 1.0, 0.6))
 			"empower_heal_all":
 				var allies = player_heroes if source.is_player_hero else enemy_heroes
 				for ally in allies:
 					if not ally.is_dead:
 						ally.apply_buff("empower_heal", 1, source_atk, "own_turn_end")
+				_log_status(source.hero_data.get("portrait", ""), "Empower Heal All", Color(0.4, 1.0, 0.6))
 			"empower_shield":
 				if source and not source.is_dead:
 					source.apply_buff("empower_shield", 1, source_atk, "own_turn_end")
+					_log_status(source.hero_data.get("portrait", ""), "Empower Shield", Color(0.6, 0.85, 1.0))
 			"empower_shield_all":
 				var allies = player_heroes if source.is_player_hero else enemy_heroes
 				for ally in allies:
 					if not ally.is_dead:
 						ally.apply_buff("empower_shield", 1, source_atk, "own_turn_end")
+				_log_status(source.hero_data.get("portrait", ""), "Empower Shield All", Color(0.6, 0.85, 1.0))
 			"regen_draw":
 				if target and not target.is_dead:
 					target.apply_buff("regen_draw", -1, source_atk, "permanent")
 					print(target.hero_data.get("name", "Hero") + " gained Regen+ (heal + draw)")
+					_log_status(target.hero_data.get("portrait", ""), "Regen+ (heal + draw)", Color(0.4, 1.0, 0.6))
 			"damage_link_all":
 				var allies = player_heroes if source.is_player_hero else enemy_heroes
 				for ally in allies:
 					if not ally.is_dead:
 						ally.apply_buff("damage_link", 1, 0, "opponent_turn_end")
 				print("[Damage Link] All allies linked — damage will be shared during opponent's turn")
+				_log_status(source.hero_data.get("portrait", ""), "Damage Link All", Color(0.9, 0.7, 0.3))
 			"taunt":
 				if source and not source.is_dead:
 					# Remove taunt from all other allies first
@@ -4071,12 +4136,15 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						if ally != source:
 							ally.remove_buff("taunt")
 					source.apply_buff("taunt", 1, source_atk, "opponent_turn_end")
+					_log_status(source.hero_data.get("portrait", ""), "Taunt", Color(1.0, 0.6, 0.2))
 			"regen":
 				if target and not target.is_dead:
 					target.apply_buff("regen", -1, source_atk, "permanent")
+					_log_status(target.hero_data.get("portrait", ""), "Regen", Color(0.4, 1.0, 0.4))
 			"cleanse":
 				if target and not target.is_dead:
 					target.clear_all_debuffs()
+					_log_status(target.hero_data.get("portrait", ""), "Cleansed", Color(0.9, 0.95, 1.0))
 			"penetrate":
 				# Penetrate hits the hero behind the target (further from attacker)
 				# For player heroes: behind = lower index (pos 3 -> pos 2)
@@ -4094,6 +4162,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 							behind_target.play_hit_anim()
 							# Apply weak to behind target too
 							behind_target.apply_debuff("weak", 1, source_atk, "own_turn_end")
+							_log_status(behind_target.hero_data.get("portrait", ""), "Penetrate: " + str(damage) + " DMG + Weak", Color(1.0, 0.4, 0.4))
 			"upgrade_shuffle":
 				if not card_data.is_empty():
 					_apply_upgrade_shuffle(card_data)
@@ -4103,51 +4172,63 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 					var shield_amount = source.current_hp
 					_dispatch_effect_spec(ctx, {"type": EFFECT_SHIELD_CURRENT_HP, "target": "source"})
 					print(source.hero_data.get("name", "Hero") + " gained " + str(shield_amount) + " Shield from current HP!")
+					_log_status(source.hero_data.get("portrait", ""), "+" + str(shield_amount) + " Shield", Color(0.6, 0.85, 1.0))
 			"break":
 				# Caelum's EX: Apply Break debuff (+50% damage taken)
 				if target and not target.is_dead:
 					target.apply_debuff("break", 1, source_atk, "own_turn_end")
+					_log_status(target.hero_data.get("portrait", ""), "Broken!", Color(1.0, 0.4, 0.2))
 			"thunder":
 				# Apply 1 Thunder stack to target
 				if target and not target.is_dead:
 					target.apply_debuff("thunder", 1, source_atk)
+					_log_status(target.hero_data.get("portrait", ""), "Thunder +1", Color(0.6, 0.7, 1.0))
 			"thunder_all":
 				# Apply 1 Thunder stack to all enemies
 				var enemies = enemy_heroes if source.is_player_hero else player_heroes
 				for enemy in enemies:
 					if not enemy.is_dead:
 						enemy.apply_debuff("thunder", 1, source_atk)
+				_log_event("Thunder +1 to all enemies", Color(0.6, 0.7, 1.0))
 			"thunder_detonate":
 				# Raizel EX: Apply 2 Thunder stacks to all enemies.
 				var enemies = enemy_heroes if source.is_player_hero else player_heroes
 				for enemy in enemies:
 					if not enemy.is_dead:
 						enemy.add_thunder_stacks(2, source_atk)
+				_log_event("Thunder +2 to all enemies", Color(0.6, 0.7, 1.0))
 			"thunder_stack_2":
 				# Add 2 Thunder stacks to target (only if they have Thunder)
 				_dispatch_effect_spec(ctx, {"type": EFFECT_THUNDER_STACK_2, "target": "primary", "amount": 2})
+				if target and not target.is_dead:
+					_log_status(target.hero_data.get("portrait", ""), "Thunder +2", Color(0.6, 0.7, 1.0))
 			"draw_1":
 				# Draw 1 card
 				_dispatch_effect_spec(ctx, {"type": EFFECT_DRAW, "target": "source", "amount": 1})
+				_log_event("Drew 1 card", Color(0.7, 0.85, 1.0))
 			"dana_shield_draw":
 				# Dana's Smart Shield: attach marker buff to target
 				if target and not target.is_dead:
 					target.apply_buff("dana_shield_draw", 1, 0, "own_turn_end")
+					_log_status(target.hero_data.get("portrait", ""), "Smart Shield", Color(0.6, 0.85, 1.0))
 			"counter_50":
 				# Gavran SK1: Reflect 50% of damage back to attacker
 				if source and not source.is_dead:
 					source.apply_buff("counter_50", 1, 0, "opponent_turn_end")
 					print(source.hero_data.get("name", "Hero") + " gained Counter (50% reflect)")
+					_log_status(source.hero_data.get("portrait", ""), "Counter 50%", Color(1.0, 0.6, 0.2))
 			"counter_100":
 				# Gavran EX: Reflect 100% of damage back to attacker
 				if source and not source.is_dead:
 					source.apply_buff("counter_100", 1, 0, "opponent_turn_end")
 					print(source.hero_data.get("name", "Hero") + " gained Counter (100% reflect)")
+					_log_status(source.hero_data.get("portrait", ""), "Counter 100%", Color(1.0, 0.5, 0.1))
 			"self_break":
 				# Gavran EX: Apply Break to self (expires at opponent_turn_end, not own_turn_end)
 				if source and not source.is_dead:
 					source.apply_debuff("break", 1, source_atk, "opponent_turn_end")
 					print(source.hero_data.get("name", "Hero") + " applied Break to self (opponent_turn_end)")
+					_log_status(source.hero_data.get("portrait", ""), "Self Break", Color(1.0, 0.4, 0.2))
 			"crescent_moon":
 				# Nyxara SK1: Add 1 Crescent Moon stack. At 4 stacks → consume all, fill EX gauge.
 				if source and not source.is_dead:
@@ -4159,14 +4240,17 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						source.energy = source.max_energy
 						source._update_ui()
 						print(source.hero_data.get("name", "Hero") + " Crescent Moon x4! EX gauge filled!")
+						_log_status(source.hero_data.get("portrait", ""), "Crescent Moon x4 → EX Full!", Color(1.0, 0.85, 0.3))
 					else:
 						source.apply_buff("crescent_moon", new_stacks, 0, "")
 						print(source.hero_data.get("name", "Hero") + " gained Crescent Moon (stack " + str(new_stacks) + "/4)")
+						_log_status(source.hero_data.get("portrait", ""), "Crescent Moon " + str(new_stacks) + "/4", Color(0.8, 0.75, 1.0))
 			"eclipse_buff":
 				# Nyxara SK2: Gain Eclipse buff — next EX this turn deals double damage
 				if source and not source.is_dead:
 					source.apply_buff("eclipse_buff", 1, 0, "own_turn_end")
 					print(source.hero_data.get("name", "Hero") + " gained Eclipse (next EX deals double damage)")
+					_log_status(source.hero_data.get("portrait", ""), "Eclipse (2x EX)", Color(0.6, 0.4, 1.0))
 			"rewind":
 				# Nyra SK1: Pull 1 random card from discard pile into hand
 				if source and not source.is_dead:
@@ -4178,18 +4262,22 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						_refresh_hand()
 						_update_deck_display()
 						print(source.hero_data.get("name", "Hero") + " Rewind! Retrieved " + rewound_card.get("name", "card") + " from discard")
+						_log_deck_action(card_data.get("art", card_data.get("image", "")), rewound_card.get("art", rewound_card.get("image", "")), "Rewind → Hand")
 					else:
 						print(source.hero_data.get("name", "Hero") + " Rewind failed — discard pile is empty")
+						_log_event("Rewind failed — discard empty", Color(0.6, 0.5, 0.5))
 			"time_bomb":
 				# Nyra SK3: Apply time_bomb debuff to target (detonates at opponent turn end)
 				if target and not target.is_dead:
 					target.apply_debuff("time_bomb", 1, source_atk, "opponent_turn_end")
 					print(target.hero_data.get("name", "Hero") + " has a Time Bomb! Detonates at end of opponent's turn")
+					_log_status(target.hero_data.get("portrait", ""), "Time Bomb!", Color(1.0, 0.4, 0.1))
 			"reshuffle":
 				# Scrap SK2: Enter card selection mode — player picks cards to return to deck, then draws same amount
 				if source and not source.is_dead:
 					_start_card_select("reshuffle", -1, source)
 					print(source.hero_data.get("name", "Hero") + " casting Reshuffle — select cards to return")
+					_log_event("Reshuffle — select cards", Color(0.7, 0.85, 1.0))
 			"redirect":
 				# Kalasag SK1: Apply redirect buff to target ally (50% damage transferred to Kalasag)
 				if target and not target.is_dead:
@@ -4197,6 +4285,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 					target.apply_buff("redirect", 1, 0, "opponent_turn_end")
 					target.set_meta("redirect_to", source.instance_id if source else -1)
 					print(target.hero_data.get("name", "Hero") + " gained Redirect → damage transferred to " + source.hero_data.get("name", "Kalasag"))
+					_log_status(target.hero_data.get("portrait", ""), "Redirect → " + source.hero_data.get("name", "Tank"), Color(0.5, 0.8, 1.0))
 					# Also give Kalasag self-shield (DEF×2)
 					if source and not source.is_dead:
 						var self_shield_mult = card_data.get("self_shield_def_multiplier", 2.0) if card_data else 2.0
@@ -4206,6 +4295,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 							source._update_ui()
 							source._show_shield_effect()
 							print(source.hero_data.get("name", "Hero") + " gained " + str(shield_amount) + " Shield (self)")
+							_log_status(source.hero_data.get("portrait", ""), "+" + str(shield_amount) + " Shield", Color(0.6, 0.85, 1.0))
 
 func _apply_upgrade_shuffle(card_data: Dictionary) -> void:
 	# Upgrade the card's atk_multiplier and shuffle back into deck
@@ -4235,6 +4325,51 @@ func _get_taunt_target(enemies: Array) -> Hero:
 		if not enemy.is_dead and enemy.has_buff("taunt"):
 			return enemy
 	return null
+
+# ============================================
+# POSITION-BASED TARGETING HELPERS
+# ============================================
+
+func _get_front_hero(team: Array) -> Hero:
+	## Returns the frontmost alive hero in a team.
+	## Player front = highest team_index. Enemy front = lowest team_index.
+	var alive = team.filter(func(h): return not h.is_dead)
+	if alive.is_empty():
+		return null
+	if alive[0].is_player_hero:
+		# Player: front = highest team_index (pos 4)
+		alive.sort_custom(func(a, b): return a.team_index > b.team_index)
+	else:
+		# Enemy: front = lowest team_index (pos 5, spawned at index 0)
+		alive.sort_custom(func(a, b): return a.team_index < b.team_index)
+	return alive[0]
+
+func _get_back_hero(team: Array) -> Hero:
+	## Returns the backmost alive hero in a team.
+	var alive = team.filter(func(h): return not h.is_dead)
+	if alive.is_empty():
+		return null
+	if alive[0].is_player_hero:
+		# Player: back = lowest team_index (pos 1)
+		alive.sort_custom(func(a, b): return a.team_index < b.team_index)
+	else:
+		# Enemy: back = highest team_index (pos 8)
+		alive.sort_custom(func(a, b): return a.team_index > b.team_index)
+	return alive[0]
+
+func is_front_row(hero: Hero) -> bool:
+	## Returns true if hero is in the front half (team_index >= 2)
+	if hero.is_player_hero:
+		return hero.team_index >= 2
+	else:
+		return hero.team_index <= 1
+
+func is_back_row(hero: Hero) -> bool:
+	## Returns true if hero is in the back half (team_index <= 1)
+	if hero.is_player_hero:
+		return hero.team_index <= 1
+	else:
+		return hero.team_index >= 2
 
 func _cancel_ex_skill() -> void:
 	if ex_skill_hero:
@@ -4363,6 +4498,13 @@ func _on_turn_started(is_player: bool) -> void:
 	_update_turn_display()
 	_update_deck_display()
 	
+	# Safety: reset all alive heroes to idle sprite at turn start
+	for h in player_heroes + enemy_heroes:
+		if not h.is_dead:
+			var idle = h._resolve_flip_sprite("idle_sprite")
+			if not idle.path.is_empty():
+				h._load_sprite(idle.path, idle.flip_h)
+	
 	# Animate turn transition
 	await _animate_turn_transition(is_player)
 	
@@ -4390,19 +4532,11 @@ func _on_turn_started(is_player: bool) -> void:
 		end_turn_button.disabled = false
 		_flip_to_player_turn()
 		_refresh_hand()
+		_log_turn_header(GameManager.turn_number, true)
 	else:
 		# === ENEMY TURN START ===
-		# For single-player AI: the "enemy turn end" happens here since AI doesn't
-		# press end turn. Expire enemy's "own_turn_end" and player's "opponent_turn_end".
-		if not is_multiplayer:
-			# Detonate Time Bombs on player heroes before debuffs expire
-			_detonate_time_bombs(player_heroes, true)
-			for enemy in enemy_heroes:
-				if not enemy.is_dead:
-					enemy.on_own_turn_end()
-			for hero in player_heroes:
-				if not hero.is_dead:
-					hero.on_opponent_turn_end()
+		# Note: enemy's "own_turn_end" expiry moved to end of _do_enemy_turn()
+		# so that debuffs like stun actually prevent the enemy from acting first.
 		
 		# Apply start-of-turn effects for enemies
 		for enemy in enemy_heroes:
@@ -4414,6 +4548,7 @@ func _on_turn_started(is_player: bool) -> void:
 			turn_indicator.text = "ENEMY TURN"
 		end_turn_button.disabled = true
 		_flip_to_opponent_turn()
+		_log_turn_header(GameManager.turn_number, false)
 		# Enemy draws cards at start of turn (only for AI - in multiplayer, opponent manages their own hand)
 		if not is_multiplayer:
 			if GameManager.turn_number > 1:
@@ -4501,6 +4636,18 @@ func _do_enemy_turn() -> void:
 			break
 	
 	_force_hide_card_display()
+	
+	# === ENEMY TURN END: Expire buffs/debuffs ===
+	# Detonate Time Bombs on player heroes before debuffs expire
+	_detonate_time_bombs(player_heroes, true)
+	# Enemy's heroes: remove "own_turn_end" buffs/debuffs (stun, empower, etc.)
+	for enemy in enemy_heroes:
+		if not enemy.is_dead:
+			enemy.on_own_turn_end()
+	# Player's heroes: remove "opponent_turn_end" buffs/debuffs (taunt, redirect, etc.)
+	for hero in player_heroes:
+		if not hero.is_dead:
+			hero.on_opponent_turn_end()
 	
 	# Trigger Thunder damage on ALL heroes at end of enemy turn
 	await _trigger_thunder_damage(player_heroes)
@@ -4635,7 +4782,14 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 		result.taken = true
 		result.cost = card.get("cost", 0)
 	elif card_type == "attack" or card_type == "basic_attack":
-		var target = _ai_get_best_target(alive_players, "damage", card)
+		var target: Hero = null
+		var card_target_type = card.get("target", "single_enemy")
+		if card_target_type == "front_enemy":
+			# Use team_index to find the front player hero reliably
+			var taunt_target = _get_taunt_target(alive_players)
+			target = taunt_target if taunt_target else _get_front_hero(alive_players)
+		else:
+			target = _ai_get_best_target(alive_players, "damage", card)
 		if target:
 			await _ai_play_attack(attacker, target, card)
 			result.taken = true
@@ -4944,6 +5098,7 @@ func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 				_trigger_equipment_effects(player, "on_death", {})
 			await get_tree().create_timer(0.1).timeout
 		GameManager.add_damage_dealt(enemy_stat_id, total_damage)
+		_log_aoe_attack(attacker.hero_data.get("name", "Enemy"), card.get("name", "Attack"), total_damage, alive_players.size(), false, card.get("art", card.get("image", "")))
 		# Process card effects
 		var effects = card.get("effects", [])
 		if not effects.is_empty():
@@ -4951,6 +5106,7 @@ func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	else:
 		await _animate_attack(attacker, target, damage)
 		GameManager.add_damage_dealt(enemy_stat_id, damage)
+		_log_attack(attacker.hero_data.get("name", "Enemy"), card.get("name", "Attack"), target.hero_data.get("name", "Hero"), damage, false, card.get("art", card.get("image", "")), target.hero_data.get("portrait", ""))
 	
 	var energy_gain = int(card.get("energy_on_hit", GameConstants.ENERGY_ON_ATTACK))
 	attacker.add_energy(energy_gain)
@@ -4983,9 +5139,11 @@ func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 			enemy.heal(heal_amount)
 			total_heal += heal_amount
 		GameManager.add_healing_done(enemy_stat_id, total_heal)
+		_log_heal(attacker.hero_data.get("name", "Enemy"), card.get("name", "Heal"), "All Allies", total_heal, false, card.get("art", card.get("image", "")), attacker.hero_data.get("portrait", ""))
 	else:
 		target.heal(heal_amount)
 		GameManager.add_healing_done(enemy_stat_id, heal_amount)
+		_log_heal(attacker.hero_data.get("name", "Enemy"), card.get("name", "Heal"), target.hero_data.get("name", "Ally"), heal_amount, false, card.get("art", card.get("image", "")), target.hero_data.get("portrait", ""))
 		# Check if card also gives shield
 		var card_base_shield = card.get("base_shield", 0)
 		var def_mult = card.get("def_multiplier", 0.0)
@@ -5046,6 +5204,13 @@ func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	if not effects.is_empty():
 		_apply_effects(effects, attacker, target, base_atk, card)
 	
+	var buff_text = card.get("name", "Buff")
+	if shield > 0:
+		buff_text = "+" + str(shield) + " Shield"
+	var buff_target_name = target.hero_data.get("name", "Ally") if target_type != "all_ally" else "All Allies"
+	var buff_target_portrait = target.hero_data.get("portrait", "") if target_type != "all_ally" else attacker.hero_data.get("portrait", "")
+	_log_buff(attacker.hero_data.get("name", "Enemy"), card.get("name", "Buff"), buff_target_name, buff_text, false, card.get("art", card.get("image", "")), buff_target_portrait)
+	
 	await _hide_card_display()
 
 func _on_counter_triggered(defender: Hero, attacker: Hero, reflect_damage: int) -> void:
@@ -5061,6 +5226,7 @@ func _on_counter_triggered(defender: Hero, attacker: Hero, reflect_damage: int) 
 		var sprite_center = attacker.sprite.global_position + attacker.sprite.size / 2
 		VFX.spawn_particles(sprite_center, Color(1.0, 0.8, 0.2), 8)
 	print("[Counter] " + defender.hero_data.get("name", "") + " reflected " + str(reflect_damage) + " to " + attacker.hero_data.get("name", ""))
+	_log_status(defender.hero_data.get("portrait", ""), "Reflect " + str(reflect_damage) + " DMG → " + attacker.hero_data.get("name", ""), Color(1.0, 0.6, 0.2))
 	if attacker.current_hp <= 0:
 		attacker.die()
 
@@ -5079,6 +5245,7 @@ func _on_shield_broken(hero: Hero) -> void:
 
 func _on_hero_died(hero: Hero) -> void:
 	print(hero.hero_data.get("name", "Hero") + " has died!")
+	_log_death(hero.hero_data.get("name", "Hero"), hero.is_player_hero, hero.hero_data.get("portrait", ""))
 	
 	var hero_id = hero.hero_data.get("id", "")
 	var hero_color = hero.hero_data.get("color", "")
@@ -6882,3 +7049,231 @@ func _show_disconnect_popup() -> void:
 func _on_network_game_over(player_won: bool) -> void:
 	# Called when opponent sends game over signal
 	_on_game_over(player_won)
+
+# ============================================
+# BATTLE LOG SYSTEM
+# ============================================
+
+func _setup_battle_log() -> void:
+	# Toggle button — above mana display (mana is at y=350)
+	battle_log_button = Button.new()
+	battle_log_button.text = "LOG"
+	battle_log_button.custom_minimum_size = Vector2(60, 30)
+	battle_log_button.position = Vector2(20, 310)
+	battle_log_button.add_theme_font_size_override("font_size", 12)
+	battle_log_button.add_theme_color_override("font_color", Color(1, 0.9, 0.7))
+	battle_log_button.modulate = Color(1, 1, 1, 0.8)
+	battle_log_button.pressed.connect(_toggle_battle_log)
+	battle_log_button.z_index = 20
+	$UI.add_child(battle_log_button)
+	
+	# Log panel — slides out from left
+	battle_log_panel = PanelContainer.new()
+	battle_log_panel.custom_minimum_size = Vector2(380, 400)
+	battle_log_panel.position = Vector2(90, 60)
+	battle_log_panel.z_index = 15
+	battle_log_panel.visible = false
+	
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.08, 0.06, 0.04, 0.92)
+	panel_style.border_width_left = 2
+	panel_style.border_width_top = 2
+	panel_style.border_width_right = 2
+	panel_style.border_width_bottom = 2
+	panel_style.border_color = Color(0.6, 0.5, 0.3, 0.8)
+	panel_style.corner_radius_top_left = 8
+	panel_style.corner_radius_top_right = 8
+	panel_style.corner_radius_bottom_left = 8
+	panel_style.corner_radius_bottom_right = 8
+	panel_style.content_margin_left = 10
+	panel_style.content_margin_right = 10
+	panel_style.content_margin_top = 10
+	panel_style.content_margin_bottom = 10
+	battle_log_panel.add_theme_stylebox_override("panel", panel_style)
+	
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	battle_log_panel.add_child(vbox)
+	
+	# Header
+	var header = Label.new()
+	header.text = "Battle Log"
+	header.add_theme_font_size_override("font_size", 16)
+	header.add_theme_color_override("font_color", Color(1, 0.85, 0.5))
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(header)
+	
+	# Separator
+	var sep = HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.5, 0.4, 0.3, 0.6))
+	vbox.add_child(sep)
+	
+	# Scroll container
+	battle_log_scroll = ScrollContainer.new()
+	battle_log_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	battle_log_scroll.custom_minimum_size = Vector2(0, 340)
+	vbox.add_child(battle_log_scroll)
+	
+	# VBox for visual log entries (card image → hero portrait → damage)
+	battle_log_container = VBoxContainer.new()
+	battle_log_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	battle_log_container.add_theme_constant_override("separation", 4)
+	battle_log_scroll.add_child(battle_log_container)
+	
+	$UI.add_child(battle_log_panel)
+
+func _toggle_battle_log() -> void:
+	battle_log_visible = !battle_log_visible
+	if battle_log_visible:
+		battle_log_panel.visible = true
+		battle_log_panel.modulate = Color(1, 1, 1, 0)
+		var tween = create_tween()
+		tween.tween_property(battle_log_panel, "modulate:a", 1.0, 0.2)
+		# Auto-scroll to bottom
+		await get_tree().process_frame
+		battle_log_scroll.scroll_vertical = battle_log_scroll.get_v_scroll_bar().max_value
+	else:
+		var tween = create_tween()
+		tween.tween_property(battle_log_panel, "modulate:a", 0.0, 0.15)
+		tween.tween_callback(func(): battle_log_panel.visible = false)
+
+func _add_visual_log_entry(row: Control) -> void:
+	if battle_log_container:
+		battle_log_container.add_child(row)
+		# Auto-scroll if panel is open
+		if battle_log_visible and battle_log_scroll:
+			await get_tree().process_frame
+			battle_log_scroll.scroll_vertical = battle_log_scroll.get_v_scroll_bar().max_value
+
+func _create_log_image(path: String, size: Vector2 = Vector2(40, 40)) -> TextureRect:
+	var tex_rect = TextureRect.new()
+	tex_rect.custom_minimum_size = size
+	tex_rect.expand_mode = 1  # EXPAND_IGNORE_SIZE
+	tex_rect.stretch_mode = 5  # STRETCH_KEEP_ASPECT_CENTERED
+	if not path.is_empty() and ResourceLoader.exists(path):
+		tex_rect.texture = load(path)
+	return tex_rect
+
+func _create_log_arrow() -> Label:
+	var arrow = Label.new()
+	arrow.text = "→"
+	arrow.add_theme_font_size_override("font_size", 16)
+	arrow.add_theme_color_override("font_color", Color(0.7, 0.65, 0.5))
+	arrow.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return arrow
+
+func _create_log_text(text: String, color: Color, font_size: int = 12) -> Label:
+	var label = Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return label
+
+func _log_turn_header(turn_num: int, is_player: bool) -> void:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var side_text = "You" if is_player else "Enemy"
+	var side_color = Color(0.56, 0.78, 1.0) if is_player else Color(1.0, 0.53, 0.53)
+	row.add_child(_create_log_text("── Turn " + str(turn_num) + " — ", Color(0.63, 0.56, 0.44), 13))
+	row.add_child(_create_log_text(side_text, side_color, 13))
+	row.add_child(_create_log_text(" ──", Color(0.63, 0.56, 0.44), 13))
+	_add_visual_log_entry(row)
+
+func _log_attack(source_name: String, card_name: String, target_name: String, damage: int, is_player: bool, card_art: String = "", target_portrait: String = "") -> void:
+	# Row: [Card Art] → [Hero Portrait] : DMG text
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(card_art, Vector2(40, 40)))
+	row.add_child(_create_log_arrow())
+	row.add_child(_create_log_image(target_portrait, Vector2(36, 36)))
+	row.add_child(_create_log_text(str(damage) + " DMG", Color(1.0, 0.4, 0.4), 13))
+	_add_visual_log_entry(row)
+
+func _log_aoe_attack(source_name: String, card_name: String, total_damage: int, target_count: int, is_player: bool, card_art: String = "") -> void:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(card_art, Vector2(40, 40)))
+	row.add_child(_create_log_arrow())
+	row.add_child(_create_log_text("ALL", Color(1.0, 0.6, 0.3), 11))
+	row.add_child(_create_log_text(str(total_damage) + " DMG", Color(1.0, 0.4, 0.4), 13))
+	_add_visual_log_entry(row)
+
+func _log_heal(source_name: String, card_name: String, target_name: String, amount: int, is_player: bool, card_art: String = "", target_portrait: String = "") -> void:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(card_art, Vector2(40, 40)))
+	row.add_child(_create_log_arrow())
+	row.add_child(_create_log_image(target_portrait, Vector2(36, 36)))
+	row.add_child(_create_log_text("+" + str(amount) + " HP", Color(0.4, 1.0, 0.4), 13))
+	_add_visual_log_entry(row)
+
+func _log_buff(source_name: String, card_name: String, target_name: String, effect_text: String, is_player: bool, card_art: String = "", target_portrait: String = "") -> void:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(card_art, Vector2(40, 40)))
+	row.add_child(_create_log_arrow())
+	row.add_child(_create_log_image(target_portrait, Vector2(36, 36)))
+	row.add_child(_create_log_text(effect_text, Color(1.0, 0.87, 0.4), 12))
+	_add_visual_log_entry(row)
+
+func _log_death(hero_name: String, is_player: bool, hero_portrait: String = "") -> void:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(hero_portrait, Vector2(36, 36)))
+	row.add_child(_create_log_text(hero_name + " DEFEATED!", Color(1.0, 0.27, 0.27), 13))
+	_add_visual_log_entry(row)
+
+func _log_ex_skill(source_name: String, target_name: String, is_player: bool, source_portrait: String = "", target_portrait: String = "") -> void:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(source_portrait, Vector2(36, 36)))
+	row.add_child(_create_log_text("EX", Color(1.0, 0.67, 0.0), 14))
+	row.add_child(_create_log_arrow())
+	row.add_child(_create_log_image(target_portrait, Vector2(36, 36)))
+	_add_visual_log_entry(row)
+
+func _log_equip(card_art: String, target_portrait: String, equip_name: String) -> void:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(card_art, Vector2(40, 40)))
+	row.add_child(_create_log_arrow())
+	row.add_child(_create_log_image(target_portrait, Vector2(36, 36)))
+	row.add_child(_create_log_text("Equipped " + equip_name, Color(0.6, 0.85, 1.0), 12))
+	_add_visual_log_entry(row)
+
+func _log_deck_action(card_art: String, found_card_art: String, action_text: String) -> void:
+	# For dig, search, check_discard — shows card played → card found → result
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 44
+	row.add_child(_create_log_image(card_art, Vector2(40, 40)))
+	row.add_child(_create_log_arrow())
+	row.add_child(_create_log_image(found_card_art, Vector2(36, 36)))
+	row.add_child(_create_log_text(action_text, Color(0.7, 0.85, 1.0), 12))
+	_add_visual_log_entry(row)
+
+func _log_status(hero_portrait: String, status_text: String, color: Color = Color(1.0, 0.87, 0.4)) -> void:
+	# Generic status effect log: [Hero Portrait] status text
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 36
+	row.add_child(_create_log_image(hero_portrait, Vector2(30, 30)))
+	row.add_child(_create_log_text(status_text, color, 11))
+	_add_visual_log_entry(row)
+
+func _log_event(text: String, color: Color = Color(0.75, 0.72, 0.65)) -> void:
+	# Simple text-only log for misc events (draw, shuffle, etc.)
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.custom_minimum_size.y = 24
+	row.add_child(_create_log_text("  " + text, color, 11))
+	_add_visual_log_entry(row)

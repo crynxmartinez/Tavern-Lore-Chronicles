@@ -570,8 +570,8 @@
 		"effects": ["cleanse_all", "dispel_all"],
 		"hero_color": "green",
 		"description": "Cleanse all allies. Dispel all enemy buffs.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/ex.png",
+		"image": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/ex.png"
 	},
 	"amihan_sk1": {
 		"id": "amihan_sk1",
@@ -585,8 +585,8 @@
 		"effects": ["taunt"],
 		"hero_color": "green",
 		"description": "Gain Shield (8 + DEF×2). Gain Taunt.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/s1.png",
+		"image": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/s1.png"
 	},
 	"amihan_sk2": {
 		"id": "amihan_sk2",
@@ -598,8 +598,8 @@
 		"hp_multiplier": 0.08,
 		"hero_color": "green",
 		"description": "Restore (8% max HP) to all allies.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/s2.png",
+		"image": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/s2.png"
 	},
 	"amihan_sk3": {
 		"id": "amihan_sk3",
@@ -611,8 +611,8 @@
 		"effects": ["cleanse_all"],
 		"hero_color": "green",
 		"description": "Cleanse all allies.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/s3.png",
+		"image": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/s3.png"
 	},
 	"valen_attack": {
 		"id": "valen_attack",
@@ -622,7 +622,7 @@
 		"anim_type": "attack",
 		"atk_multiplier": 1.0,
 		"target": "front_enemy",
-		"hero_color": "red",
+		"hero_color": "blue",
 		"description": "Deal (100% ATK) damage to the front enemy.",
 		"art": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/normal attack.png",
 		"image": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/normal attack.png"
@@ -635,10 +635,10 @@
 		"anim_type": "attack",
 		"atk_multiplier": 3.0,
 		"target": "single_enemy",
-		"hero_color": "red",
+		"hero_color": "blue",
 		"description": "Deal (300% ATK) damage to target enemy.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/ex.png",
+		"image": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/ex.png"
 	},
 	"valen_sk1": {
 		"id": "valen_sk1",
@@ -649,10 +649,10 @@
 		"mana_gain": 2,
 		"hp_cost_pct": 0.15,
 		"target": "none",
-		"hero_color": "red",
+		"hero_color": "blue",
 		"description": "Lose 15% max HP. Gain 2 mana this turn.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/s1.png",
+		"image": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/s1.png"
 	},
 	"valen_sk2": {
 		"id": "valen_sk2",
@@ -662,10 +662,10 @@
 		"anim_type": "cast",
 		"target": "single_enemy",
 		"effects": ["bleed"],
-		"hero_color": "red",
+		"hero_color": "blue",
 		"description": "Apply Bleed.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/s2.png",
+		"image": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/s2.png"
 	},
 	"valen_sk3": {
 		"id": "valen_sk3",
@@ -676,10 +676,10 @@
 		"hp_multiplier": 0.20,
 		"hp_cost_pct": 0.10,
 		"target": "self",
-		"hero_color": "red",
+		"hero_color": "blue",
 		"description": "Lose 10% max HP. Restore (20% max HP) to self.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/s3.png",
+		"image": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/s3.png"
 	},
 	"gavran_attack": {
 		"id": "gavran_attack",

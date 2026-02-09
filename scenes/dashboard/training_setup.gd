@@ -225,29 +225,31 @@ func _build_hero_picker_phase() -> void:
 		slots_container.add_child(slot)
 		team_slots.append(slot)
 	
-	# Hero roster (scrollable)
+	# Hero roster (grid layout, 9 per row, no horizontal scroll)
 	var roster_label = Label.new()
 	roster_label.text = "HERO ROSTER"
 	roster_label.add_theme_font_size_override("font_size", 14)
 	roster_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	container.add_child(roster_label)
 	
-	roster_scroll = ScrollContainer.new()
-	roster_scroll.custom_minimum_size = Vector2(0, 200)
-	roster_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	roster_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	roster_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	container.add_child(roster_scroll)
+	var roster_vbox = VBoxContainer.new()
+	roster_vbox.add_theme_constant_override("separation", 6)
+	roster_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	container.add_child(roster_vbox)
 	
-	roster_container = HBoxContainer.new()
-	roster_container.add_theme_constant_override("separation", 8)
-	roster_scroll.add_child(roster_container)
-	
-	# Populate roster
-	for hero_id in HeroDatabase.heroes.keys():
+	# Build grid rows of 9
+	var hero_ids = HeroDatabase.heroes.keys()
+	var current_row: HBoxContainer = null
+	for i in range(hero_ids.size()):
+		if i % 9 == 0:
+			current_row = HBoxContainer.new()
+			current_row.add_theme_constant_override("separation", 8)
+			current_row.alignment = BoxContainer.ALIGNMENT_CENTER
+			roster_vbox.add_child(current_row)
+		var hero_id = hero_ids[i]
 		var hero_data = HeroDatabase.get_hero(hero_id)
 		var thumb = _create_roster_thumbnail(hero_id, hero_data)
-		roster_container.add_child(thumb)
+		current_row.add_child(thumb)
 		hero_thumbnails[hero_id] = thumb
 	
 	# Bottom bar
@@ -576,6 +578,18 @@ func _on_roster_hero_clicked(hero_id: String) -> void:
 	if enemy_team.size() >= 4:
 		return
 	
+	# Check color limit (max 2 of same color/class per team)
+	var hero_data = HeroDatabase.get_hero(hero_id)
+	var hero_color = hero_data.get("color", "")
+	var color_count = 0
+	for tid in enemy_team:
+		var td = HeroDatabase.get_hero(tid)
+		if td.get("color", "") == hero_color:
+			color_count += 1
+	if color_count >= 2:
+		_show_color_limit_toast(hero_color)
+		return
+	
 	# Add to team
 	enemy_team.append(hero_id)
 	_assign_hero_to_next_slot(hero_id)
@@ -676,6 +690,20 @@ func _update_thumbnail_state(hero_id: String, is_used: bool) -> void:
 		thumb.modulate = Color(0.4, 0.4, 0.4, 0.6)
 	else:
 		thumb.modulate = Color(1, 1, 1, 1)
+
+func _show_color_limit_toast(color: String) -> void:
+	var toast = Label.new()
+	toast.text = "Max 2 " + color.capitalize() + " heroes allowed!"
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_font_size_override("font_size", 16)
+	toast.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	toast.position.y = 60
+	main_panel.add_child(toast)
+	var tween = create_tween()
+	tween.tween_interval(1.5)
+	tween.tween_property(toast, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(toast.queue_free)
 
 func _update_picker_confirm_state() -> void:
 	if picker_confirm_button:

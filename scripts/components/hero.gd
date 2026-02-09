@@ -11,6 +11,7 @@ signal counter_triggered(defender: Hero, attacker: Hero, reflect_damage: int)
 @export var is_player_hero: bool = true
 var instance_id: String = ""  # Globally unique instance ID (e.g. "host_priest_0")
 var owner_id: String = ""  # player_id of the player who owns this hero
+var team_index: int = -1  # Original position in team (0=back, 3=front for player; 0=front, 3=back for enemy)
 
 var hero_data: Dictionary = {}
 var base_hp: int = 10
@@ -851,7 +852,7 @@ func _update_thunder_cloud(show: bool) -> void:
 		if thunder_cloud != null:
 			return  # Already showing
 		
-		var cloud_path = "res://asset/Others/dark cloud.png"
+		var cloud_path = "res://asset/Others/Skill Sprite VFX/dark cloud.png"
 		if not ResourceLoader.exists(cloud_path):
 			return
 		
@@ -1334,16 +1335,14 @@ func spawn_attack_effect(attacker_hero_id: String, attacker_color: String) -> vo
 	
 	var skip_sparks = false
 	match attacker_hero_id:
-		"squire", "craftswoman", "makash":
+		"squire", "gavran", "dana", "nyra", "kalasag", "makash", "dax", "cinder":
 			_spawn_slash_effect(effect_color)
-		"markswoman":
-			_spawn_arrow_impact_effect(effect_color)
-		"priest":
-			_spawn_magic_circle_effect(effect_color)
+		"markswoman", "stony", "ysolde", "scrap":
+			_spawn_shot_effect(effect_color)
 		"raizel":
 			_spawn_lightning_effect()
-			skip_sparks = true  # Lightning effect is complete on its own
-		"caelum":
+			skip_sparks = true
+		"caelum", "valen", "priest", "amihan", "nyxara":
 			_spawn_magic_circle_effect(effect_color)
 		_:
 			_spawn_generic_impact(effect_color)
@@ -1392,243 +1391,55 @@ func _spawn_colored_impact_sparks(color: Color) -> void:
 
 func _spawn_slash_effect(color: Color) -> void:
 	var center = global_position + Vector2(size.x / 2, size.y * 0.45)
-	
-	# Load Classic Slash Sprite frames
-	var slash_frames: Array[Texture2D] = []
-	for i in range(1, 7):
-		var frame_path = "res://asset/Others/Classic Slash Sprite/Classic_0%d.png" % i
-		var frame = load(frame_path)
-		if frame:
-			slash_frames.append(frame)
-	
-	if slash_frames.size() > 0:
-		var slash_sprite = Sprite2D.new()
-		slash_sprite.texture = slash_frames[0]
-		slash_sprite.top_level = true
-		slash_sprite.z_index = 99
-		slash_sprite.scale = Vector2(0.8, 0.8)
-		# Tint to hero color
-		slash_sprite.modulate = color
-		get_tree().root.add_child(slash_sprite)
-		slash_sprite.global_position = center
-		
-		# Animate through frames
-		var frame_duration = 0.08
-		var tween = create_tween()
-		for i in range(slash_frames.size()):
-			tween.tween_callback(func(): slash_sprite.texture = slash_frames[i])
-			tween.tween_interval(frame_duration)
-		tween.tween_property(slash_sprite, "modulate:a", 0.0, 0.15)
-		tween.tween_callback(slash_sprite.queue_free)
+	var texture = load("res://asset/Others/Skill Sprite VFX/Sword Slash.png")
+	if texture:
+		_play_spritesheet_effect(texture, 4, center, 0.08, color, Vector2(0.8, 0.8))
 	else:
-		# Fallback to X-shaped ColorRect slash
-		for i in range(2):
-			var slash = ColorRect.new()
-			slash.size = Vector2(100, 8)
-			slash.color = color
-			slash.top_level = true
-			slash.z_index = 99
-			slash.pivot_offset = slash.size / 2.0
-			get_tree().root.add_child(slash)
-			
-			slash.global_position = center - slash.size / 2.0
-			if i == 0:
-				slash.rotation_degrees = -45
-			else:
-				slash.rotation_degrees = 45
-			
-			slash.scale = Vector2(0.1, 1.0)
-			slash.modulate.a = 1.0
-			
-			var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_EXPO)
-			tween.tween_property(slash, "scale:x", 1.5, 0.1)
-			tween.tween_property(slash, "modulate:a", 0.0, 0.2)
-			tween.tween_callback(slash.queue_free)
+		_spawn_generic_impact(color)
 
 func _spawn_lightning_effect() -> void:
-	# Position at hero's feet area (just above status icons)
-	var center = global_position + Vector2(size.x / 2, size.y * 0.7)
-	
-	# Load lightning sprite sheet (same format as magic attack: 4 columns x 2 rows = 8 frames)
-	var lightning_texture = load("res://asset/Others/lightning sprite sheet.png")
-	
-	if lightning_texture:
-		var lightning_sprite = Sprite2D.new()
-		lightning_sprite.texture = lightning_texture
-		lightning_sprite.hframes = 4  # 4 columns
-		lightning_sprite.vframes = 2  # 2 rows
-		lightning_sprite.frame = 0
-		lightning_sprite.top_level = true
-		lightning_sprite.z_index = 100
-		lightning_sprite.scale = Vector2(0.6, 0.6)
-		get_tree().root.add_child(lightning_sprite)
-		lightning_sprite.global_position = center
-		
-		# Animate through all 8 frames
-		var tween = create_tween()
-		tween.tween_property(lightning_sprite, "frame", 0, 0.0)
-		tween.tween_interval(0.08)
-		tween.tween_property(lightning_sprite, "frame", 1, 0.0)
-		tween.tween_interval(0.08)
-		tween.tween_property(lightning_sprite, "frame", 2, 0.0)
-		tween.tween_interval(0.08)
-		tween.tween_property(lightning_sprite, "frame", 3, 0.0)
-		tween.tween_interval(0.08)
-		tween.tween_property(lightning_sprite, "frame", 4, 0.0)
-		tween.tween_interval(0.08)
-		tween.tween_property(lightning_sprite, "frame", 5, 0.0)
-		tween.tween_interval(0.08)
-		tween.tween_property(lightning_sprite, "frame", 6, 0.0)
-		tween.tween_interval(0.08)
-		tween.tween_property(lightning_sprite, "frame", 7, 0.0)
-		tween.tween_interval(0.1)
-		tween.tween_property(lightning_sprite, "modulate:a", 0.0, 0.15)
-		tween.tween_callback(lightning_sprite.queue_free)
+	var center = global_position + Vector2(size.x / 2, size.y * 0.5)
+	var texture = load("res://asset/Others/Skill Sprite VFX/blue lightning.png")
+	if texture:
+		_play_spritesheet_effect(texture, 5, center, 0.08, Color(1, 1, 1, 1), Vector2(0.8, 0.8), 100)
 	else:
-		# Fallback to simple lightning lines
-		var lightning_color = Color(0.6, 0.8, 1.0, 1.0)
-		for i in range(3):
-			var bolt = Line2D.new()
-			bolt.top_level = true
-			bolt.z_index = 100
-			bolt.width = 3.0
-			bolt.default_color = lightning_color
-			get_tree().root.add_child(bolt)
-			
-			var start = Vector2(center.x + randf_range(-30, 30), center.y - 150)
-			var points: PackedVector2Array = [start]
-			var current = start
-			for j in range(5):
-				current = Vector2(
-					current.x + randf_range(-20, 20),
-					current.y + 40
-				)
-				points.append(current)
-			bolt.points = points
-			
-			var tween = create_tween()
-			tween.tween_property(bolt, "modulate:a", 0.0, 0.3)
-			tween.tween_callback(bolt.queue_free)
+		_spawn_generic_impact(Color(0.3, 0.6, 1.0))
 
-func _spawn_arrow_impact_effect(color: Color) -> void:
+func _spawn_shot_effect(color: Color) -> void:
 	var center = global_position + Vector2(size.x / 2, size.y * 0.45)
-	
-	# Load arrow shot sprite sheet
-	var shot_texture = load("res://asset/Others/shot sprite sheet - Arrow.png")
-	
-	if shot_texture:
-		var shot_sprite = Sprite2D.new()
-		shot_sprite.texture = shot_texture
-		shot_sprite.hframes = 3  # 3 columns (direct hit frames)
-		shot_sprite.vframes = 1  # 1 row
-		shot_sprite.frame = 0
-		shot_sprite.top_level = true
-		shot_sprite.z_index = 99
-		shot_sprite.scale = Vector2(0.5, 0.5)
-		# Tint to hero color
-		shot_sprite.modulate = color
-		get_tree().root.add_child(shot_sprite)
-		shot_sprite.global_position = center
-		
-		# Animate: direct hit explosion - 3 frames
-		var tween = create_tween()
-		tween.tween_property(shot_sprite, "frame", 0, 0.0)
-		tween.tween_interval(0.12)
-		tween.tween_property(shot_sprite, "frame", 1, 0.0)
-		tween.tween_interval(0.12)
-		tween.tween_property(shot_sprite, "frame", 2, 0.0)
-		tween.tween_interval(0.15)
-		tween.tween_property(shot_sprite, "modulate:a", 0.0, 0.18)
-		tween.tween_callback(shot_sprite.queue_free)
+	var texture = load("res://asset/Others/Skill Sprite VFX/shot sprite.png")
+	if texture:
+		_play_spritesheet_effect(texture, 3, center, 0.12, color, Vector2(0.5, 0.5))
 	else:
-		# Fallback to ColorRect arrows
-		for i in range(3):
-			var arrow = ColorRect.new()
-			arrow.size = Vector2(30, 4)
-			arrow.color = color
-			arrow.top_level = true
-			arrow.z_index = 99
-			arrow.pivot_offset = Vector2(arrow.size.x, arrow.size.y / 2.0)
-			get_tree().root.add_child(arrow)
-			
-			var offset_y = (i - 1) * 25
-			var start_pos = center + Vector2(-80, offset_y)
-			arrow.global_position = start_pos
-			arrow.rotation_degrees = 0
-			arrow.modulate.a = 0.9
-			
-			var end_pos = center + Vector2(0, offset_y)
-			
-			var delay = i * 0.05
-			var tween = create_tween().set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-			tween.tween_interval(delay)
-			tween.tween_property(arrow, "global_position", end_pos, 0.1)
-			tween.tween_property(arrow, "modulate:a", 0.0, 0.15)
-			tween.tween_callback(arrow.queue_free)
+		_spawn_generic_impact(color)
 
 func _spawn_magic_circle_effect(color: Color) -> void:
 	var center = global_position + Vector2(size.x / 2, size.y * 0.45)
-	
-	# Load magic attack sprite sheet
-	var magic_texture = load("res://asset/Others/magic attack sprite sheet.png")
-	
-	if magic_texture:
-		var magic_sprite = Sprite2D.new()
-		magic_sprite.texture = magic_texture
-		magic_sprite.hframes = 4  # 4 columns
-		magic_sprite.vframes = 2  # 2 rows
-		magic_sprite.frame = 0
-		magic_sprite.top_level = true
-		magic_sprite.z_index = 99
-		magic_sprite.scale = Vector2(0.6, 0.6)
-		# Tint to hero color
-		magic_sprite.modulate = color
-		get_tree().root.add_child(magic_sprite)
-		magic_sprite.global_position = center
-		
-		# Animate through first row frames (magic circle forming)
-		var tween = create_tween()
-		tween.tween_property(magic_sprite, "frame", 0, 0.0)
-		tween.tween_interval(0.12)
-		tween.tween_property(magic_sprite, "frame", 1, 0.0)
-		tween.tween_interval(0.12)
-		tween.tween_property(magic_sprite, "frame", 2, 0.0)
-		tween.tween_interval(0.12)
-		tween.tween_property(magic_sprite, "frame", 3, 0.0)
-		tween.tween_interval(0.15)
-		tween.tween_property(magic_sprite, "modulate:a", 0.0, 0.2)
-		tween.tween_callback(magic_sprite.queue_free)
+	var texture = load("res://asset/Others/Skill Sprite VFX/magic attack.png")
+	if texture:
+		_play_spritesheet_effect(texture, 8, center, 0.08, color, Vector2(0.7, 0.7))
 	else:
-		# Fallback to ColorRect ring
-		var circle = Control.new()
-		circle.size = Vector2(100, 100)
-		circle.top_level = true
-		circle.z_index = 99
-		circle.pivot_offset = circle.size / 2.0
-		get_tree().root.add_child(circle)
-		circle.global_position = center - circle.size / 2.0
-		
-		for i in range(16):
-			var segment = ColorRect.new()
-			segment.size = Vector2(14, 5)
-			segment.color = color
-			segment.pivot_offset = Vector2(segment.size.x / 2, segment.size.y / 2)
-			circle.add_child(segment)
-			
-			var angle = (float(i) / 16.0) * TAU
-			var radius = 40.0
-			segment.position = Vector2(50 + cos(angle) * radius - segment.size.x / 2, 
-									   50 + sin(angle) * radius - segment.size.y / 2)
-			segment.rotation = angle + PI / 2
-		
-		circle.scale = Vector2(0.2, 0.2)
-		circle.modulate.a = 1.0
-		
-		var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-		tween.tween_property(circle, "scale", Vector2(1.4, 1.4), 0.25)
-		tween.parallel().tween_property(circle, "rotation_degrees", 60.0, 0.25)
-		tween.tween_property(circle, "modulate:a", 0.0, 0.2)
-		tween.tween_callback(circle.queue_free)
+		_spawn_generic_impact(color)
+
+func _play_spritesheet_effect(texture: Texture2D, frame_count: int, center: Vector2, frame_duration: float = 0.08, color: Color = Color(1, 1, 1, 1), effect_scale: Vector2 = Vector2(0.6, 0.6), z: int = 99) -> void:
+	var spr = Sprite2D.new()
+	spr.texture = texture
+	spr.hframes = frame_count
+	spr.vframes = 1
+	spr.frame = 0
+	spr.top_level = true
+	spr.z_index = z
+	spr.scale = effect_scale
+	spr.modulate = color
+	get_tree().root.add_child(spr)
+	spr.global_position = center
+	
+	var tween = create_tween()
+	for i in range(frame_count):
+		tween.tween_callback(func(): spr.frame = i)
+		tween.tween_interval(frame_duration)
+	tween.tween_property(spr, "modulate:a", 0.0, 0.15)
+	tween.tween_callback(spr.queue_free)
 
 func _spawn_generic_impact(color: Color) -> void:
 	var center = global_position + Vector2(size.x / 2, size.y * 0.45)

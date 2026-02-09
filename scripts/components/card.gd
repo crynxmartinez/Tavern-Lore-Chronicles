@@ -72,8 +72,8 @@ func setup(data: Dictionary, template_id: String = "") -> void:
 	if name_label:
 		name_label.text = data.get("name", "Unknown")
 	
-	# Apply keyword highlighting to description
-	var description = data.get("description", "")
+	# Compute real values then apply keyword highlighting
+	var description = _compute_description(data)
 	if description_label:
 		description_label.text = _highlight_keywords(description)
 	
@@ -107,8 +107,14 @@ func _setup_layered_card(art_path: String, template_id: String = "") -> void:
 		# Check if card has explicit template field (for equipment)
 		final_template_id = card_data.get("template", "")
 	if final_template_id.is_empty():
-		# Use hero_color to determine template
-		var hero_color = card_data.get("hero_color", "")
+		# Derive hero_color from hero_id (single source of truth), fallback to card_data
+		var hero_id = card_data.get("hero_id", "")
+		var hero_color = ""
+		if not hero_id.is_empty():
+			var hero_data = HeroDatabase.get_hero(hero_id)
+			hero_color = hero_data.get("color", "")
+		if hero_color.is_empty():
+			hero_color = card_data.get("hero_color", "")
 		final_template_id = _get_template_for_color(hero_color)
 	
 	apply_template(final_template_id)
@@ -201,6 +207,62 @@ func _apply_text_style(style: Dictionary) -> void:
 		name_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
 		name_label.add_theme_constant_override("shadow_offset_x", 1)
 		name_label.add_theme_constant_override("shadow_offset_y", 1)
+
+func _compute_description(data: Dictionary) -> String:
+	var desc = data.get("description", "")
+	if desc.is_empty():
+		return desc
+	
+	# Get hero stats for computation
+	var hero_id = data.get("hero_id", "")
+	var hero_data = HeroDatabase.get_hero(hero_id) if not hero_id.is_empty() else {}
+	var base_atk = hero_data.get("base_attack", 10)
+	var base_hp = hero_data.get("base_hp", 10)
+	var hp_mult = hero_data.get("hp_multiplier", 10)
+	var max_hp = hero_data.get("max_hp", base_hp * hp_mult)
+	var base_def = hero_data.get("base_def", 0)
+	
+	# Replace ATK multiplier formulas: (150% ATK) -> computed damage
+	var atk_multiplier = data.get("atk_multiplier", 0.0)
+	if atk_multiplier > 0:
+		var damage = int(base_atk * atk_multiplier)
+		var pct_str = str(int(atk_multiplier * 100))
+		var patterns = ["(" + pct_str + "% ATK)", pct_str + "% ATK"]
+		for pattern in patterns:
+			if desc.find(pattern) >= 0:
+				desc = desc.replace(pattern, str(damage))
+				break
+	
+	# Replace HP multiplier formulas: (8% max HP) -> computed heal
+	var card_hp_mult = data.get("hp_multiplier", 0.0)
+	if card_hp_mult > 0:
+		var heal_amount = int(max_hp * card_hp_mult)
+		var pct_str = str(int(card_hp_mult * 100))
+		var patterns = ["(" + pct_str + "% max HP)", pct_str + "% max HP"]
+		for pattern in patterns:
+			if desc.find(pattern) >= 0:
+				desc = desc.replace(pattern, str(heal_amount) + " HP")
+				break
+	
+	# Replace Shield formulas: (8 + DEF×2) -> computed shield
+	var card_base_shield = data.get("base_shield", 0)
+	var card_def_mult = data.get("def_multiplier", 0.0)
+	if card_base_shield > 0 or card_def_mult > 0:
+		var shield_amount = card_base_shield + int(base_def * card_def_mult)
+		var def_int = str(int(card_def_mult))
+		var base_str = str(card_base_shield)
+		var separators = ["\u00d7", "x", "X", "*"]
+		for sep in separators:
+			var with_parens = "(" + base_str + " + DEF" + sep + def_int + ")"
+			if desc.find(with_parens) >= 0:
+				desc = desc.replace(with_parens, str(shield_amount))
+				break
+			var no_parens = base_str + " + DEF" + sep + def_int
+			if desc.find(no_parens) >= 0:
+				desc = desc.replace(no_parens, str(shield_amount))
+				break
+	
+	return desc
 
 func _highlight_keywords(text: String) -> String:
 	var result = text

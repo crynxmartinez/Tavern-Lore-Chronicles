@@ -40,26 +40,23 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 			card_copy["instance_id"] = _generate_card_instance_id(card_copy)
 			deck.append(card_copy)
 		
-		# Build attack card image path from hero folder
+		# Add basic attack cards per hero — clone from cards.json (single source of truth)
+		var attack_card_id = hero_data.get("attack_card", hero_data.id + "_attack")
+		var base_attack = CardDatabase.get_card(attack_card_id)
+		if base_attack.is_empty():
+			push_warning("DeckManager: No attack card '%s' found in cards.json for %s" % [attack_card_id, hero_data.id])
+		
 		var portrait_path = hero_data.get("portrait", "")
 		var attack_image = _get_attack_image_path(portrait_path)
 		
-		# Add basic attack cards per hero
 		for i in range(GameConstants.ATTACK_CARDS_PER_HERO):
-			var base_attack_id = hero_data.id + "_attack"
-			var attack_card = {
-				"id": id_prefix + hero_data.id + "_attack_" + str(i),
-				"base_id": base_attack_id,  # Original cards.json key
-				"name": hero_data.name + " Attack",
-				"cost": 0,
-				"type": "basic_attack",
-				"atk_multiplier": 1.0,
-				"hero_id": hero_data.id,
-				"hero_color": hero_data.color,
-				"description": "Deal 10 damage to target enemy.",
-				"art": attack_image,
-				"image": attack_image
-			}
+			var attack_card = base_attack.duplicate() if not base_attack.is_empty() else {}
+			attack_card["id"] = id_prefix + hero_data.id + "_attack_" + str(i)
+			attack_card["base_id"] = attack_card_id
+			attack_card["hero_id"] = hero_data.id
+			if not attack_image.is_empty():
+				attack_card["art"] = attack_image
+				attack_card["image"] = attack_image
 			attack_card["instance_id"] = _generate_card_instance_id(attack_card)
 			deck.append(attack_card)
 	
@@ -81,9 +78,16 @@ func _get_attack_image_path(portrait_path: String) -> String:
 	if portrait_path.is_empty():
 		return ""
 	var folder_path = portrait_path.get_base_dir()
+	# Check for "normal attack" first (new standard), then legacy "attack"
+	var normal_png = folder_path + "/normal attack.png"
+	var normal_webp = folder_path + "/normal attack.webp"
 	var png_path = folder_path + "/attack.png"
 	var webp_path = folder_path + "/attack.webp"
-	if ResourceLoader.exists(png_path):
+	if ResourceLoader.exists(normal_png):
+		return normal_png
+	elif ResourceLoader.exists(normal_webp):
+		return normal_webp
+	elif ResourceLoader.exists(png_path):
 		return png_path
 	elif ResourceLoader.exists(webp_path):
 		return webp_path
