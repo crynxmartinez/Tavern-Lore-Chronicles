@@ -24,3 +24,6 @@ addons/GD-Sync/
 
 # Logs
 *.log
+
+# Exports (large binaries)
+exports/
