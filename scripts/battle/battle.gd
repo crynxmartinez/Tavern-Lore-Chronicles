@@ -1,6 +1,6 @@
 extends Control
 
-enum BattlePhase { MULLIGAN, PLAYING, TARGETING, EX_TARGETING, ENEMY_TURN, GAME_OVER }
+enum BattlePhase { MULLIGAN, PLAYING, TARGETING, EX_TARGETING, ENEMY_TURN, GAME_OVER, CARD_SELECTING }
 
 # Safe audio/VFX helper functions
 func _play_audio(method: String, args: Array = []) -> void:
@@ -25,6 +25,12 @@ var is_casting: bool = false
 var queued_card_visuals: Array = []  # Flying card visuals for queued cards
 
 var _pending_dig: Dictionary = {}
+
+# Card selection state (Reshuffle / Scrapyard Overflow)
+var _card_select_mode: String = ""  # "reshuffle" or "scrapyard_discard"
+var _card_select_picks: Array = []  # Selected Card instances
+var _card_select_required: int = -1  # -1 = any amount, >0 = exact count required
+var _card_select_source: Hero = null  # Hero who cast the skill
 
 # HP snapshot for Temporal Shift (Nyra EX) — stores HP at start of each player turn
 # Format: { instance_id: { "hp": int, "was_dead": bool } }
@@ -363,11 +369,17 @@ var rps_minigame_scene = preload("res://scenes/battle/rps_minigame.tscn")
 var player_goes_first: bool = true
 
 func _start_rps_minigame() -> void:
-	# Both single player and multiplayer use RPS minigame
+	# Training mode: skip RPS, use chosen turn order
+	if not is_multiplayer:
+		var player_first = HeroDatabase.training_player_first
+		print("Battle: Training mode — skipping RPS, player_first = ", player_first)
+		_on_rps_finished(player_first)
+		return
+	
+	# Multiplayer: use RPS minigame
 	var rps = rps_minigame_scene.instantiate()
 	
-	if is_multiplayer and network_manager:
-		# Setup multiplayer mode for RPS
+	if network_manager:
 		rps.setup_multiplayer(network_manager, is_host)
 		print("Battle: Starting multiplayer RPS minigame")
 	
@@ -392,6 +404,11 @@ func _start_mulligan() -> void:
 	end_turn_button.visible = false
 
 func _on_mulligan_confirm() -> void:
+	# Also handle card selection confirm (Reshuffle / Scrapyard Overflow)
+	if current_phase == BattlePhase.CARD_SELECTING:
+		_confirm_card_select()
+		return
+	
 	var cards_to_replace = []
 	var cards_to_animate_out = []
 	
@@ -575,7 +592,10 @@ func _on_deck_shuffled() -> void:
 	shuffle_tween.tween_callback(_update_deck_display)
 
 func _on_card_clicked(card: Card) -> void:
-	if current_phase == BattlePhase.MULLIGAN:
+	if current_phase == BattlePhase.CARD_SELECTING:
+		_toggle_card_select(card)
+		return
+	elif current_phase == BattlePhase.MULLIGAN:
 		_toggle_mulligan_selection(card)
 	elif current_phase == BattlePhase.PLAYING and GameManager.is_player_turn:
 		# Only allow playing cards during player's turn
@@ -625,6 +645,110 @@ func _toggle_mulligan_selection(card: Card) -> void:
 	else:
 		mulligan_selections.append(card)
 		card.set_selected(true)
+
+func _toggle_card_select(card: Card) -> void:
+	if card in _card_select_picks:
+		_card_select_picks.erase(card)
+		card.set_selected(false)
+	else:
+		# If exact count required and already at limit, don't allow more
+		if _card_select_required > 0 and _card_select_picks.size() >= _card_select_required:
+			return
+		_card_select_picks.append(card)
+		card.set_selected(true)
+	# Update confirm button text
+	var count = _card_select_picks.size()
+	if _card_select_mode == "reshuffle":
+		if turn_indicator:
+			turn_indicator.text = "RESHUFFLE: Select cards to return (" + str(count) + " selected)\nClick Confirm when ready"
+	elif _card_select_mode == "scrapyard_discard":
+		if turn_indicator:
+			turn_indicator.text = "DISCARD: Select " + str(_card_select_required) + " cards (" + str(count) + "/" + str(_card_select_required) + ")\nClick Confirm when ready"
+
+func _start_card_select(mode: String, required: int, source: Hero) -> void:
+	_card_select_mode = mode
+	_card_select_picks.clear()
+	_card_select_required = required
+	_card_select_source = source
+	current_phase = BattlePhase.CARD_SELECTING
+	# Make all cards in hand interactable
+	for child in hand_container.get_children():
+		if child is Card:
+			child.can_interact = true
+	# Show mulligan panel as confirm button
+	mulligan_panel.visible = true
+	if mulligan_button:
+		mulligan_button.text = "Confirm"
+	if mode == "reshuffle":
+		if turn_indicator:
+			turn_indicator.text = "RESHUFFLE: Select cards to return (0 selected)\nClick Confirm when ready"
+	elif mode == "scrapyard_discard":
+		if turn_indicator:
+			turn_indicator.text = "DISCARD: Select " + str(required) + " cards (0/" + str(required) + ")\nClick Confirm when ready"
+
+func _confirm_card_select() -> void:
+	if _card_select_mode == "scrapyard_discard" and _card_select_required > 0:
+		if _card_select_picks.size() != _card_select_required:
+			print("[Card Select] Must select exactly " + str(_card_select_required) + " cards")
+			return
+	
+	var selected_cards: Array = []
+	for card in _card_select_picks:
+		selected_cards.append(card.card_data)
+	
+	mulligan_panel.visible = false
+	if mulligan_button:
+		mulligan_button.text = "Confirm"
+	
+	if _card_select_mode == "reshuffle":
+		_execute_reshuffle(selected_cards)
+	elif _card_select_mode == "scrapyard_discard":
+		_execute_scrapyard_discard(selected_cards)
+	
+	_card_select_mode = ""
+	_card_select_picks.clear()
+	_card_select_required = -1
+	_card_select_source = null
+	current_phase = BattlePhase.PLAYING
+	_refresh_hand()
+
+func _execute_reshuffle(cards_to_return: Array) -> void:
+	var count = cards_to_return.size()
+	if count == 0:
+		print("[Reshuffle] No cards selected — nothing to reshuffle")
+		return
+	# Remove selected cards from hand and put back in deck
+	for card_data in cards_to_return:
+		var idx = -1
+		for i in range(GameManager.hand.size()):
+			if GameManager.hand[i].get("id", "") == card_data.get("id", "") and GameManager.hand[i] == card_data:
+				idx = i
+				break
+		if idx >= 0:
+			GameManager.hand.remove_at(idx)
+			GameManager.deck.append(card_data)
+	# Shuffle deck
+	GameManager.deck.shuffle()
+	# Draw same amount
+	GameManager.draw_cards(count)
+	_refresh_hand(true)
+	_update_deck_display()
+	print("[Reshuffle] Returned " + str(count) + " cards to deck, drew " + str(count) + " new cards")
+
+func _execute_scrapyard_discard(cards_to_discard: Array) -> void:
+	for card_data in cards_to_discard:
+		var idx = -1
+		for i in range(GameManager.hand.size()):
+			if GameManager.hand[i].get("id", "") == card_data.get("id", "") and GameManager.hand[i] == card_data:
+				idx = i
+				break
+		if idx >= 0:
+			var removed = GameManager.hand[idx]
+			GameManager.hand.remove_at(idx)
+			GameManager.discard_pile.append(removed)
+	_refresh_hand(true)
+	_update_deck_display()
+	print("[Scrapyard Overflow] Discarded " + str(cards_to_discard.size()) + " cards")
 
 func _add_card_to_stack(card: Card) -> void:
 	var card_id = card.card_data.get("id", "")
@@ -1713,6 +1837,12 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 				atk_mult *= float(mana_spent)  # X × 100% ATK
 				print("[Mana Surge] Spent " + str(mana_spent) + " mana, dealing " + str(int(base_atk * atk_mult * damage_mult)) + " damage")
 			
+			# Card Barrage: damage scales with number of cards in hand
+			if card_data.get("hand_size_scaling", false):
+				var hand_count = GameManager.hand.size()
+				atk_mult *= float(hand_count)
+				print("[Card Barrage] Hand size " + str(hand_count) + " × " + str(card_data.get("atk_multiplier", 0.5)) + " ATK = " + str(int(base_atk * atk_mult * damage_mult)) + " damage")
+			
 			var damage = int(base_atk * atk_mult * damage_mult)
 			if damage == 0:
 				damage = 10
@@ -2402,6 +2532,15 @@ func _find_redirect_target(hero: Hero) -> Hero:
 			return ally
 	return null
 
+func _get_damage_link_allies(hero: Hero) -> Array:
+	# Returns all alive allies on the same team that have the damage_link buff
+	var team = player_heroes if hero.is_player_hero else enemy_heroes
+	var linked = []
+	for ally in team:
+		if not ally.is_dead and ally.has_buff("damage_link"):
+			linked.append(ally)
+	return linked
+
 func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 	if source == null or not is_instance_valid(source):
 		target.take_damage(damage, null)
@@ -2444,9 +2583,24 @@ func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 		redirect_hero.play_hit_anim()
 		print("[Redirect] " + str(redirected) + " damage transferred from " + target.hero_data.get("name", "") + " to " + redirect_hero.hero_data.get("name", ""))
 	
-	# Then apply damage and hit animation
-	target.take_damage(final_damage, source)
-	target.play_hit_anim()
+	# Damage Link: split damage among all linked allies
+	if target.has_buff("damage_link"):
+		var linked = _get_damage_link_allies(target)
+		if linked.size() > 1:
+			var split = int(final_damage / linked.size())
+			var remainder = final_damage - (split * linked.size())
+			for ally in linked:
+				var ally_share = split + (remainder if ally == target else 0)
+				ally.take_damage(ally_share, source)
+				ally.play_hit_anim()
+			print("[Damage Link] " + str(final_damage) + " damage split among " + str(linked.size()) + " linked allies (" + str(split) + " each)")
+		else:
+			target.take_damage(final_damage, source)
+			target.play_hit_anim()
+	else:
+		# Normal damage
+		target.take_damage(final_damage, source)
+		target.play_hit_anim()
 	
 	# Play sound and flash (damage number already spawned by take_damage)
 	if target.sprite:
@@ -2544,9 +2698,24 @@ func _animate_cast(source: Hero, target: Hero, damage: int) -> void:
 		redirect_hero.play_hit_anim()
 		print("[Redirect] " + str(redirected) + " damage transferred from " + target.hero_data.get("name", "") + " to " + redirect_hero.hero_data.get("name", ""))
 	
-	# Apply damage
-	target.take_damage(final_damage, source)
-	target.play_hit_anim()
+	# Damage Link: split damage among all linked allies
+	if target.has_buff("damage_link"):
+		var linked = _get_damage_link_allies(target)
+		if linked.size() > 1:
+			var split = int(final_damage / linked.size())
+			var remainder = final_damage - (split * linked.size())
+			for ally in linked:
+				var ally_share = split + (remainder if ally == target else 0)
+				ally.take_damage(ally_share, source)
+				ally.play_hit_anim()
+			print("[Damage Link] " + str(final_damage) + " damage split among " + str(linked.size()) + " linked allies (" + str(split) + " each)")
+		else:
+			target.take_damage(final_damage, source)
+			target.play_hit_anim()
+	else:
+		# Normal damage
+		target.take_damage(final_damage, source)
+		target.play_hit_anim()
 	
 	# Trigger on_damage_dealt equipment effects
 	_trigger_equipment_effects(source, "on_damage_dealt", {"damage": final_damage, "target": target})
@@ -2700,7 +2869,7 @@ func _use_ex_skill(hero: Hero) -> void:
 			network_manager.send_action_result(ex_result)
 		else:
 			_execute_ex_skill(hero, hero)
-	elif ex_type == "thunder_all" or ex_type == "generate_cards" or ex_type == "temporal_shift" or ex_type == "shield_all" or _is_aoe_ex(hero):
+	elif ex_type == "thunder_all" or ex_type == "generate_cards" or ex_type == "temporal_shift" or ex_type == "shield_all" or ex_type == "scrapyard_overflow" or ex_type == "damage_link" or _is_aoe_ex(hero):
 		# No-targeting EX skills (thunder_all, generate_cards, temporal_shift, AoE damage) - execute immediately
 		if is_multiplayer and network_manager and not is_host:
 			# GUEST: Send EX skill request to Host
@@ -2866,6 +3035,46 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 				_apply_temporal_shift(allies)
 				done = true
 		)
+	elif ex_type == "damage_link":
+		# Ysolde's Thread of Life: Link all allies (share damage) + apply regen to all
+		var allies = player_heroes if hero.is_player_hero else enemy_heroes
+		var regen_hp_pct = ex_data.get("regen_hp_pct", 0.10)
+		hero.play_ex_skill_anim(func():
+			if not done:
+				if VFX and hero.sprite:
+					var sprite_center = hero.sprite.global_position + hero.sprite.size / 2
+					VFX.spawn_energy_burst(sprite_center, Color(0.9, 0.85, 0.5))
+				for ally in allies:
+					if not ally.is_dead:
+						# Apply damage link buff
+						ally.apply_buff("damage_link", 1, 0, "opponent_turn_end")
+						# Apply regen based on target's max HP
+						var regen_amount = int(ally.max_hp * regen_hp_pct)
+						ally.apply_buff("regen", -1, regen_amount * 2, "permanent")
+						if VFX and ally.sprite:
+							var sc = ally.sprite.global_position + ally.sprite.size / 2
+							VFX.spawn_heal_effect(sc)
+				print("[Thread of Life] All allies linked + regen applied")
+				done = true
+		)
+	elif ex_type == "scrapyard_overflow":
+		# Scrap's Scrapyard Overflow: Draw 3 cards, then player chooses 2 to discard
+		var draw_count = int(ex_data.get("draw_count", 3))
+		var discard_count = int(ex_data.get("discard_count", 2))
+		hero.play_ex_skill_anim(func():
+			if not done:
+				if VFX and hero.sprite:
+					var sprite_center = hero.sprite.global_position + hero.sprite.size / 2
+					VFX.spawn_energy_burst(sprite_center, Color(0.6, 0.2, 1.0))
+				# Draw cards first
+				GameManager.draw_cards(draw_count)
+				_refresh_hand(true)
+				_update_deck_display()
+				print("[Scrapyard Overflow] Drew " + str(draw_count) + " cards — now select " + str(discard_count) + " to discard")
+				# Enter card selection mode to discard
+				_start_card_select("scrapyard_discard", discard_count, hero)
+				done = true
+		)
 	elif ex_type == "shield_all":
 		# Kalasag's Tidal Bulwark: Grant Shield to all allies
 		var allies = player_heroes if hero.is_player_hero else enemy_heroes
@@ -2893,6 +3102,7 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 		var damage_mult = hero.get_damage_multiplier()  # Apply weak/empower
 		var damage = int(base_atk * atk_mult * damage_mult * eclipse_mult)
 		var effects = ex_data.get("effects", [])
+		var ex_ignore_shield = ex_data.get("ignore_shield", false)
 		# Check if this EX is AoE (all_enemy) by reading the ex_card target
 		var ex_card_id = hero.hero_data.get("ex_card", "")
 		var ex_card_target = CardDatabase.get_card(ex_card_id).get("target", "single_enemy") if not ex_card_id.is_empty() else "single_enemy"
@@ -2907,7 +3117,7 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 						if VFX and enemy.sprite:
 							var sprite_center = enemy.sprite.global_position + enemy.sprite.size / 2
 							VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.5, 0.2))
-						enemy.take_damage(damage, hero)
+						enemy.take_damage(damage, hero, ex_ignore_shield)
 						enemy.play_hit_anim()
 						_apply_effects(effects, hero, enemy, base_atk)
 				else:
@@ -2915,7 +3125,9 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 					if VFX and target.sprite:
 						var sprite_center = target.sprite.global_position + target.sprite.size / 2
 						VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.5, 0.2))
-					target.take_damage(damage, hero)
+					target.take_damage(damage, hero, ex_ignore_shield)
+					if ex_ignore_shield:
+						print("[Storm Lance] Bypassed shield! " + str(damage) + " damage straight to HP")
 					target.play_hit_anim()
 					_apply_effects(effects, hero, target, base_atk)
 				done = true
@@ -3037,8 +3249,10 @@ func _generate_temporary_cards(card_id: String, count: int, source_hero: Hero) -
 func _get_buff_expire_on(buff_type: String) -> String:
 	## Returns the correct expire_on for a given buff type.
 	match buff_type:
-		"empower":
+		"empower", "empower_heal", "empower_shield":
 			return "own_turn_end"
+		"damage_link":
+			return "opponent_turn_end"
 		"taunt":
 			return "opponent_turn_end"
 		"regen":
@@ -3537,6 +3751,60 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 					"duration": 1,
 					"expire_on": _get_buff_expire_on("empower")
 				})
+			"empower_heal":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "empower_heal",
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on("empower_heal")
+				})
+			"empower_heal_all":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "empower_heal",
+					"target": "allies",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on("empower_heal")
+				})
+			"empower_shield":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "empower_shield",
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on("empower_shield")
+				})
+			"empower_shield_all":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "empower_shield",
+					"target": "allies",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on("empower_shield")
+				})
+			"regen_draw":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "regen_draw",
+					"target": "primary",
+					"stacks": 1,
+					"duration": -1,
+					"expire_on": "permanent"
+				})
+			"damage_link_all":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "damage_link",
+					"target": "allies",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": _get_buff_expire_on("damage_link")
+				})
 			"thunder_all":
 				specs.append({
 					"type": EFFECT_APPLY_DEBUFF,
@@ -3654,6 +3922,11 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 					"duration": 1,
 					"expire_on": "opponent_turn_end"
 				})
+			"reshuffle":
+				specs.append({
+					"type": "reshuffle",
+					"target": "source"
+				})
 			"redirect":
 				specs.append({
 					"type": EFFECT_APPLY_BUFF,
@@ -3764,6 +4037,32 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 				for ally in allies:
 					if not ally.is_dead:
 						ally.apply_buff("empower", 1, source_atk, "own_turn_end")
+			"empower_heal":
+				if source and not source.is_dead:
+					source.apply_buff("empower_heal", 1, source_atk, "own_turn_end")
+			"empower_heal_all":
+				var allies = player_heroes if source.is_player_hero else enemy_heroes
+				for ally in allies:
+					if not ally.is_dead:
+						ally.apply_buff("empower_heal", 1, source_atk, "own_turn_end")
+			"empower_shield":
+				if source and not source.is_dead:
+					source.apply_buff("empower_shield", 1, source_atk, "own_turn_end")
+			"empower_shield_all":
+				var allies = player_heroes if source.is_player_hero else enemy_heroes
+				for ally in allies:
+					if not ally.is_dead:
+						ally.apply_buff("empower_shield", 1, source_atk, "own_turn_end")
+			"regen_draw":
+				if target and not target.is_dead:
+					target.apply_buff("regen_draw", -1, source_atk, "permanent")
+					print(target.hero_data.get("name", "Hero") + " gained Regen+ (heal + draw)")
+			"damage_link_all":
+				var allies = player_heroes if source.is_player_hero else enemy_heroes
+				for ally in allies:
+					if not ally.is_dead:
+						ally.apply_buff("damage_link", 1, 0, "opponent_turn_end")
+				print("[Damage Link] All allies linked — damage will be shared during opponent's turn")
 			"taunt":
 				if source and not source.is_dead:
 					# Remove taunt from all other allies first
@@ -3886,6 +4185,11 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 				if target and not target.is_dead:
 					target.apply_debuff("time_bomb", 1, source_atk, "opponent_turn_end")
 					print(target.hero_data.get("name", "Hero") + " has a Time Bomb! Detonates at end of opponent's turn")
+			"reshuffle":
+				# Scrap SK2: Enter card selection mode — player picks cards to return to deck, then draws same amount
+				if source and not source.is_dead:
+					_start_card_select("reshuffle", -1, source)
+					print(source.hero_data.get("name", "Hero") + " casting Reshuffle — select cards to return")
 			"redirect":
 				# Kalasag SK1: Apply redirect buff to target ally (50% damage transferred to Kalasag)
 				if target and not target.is_dead:
@@ -4229,22 +4533,46 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 	# Check for EX skills — use strategically (not always immediately)
 	for enemy in non_stunned_enemies:
 		if enemy.energy >= enemy.max_energy:
-			# Find best target for EX
 			var ex_data = enemy.hero_data.get("ex_skill", {})
-			var ex_target = _ai_get_best_target(alive_players, "damage", ex_data)
+			var ex_type = ex_data.get("type", "damage")
+			
+			# Determine EX target based on type
+			var ex_target: Hero = null
+			var is_support_ex = ex_type in ["self_buff", "shield_all", "damage_link", "temporal_shift", "revive", "scrapyard_overflow", "thunder_all", "generate_cards"]
+			
+			if is_support_ex:
+				# Support/utility EX: target self or allies
+				ex_target = enemy
+			else:
+				# Damage EX: target enemy player
+				ex_target = _ai_get_best_target(alive_players, "damage", ex_data)
+			
 			if ex_target:
 				# Use EX strategically — don't always fire immediately
 				var should_ex = false
-				if ex_target.has_debuff("break"):
-					should_ex = true  # Amplified damage on broken target
-				elif ex_target.current_hp < ex_target.max_hp * 0.35:
-					should_ex = true  # Likely kill — secure it
-				elif alive_players.size() >= 3 and mana >= 2:
-					should_ex = true  # Good value with follow-up mana
-				elif mana <= 1:
-					should_ex = true  # No mana for cards, use free EX
-				elif alive_enemies.size() <= 1:
-					should_ex = true  # Last hero standing, go all out
+				if is_support_ex:
+					# Support EX: use when allies need help or proactively
+					var any_low_hp = alive_enemies.any(func(e): return float(e.current_hp) / float(max(e.max_hp, 1)) < 0.5)
+					if any_low_hp:
+						should_ex = true  # Allies need healing/protection
+					elif alive_enemies.size() >= 2 and mana <= 1:
+						should_ex = true  # Good value, no mana for cards
+					elif alive_enemies.size() <= 1:
+						should_ex = true  # Last hero, use everything
+					elif mana <= 1:
+						should_ex = true  # No mana, use free EX
+				else:
+					# Damage EX: use when high value
+					if ex_target.has_debuff("break"):
+						should_ex = true  # Amplified damage on broken target
+					elif ex_target.current_hp < ex_target.max_hp * 0.35:
+						should_ex = true  # Likely kill — secure it
+					elif alive_players.size() >= 3 and mana >= 2:
+						should_ex = true  # Good value with follow-up mana
+					elif mana <= 1:
+						should_ex = true  # No mana for cards, use free EX
+					elif alive_enemies.size() <= 1:
+						should_ex = true  # Last hero standing, go all out
 				# Otherwise hold EX — save for a better moment
 				
 				if should_ex:
@@ -4344,15 +4672,25 @@ func _ai_get_card_priority(card: Dictionary, players: Array, enemies: Array, man
 		var effects = card.get("effects", [])
 		for eff in effects:
 			var eff_type = eff.get("type", "") if eff is Dictionary else str(eff)
-			if eff_type == "apply_empower":
+			if eff_type == "apply_empower" or eff_type == "empower" or eff_type == "empower_all":
 				priority += 20  # Empower before attacks = huge value
-			elif eff_type == "apply_taunt":
+			elif eff_type == "empower_heal_all" or eff_type == "empower_heal":
+				# Empower Heal: valuable when allies have regen or will heal
+				var any_damaged = enemies.any(func(e): return float(e.current_hp) / float(max(e.max_hp, 1)) < 0.7)
+				priority += 18 if any_damaged else 8
+			elif eff_type == "empower_shield_all" or eff_type == "empower_shield":
+				priority += 15  # Empower Shield: decent setup
+			elif eff_type == "apply_taunt" or eff_type == "taunt":
 				# Taunt is valuable if we have a high-HP tank
 				var has_tank = enemies.any(func(e): return e.hero_data.get("role", "") == "tank")
 				if has_tank:
 					priority += 15
-			elif eff_type == "apply_break" or eff_type == "apply_weak":
+			elif eff_type == "apply_break" or eff_type == "apply_weak" or eff_type == "break" or eff_type == "weak":
 				priority += 18  # Debuffs on enemies before attacking
+			elif eff_type == "redirect":
+				priority += 12  # Redirect is situationally good
+			elif eff_type == "reshuffle":
+				priority += 5  # Low priority for AI (hand management is less useful)
 		# Shield value scales with how damaged allies are
 		var has_shield = card.get("base_shield", 0) > 0 or card.get("shield_multiplier", 0.0) > 0 or card.get("def_multiplier", 0.0) > 0
 		if has_shield:
@@ -4396,6 +4734,14 @@ func _ai_get_card_priority(card: Dictionary, players: Array, enemies: Array, man
 		if target_type == "all_ally":
 			var damaged_count = enemies.filter(func(e): return float(e.current_hp) / float(max(e.max_hp, 1)) < 0.7).size()
 			priority += damaged_count * 5
+		# Regen cards are preventive — always decent value
+		var heal_effects = card.get("effects", [])
+		for eff in heal_effects:
+			var eff_type = eff.get("type", "") if eff is Dictionary else str(eff)
+			if eff_type == "regen":
+				priority += 10  # Regen is always useful
+			elif eff_type == "regen_draw":
+				priority += 15  # Regen + draw is high value
 	
 	elif card_type == "energy":
 		priority += 15
@@ -4458,6 +4804,15 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 		return best_target
 	
 	elif action_type == "heal":
+		# Check if this heal card has regen/regen_draw effects (preventive — always useful)
+		var heal_effects = card.get("effects", [])
+		var has_regen = false
+		for eff in heal_effects:
+			var eff_type = eff.get("type", "") if eff is Dictionary else str(eff)
+			if eff_type in ["regen", "regen_draw"]:
+				has_regen = true
+				break
+		
 		# Heal the most damaged ally (by HP%)
 		var best = targets[0]
 		var lowest_pct = 999.0
@@ -4466,6 +4821,9 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 			if hp_pct < lowest_pct:
 				lowest_pct = hp_pct
 				best = t
+		# Don't skip regen cards — they're preventive buffs, always useful
+		if has_regen:
+			return best
 		# Don't heal if everyone is above 90%
 		if lowest_pct > 0.9:
 			return null
@@ -4474,20 +4832,38 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 	elif action_type == "buff":
 		var buff_effects = card.get("effects", [])
 		var has_empower = false
+		var has_empower_heal = false
 		var has_shield = card.get("base_shield", 0) > 0 or card.get("def_multiplier", 0.0) > 0 or card.get("shield_multiplier", 0.0) > 0
 		var has_taunt_buff = false
+		var is_all_ally = card.get("target", "") == "all_ally"
 		for eff in buff_effects:
 			var eff_type = eff.get("type", "") if eff is Dictionary else str(eff)
-			if eff_type == "apply_empower":
+			if eff_type in ["apply_empower", "empower", "empower_all"]:
 				has_empower = true
-			if eff_type == "apply_taunt":
+			if eff_type in ["empower_heal", "empower_heal_all"]:
+				has_empower_heal = true
+			if eff_type in ["apply_taunt", "taunt"]:
 				has_taunt_buff = true
+		
+		# AoE buffs: just return any alive ally (target doesn't matter for all_ally)
+		if is_all_ally:
+			return targets[0]
 		
 		if has_empower:
 			# Give empower to highest base_attack ally (DPS/mage)
 			var best = targets[0]
 			for t in targets:
 				if t.hero_data.get("base_attack", 0) > best.hero_data.get("base_attack", 0):
+					best = t
+			return best
+		elif has_empower_heal:
+			# Give empower heal to the support or most damaged ally
+			var best = targets[0]
+			var lowest_pct = 999.0
+			for t in targets:
+				var hp_pct = float(t.current_hp) / float(max(t.max_hp, 1))
+				if hp_pct < lowest_pct:
+					lowest_pct = hp_pct
 					best = t
 			return best
 		elif has_taunt_buff:
@@ -4518,36 +4894,12 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 	return targets[0]
 
 func _ai_use_ex_skill(attacker: Hero, target: Hero) -> void:
-	attacker.use_ex_skill()
+	# Use the full _execute_ex_skill which handles ALL EX types properly
+	# (damage, self_buff, thunder_all, shield_all, damage_link, temporal_shift, etc.)
+	await _execute_ex_skill(attacker, target)
 	
 	# Track EX skill usage for enemy
 	GameManager.add_ex_skill_used("enemy_" + attacker.hero_id)
-	
-	var ex_data = attacker.hero_data.get("ex_skill", {})
-	
-	# Play cut-in effect first (from right side for enemy)
-	await _play_ex_cutin(attacker, false)
-	
-	var ex_card = {
-		"name": ex_data.get("name", "EX Skill"),
-		"cost": 0,
-		"hero_color": attacker.get_color(),
-		"image": ex_data.get("image", "")
-	}
-	
-	await _show_card_display(ex_card)
-	
-	var base_atk = attacker.hero_data.get("base_attack", 10)
-	var atk_mult = ex_data.get("atk_multiplier", 2.0)
-	var damage_mult = attacker.get_damage_multiplier()
-	var damage = int(base_atk * atk_mult * damage_mult)
-	await _animate_attack(attacker, target, damage)
-	
-	# Process EX skill effects
-	var effects = ex_data.get("effects", [])
-	_apply_effects(effects, attacker, target, base_atk)
-	
-	await _hide_card_display()
 
 func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	# Remove card from enemy hand
@@ -4647,6 +4999,11 @@ func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 			target.add_block(shield_amount)
 			GameManager.add_shield_given(enemy_stat_id, shield_amount)
 	
+	# Apply card effects (regen, regen_draw, etc.)
+	var effects = card.get("effects", [])
+	if not effects.is_empty():
+		_apply_effects(effects, attacker, target, base_atk, card)
+	
 	await _hide_card_display()
 
 func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
@@ -4683,6 +5040,11 @@ func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
 		if shield > 0:
 			target.add_block(shield)
 			GameManager.add_shield_given(enemy_stat_id, shield)
+	
+	# Apply card effects (empower_heal_all, taunt, redirect, reshuffle, etc.)
+	var effects = card.get("effects", [])
+	if not effects.is_empty():
+		_apply_effects(effects, attacker, target, base_atk, card)
 	
 	await _hide_card_display()
 
@@ -6132,7 +6494,7 @@ func _collect_effects_snapshot(effects: Array, card_effects: Array, source: Hero
 				effects.append(op)
 	for effect_name in card_effects:
 		# Skip effects already emitted via registry above.
-		if str(effect_name) in ["stun", "weak", "bleed", "thunder", "break", "empower", "taunt", "cleanse", "cleanse_all", "dispel", "dispel_all", "empower_target", "empower_all", "thunder_all", "regen", "thunder_stack_2", "draw_1", "shield_current_hp", "penetrate", "mana_surge"]:
+		if str(effect_name) in ["stun", "weak", "bleed", "thunder", "break", "empower", "taunt", "cleanse", "cleanse_all", "dispel", "dispel_all", "empower_target", "empower_all", "empower_heal", "empower_heal_all", "empower_shield", "empower_shield_all", "regen_draw", "damage_link_all", "thunder_all", "regen", "thunder_stack_2", "draw_1", "shield_current_hp", "penetrate", "mana_surge"]:
 			continue
 		match effect_name:
 			_:
@@ -6166,8 +6528,8 @@ func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictio
 			"is_dead": h.is_dead
 		}
 	
-	# For self_buff, thunder_all, shield_all, temporal_shift — target may be source itself
-	if target == null and (ex_type == "self_buff" or ex_type == "thunder_all" or ex_type == "shield_all" or ex_type == "temporal_shift"):
+	# For self_buff, thunder_all, shield_all, temporal_shift, scrapyard_overflow, damage_link — target may be source itself
+	if target == null and (ex_type == "self_buff" or ex_type == "thunder_all" or ex_type == "shield_all" or ex_type == "temporal_shift" or ex_type == "scrapyard_overflow" or ex_type == "damage_link"):
 		target = source
 	
 	# Execute the EX skill (runs animation + applies effects on Host)

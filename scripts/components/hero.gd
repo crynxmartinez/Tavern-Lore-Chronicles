@@ -50,7 +50,11 @@ const BUFF_ICONS = {
 	"counter_100": "res://asset/buff debuff/Shield-0.webp",  # Counter 100% Reflect
 	"crescent_moon": "res://asset/buff debuff/cresent moon.webp",  # Nyxara Crescent Moon stacks
 	"eclipse_buff": "res://asset/buff debuff/eclipse.webp",  # Nyxara Eclipse (double EX damage)
-	"redirect": "res://asset/buff debuff/redirect.webp"  # Kalasag Redirect (50% damage transferred)
+	"redirect": "res://asset/buff debuff/redirect.webp",  # Kalasag Redirect (50% damage transferred)
+	"empower_heal": "res://asset/buff debuff/Empower.webp",  # Empower Heal (+50% healing)
+	"empower_shield": "res://asset/buff debuff/Empower.webp",  # Empower Shield (+50% shield)
+	"regen_draw": "res://asset/buff debuff/regen.webp",  # Regen + Draw 1 when fires
+	"damage_link": "res://asset/buff debuff/redirect.webp"  # Damage Link (share damage among linked allies)
 }
 
 const DEBUFF_ICONS = {
@@ -83,7 +87,11 @@ const BUFF_DESCRIPTIONS = {
 	"counter_100": {"name": "Counter+", "effect": "Reflects 100% of damage back to the attacker."},
 	"crescent_moon": {"name": "Crescent Moon", "effect": "At 4 stacks: consume all, fill EX gauge to max."},
 	"eclipse_buff": {"name": "Eclipse", "effect": "Next EX this turn deals double damage."},
-	"redirect": {"name": "Redirect", "effect": "50% of damage taken is transferred to Kalasag."}
+	"redirect": {"name": "Redirect", "effect": "50% of damage taken is transferred to Kalasag."},
+	"empower_heal": {"name": "Empower Heal", "effect": "+50% healing done."},
+	"empower_shield": {"name": "Empower Shield", "effect": "+50% shield given."},
+	"regen_draw": {"name": "Regen+", "effect": "Delayed heal at turn start + Draw 1 card."},
+	"damage_link": {"name": "Damage Link", "effect": "Damage taken is shared among all linked allies."}
 }
 
 const DEBUFF_DESCRIPTIONS = {
@@ -258,7 +266,7 @@ func calculate_shield(card_base_shield: int, def_mult: float) -> int:
 	## Shield = card_base + (DEF × def_multiplier)
 	return max(0, card_base_shield + int(get_def() * def_mult))
 
-func take_damage(amount: int, attacker: Hero = null) -> void:
+func take_damage(amount: int, attacker: Hero = null, ignore_shield: bool = false) -> void:
 	if is_dead:
 		return
 	
@@ -270,7 +278,7 @@ func take_damage(amount: int, attacker: Hero = null) -> void:
 	var actual_damage = modified_amount
 	var shield_absorbed = 0
 	var had_shield = block > 0
-	if block > 0:
+	if block > 0 and not ignore_shield:
 		if block >= modified_amount:
 			shield_absorbed = modified_amount
 			block -= modified_amount
@@ -334,8 +342,12 @@ func take_damage(amount: int, attacker: Hero = null) -> void:
 func heal(amount: int) -> void:
 	if is_dead:
 		return
-	var actual_heal = min(amount, max_hp - current_hp)
-	current_hp = min(max_hp, current_hp + amount)
+	# Empower Heal: +50% healing
+	var modified_amount = amount
+	if has_buff("empower_heal"):
+		modified_amount = int(amount * GameConstants.EMPOWER_HEAL_MULT)
+	var actual_heal = min(modified_amount, max_hp - current_hp)
+	current_hp = min(max_hp, current_hp + modified_amount)
 	
 	# Show heal effect
 	if actual_heal > 0:
@@ -375,8 +387,12 @@ func use_ex_skill() -> bool:
 	return true
 
 func add_block(amount: int) -> void:
+	# Empower Shield: +50% shield
+	var modified_amount = amount
+	if has_buff("empower_shield"):
+		modified_amount = int(amount * GameConstants.EMPOWER_SHIELD_MULT)
 	var had_no_shield = block == 0
-	block += amount
+	block += modified_amount
 	_update_ui()
 	
 	# Spawn shield sparkles effect
@@ -395,6 +411,17 @@ func on_turn_start() -> void:
 		if heal_amount > 0:
 			heal(heal_amount)
 		remove_buff("regen")
+	# Regen Draw: same as regen but also draws 1 card
+	if has_buff("regen_draw"):
+		var regen_draw_data = active_buffs["regen_draw"]
+		var heal_amount = regen_draw_data.get("heal_amount", 0)
+		if heal_amount > 0:
+			heal(heal_amount)
+		# Draw 1 card
+		if is_player_hero:
+			GameManager.draw_cards(1)
+			print(hero_data.get("name", "Hero") + " Regen+ drew 1 card!")
+		remove_buff("regen_draw")
 
 func on_turn_end() -> void:
 	# DEPRECATED - use on_own_turn_end() and on_opponent_turn_end() instead
@@ -459,21 +486,21 @@ func apply_buff(buff_name: String, duration: int = 1, source_atk: int = 10, expi
 	##   "" (empty) - uses legacy duration countdown (deprecated)
 	
 	# Regen stacks: each application adds heal_amount to existing total
-	if buff_name == "regen":
+	if buff_name == "regen" or buff_name == "regen_draw":
 		var new_heal = int(source_atk * GameConstants.REGEN_HEAL_MULT)
-		if active_buffs.has("regen"):
-			active_buffs["regen"]["heal_amount"] = active_buffs["regen"].get("heal_amount", 0) + new_heal
-			active_buffs["regen"]["source_atk"] = source_atk
+		if active_buffs.has(buff_name):
+			active_buffs[buff_name]["heal_amount"] = active_buffs[buff_name].get("heal_amount", 0) + new_heal
+			active_buffs[buff_name]["source_atk"] = source_atk
 		else:
-			active_buffs["regen"] = {
+			active_buffs[buff_name] = {
 				"duration": -1,
 				"expire_on": "permanent",
 				"source_atk": source_atk,
 				"heal_amount": new_heal,
-				"instance_id": _generate_buff_instance_id("regen")
+				"instance_id": _generate_buff_instance_id(buff_name)
 			}
 		_update_buff_icons()
-		print(hero_data.get("name", "Hero") + " gained regen (heal: " + str(active_buffs["regen"]["heal_amount"]) + ")")
+		print(hero_data.get("name", "Hero") + " gained " + buff_name + " (heal: " + str(active_buffs[buff_name]["heal_amount"]) + ")")
 		return
 	
 	var resolved_expire = expire_on

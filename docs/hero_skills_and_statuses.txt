@@ -480,6 +480,91 @@ Cards (cards.json):
 - kalasag_sk3: cost 2 | type attack | target single_enemy | atk_multiplier 1.3 | effects: weak | desc: Deal (130% ATK) damage to target enemy. Apply Weak.
 - kalasag_ex: cost -1 | type ex | target all_ally | base_shield 10 + DEF×3 | desc: Grant Shield (10 + DEF×3) to all allies.
 
+--------------------------------------------------------------------------------
+SCRAP (id: scrap) | color: violet | role: scientist
+Stats: max_hp=100 | base_attack=13 | base_def=2
+Attack Card: scrap_attack
+Skills: scrap_sk1, scrap_sk2, scrap_sk3
+EX Card: scrap_ex
+EX Skill (heroes.json):
+- name: Scrapyard Overflow
+- type: scrapyard_overflow
+- description: Draw 3 cards, then choose 2 to discard.
+
+New Mechanics:
+- Card Barrage (hand_size_scaling): Attack damage = ATK × atk_multiplier × number of cards in hand.
+  Checked in _resolve_card_effect via card_data.get("hand_size_scaling", false).
+- Reshuffle: Enters CARD_SELECTING phase. Player selects cards from hand to return to deck,
+  then draws the same number of new cards. Uses _start_card_select("reshuffle", -1, source).
+- Scrapyard Overflow (EX): Draws 3 cards, then enters CARD_SELECTING phase where player
+  must select exactly 2 cards to discard. Uses _start_card_select("scrapyard_discard", 2, hero).
+- CARD_SELECTING phase: New BattlePhase. Reuses mulligan panel confirm button.
+  Cards are toggled via _toggle_card_select(). Confirmed via _confirm_card_select().
+
+Cards (cards.json):
+- scrap_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- scrap_sk1: cost 3 | type attack | target single_enemy | atk_multiplier 0.5 | hand_size_scaling true | desc: Deal (ATK × 0.5 × cards in hand) damage to target enemy.
+- scrap_sk2: cost 2 | type buff | target self | effects: reshuffle | desc: Choose cards from your hand to return to your deck, then draw the same amount.
+- scrap_sk3: cost 2 | type attack | target front_enemy | atk_multiplier 1.3 | desc: Deal (130% ATK) damage to the front enemy.
+- scrap_ex: cost -1 | type ex | target self | draw_count 3, discard_count 2 | desc: Draw 3 cards, then choose 2 to discard.
+
+--------------------------------------------------------------------------------
+YSOLDE (id: ysolde) | color: green | role: support
+Stats: max_hp=130 | base_attack=10 | base_def=3
+Attack Card: ysolde_attack
+Skills: ysolde_sk1, ysolde_sk2, ysolde_sk3
+EX Card: ysolde_ex
+EX Skill (heroes.json):
+- name: Thread of Life
+- type: damage_link
+- regen_hp_pct: 0.10
+- description: Link all allies (share damage during opponent's turn). Apply Regen (10% max HP) to all.
+
+New Mechanics:
+- empower_heal: Buff. +50% healing done. Expires own_turn_end.
+  Implemented in Hero.heal() via has_buff("empower_heal") * GameConstants.EMPOWER_HEAL_MULT.
+- empower_shield: Buff. +50% shield given. Expires own_turn_end.
+  Implemented in Hero.add_block() via has_buff("empower_shield") * GameConstants.EMPOWER_SHIELD_MULT.
+- regen_draw: Buff. Same as regen (delayed heal at turn start) + draws 1 card when it fires.
+  Stacks like regen. Handled in Hero.on_turn_start().
+- damage_link: Buff. All linked allies share damage during opponent's turn.
+  When a linked ally takes damage, it's split evenly among all alive linked allies.
+  Expires opponent_turn_end. Implemented in _animate_attack and _animate_cast via _get_damage_link_allies().
+- Empower system rework: empower (dmg +50%), empower_heal (heal +50%), empower_shield (shield +50%).
+  All share same expiration (own_turn_end). Constants in GameConstants.
+
+Cards (cards.json):
+- ysolde_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- ysolde_sk1: cost 1 | type heal | target single_ally | effects: regen | desc: Apply Regen (10% max HP) to target ally.
+- ysolde_sk2: cost 1 | type buff | target all_ally | effects: empower_heal_all | desc: Apply Empower Heal to all allies (+50% healing).
+- ysolde_sk3: cost 2 | type heal | target single_ally | effects: regen_draw | desc: Apply Regen (10% max HP) + Draw 1 card when regen fires.
+- ysolde_ex: cost -1 | type ex | target all_ally | desc: Link all allies (share damage) + Regen (10% max HP) to all.
+
+--------------------------------------------------------------------------------
+DAX (id: dax) | color: red | role: dps
+Stats: max_hp=120 | base_attack=17 | base_def=0
+Attack Card: dax_attack
+Skills: dax_sk1, dax_sk2, dax_sk3
+EX Card: dax_ex
+EX Skill (heroes.json):
+- name: Storm Lance
+- type: damage (default)
+- atk_multiplier: 2.5
+- ignore_shield: true
+- description: Deal (250% ATK) damage to target enemy. Bypasses Shield.
+
+New Mechanic:
+- ignore_shield: EX damage bypasses target's block entirely. Damage goes straight to HP.
+  Implemented via ignore_shield parameter on Hero.take_damage(amount, attacker, ignore_shield).
+  Read from ex_data.get("ignore_shield", false) in _execute_ex_skill.
+
+Cards (cards.json):
+- dax_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- dax_sk1: cost 1 | type attack | target front_enemy | atk_multiplier 1.2 | desc: Deal (120% ATK) damage to the front enemy.
+- dax_sk2: cost 2 | type attack | target single_enemy | atk_multiplier 1.5 | desc: Deal (150% ATK) damage to target enemy.
+- dax_sk3: cost 3 | type attack | target all_enemy | atk_multiplier 0.8 | desc: Deal (80% ATK) damage to all enemies.
+- dax_ex: cost -1 | type ex | target single_enemy | atk_multiplier 2.5 | ignore_shield true | desc: Deal (250% ATK) damage to target enemy. Bypasses Shield.
+
 ================================================================================
 END
 ================================================================================

@@ -463,14 +463,12 @@
 	},
 	"scrap": {
 		"id": "scrap",
-		"name": "Scrap",
-		"color": "purple",
+		"name": "Scrap Oracle, Tomas Scrap Ibarra",
+		"color": "violet",
 		"role": "scientist",
-		"base_hp": 9,
-		"hp_multiplier": 11,
-		"max_hp": 99,
-		"base_attack": 15,
-		"base_def": 1,
+		"max_hp": 100,
+		"base_attack": 13,
+		"base_def": 2,
 		"portrait": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/idle.png",
 		"splash": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/splash.png",
 		"full_art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/splash.png",
@@ -487,22 +485,22 @@
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "scrap"}
 		],
 		"ex_skill": {
-			"name": "Scrapyard Barrage",
-			"description": "Deal (200% ATK) damage to all enemies.",
-			"atk_multiplier": 2.0,
+			"name": "Scrapyard Overflow",
+			"description": "Draw 3 cards, then choose 2 to discard.",
+			"type": "scrapyard_overflow",
+			"draw_count": 3,
+			"discard_count": 2,
 			"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/splash.png"
 		},
 		"ex_card": "scrap_ex",
 		"attack_card": "scrap_attack",
-		"cards": []
+		"cards": ["scrap_sk1", "scrap_sk2", "scrap_sk3"]
 	},
 	"dax": {
 		"id": "dax",
-		"name": "Dax",
+		"name": "Storm Lancer, Dax Aerwyn",
 		"color": "red",
 		"role": "dps",
-		"base_hp": 10,
-		"hp_multiplier": 12,
 		"max_hp": 120,
 		"base_attack": 17,
 		"base_def": 0,
@@ -523,23 +521,21 @@
 		],
 		"ex_skill": {
 			"name": "Storm Lance",
-			"description": "Deal (250% ATK) damage to target enemy. Apply Thunder (2 stacks).",
+			"description": "Deal (250% ATK) damage to target enemy. Bypasses Shield.",
 			"atk_multiplier": 2.5,
-			"effects": ["thunder_stack_2"],
+			"ignore_shield": true,
 			"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/splash.png"
 		},
 		"ex_card": "dax_ex",
 		"attack_card": "dax_attack",
-		"cards": []
+		"cards": ["dax_sk1", "dax_sk2", "dax_sk3"]
 	},
 	"ysolde": {
 		"id": "ysolde",
-		"name": "Ysolde",
+		"name": "Threadsaint, Sister Ysolde Mirelle",
 		"color": "green",
 		"role": "support",
-		"base_hp": 11,
-		"hp_multiplier": 13,
-		"max_hp": 143,
+		"max_hp": 130,
 		"base_attack": 10,
 		"base_def": 3,
 		"portrait": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/idle.png",
@@ -559,14 +555,14 @@
 		],
 		"ex_skill": {
 			"name": "Thread of Life",
-			"description": "Restore (30% max HP) to all allies. Cleanse all debuffs.",
-			"hp_multiplier": 0.30,
-			"effects": ["cleanse_all"],
+			"description": "Link all allies (share damage during opponent's turn). Apply Regen (10% max HP) to all allies.",
+			"type": "damage_link",
+			"regen_hp_pct": 0.10,
 			"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/splash.png"
 		},
 		"ex_card": "ysolde_ex",
 		"attack_card": "ysolde_attack",
-		"cards": []
+		"cards": ["ysolde_sk1", "ysolde_sk2", "ysolde_sk3"]
 	},
 	"valen": {
 		"id": "valen",

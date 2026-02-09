@@ -79,6 +79,10 @@ func set_hero_template(hero_id: String, template_id: String) -> void:
 # AI team for Train mode
 var ai_enemy_team: Array = []
 
+# Training mode settings
+var training_player_first: bool = true  # true = player goes first, false = AI goes first
+var training_custom_team: bool = false  # true = user picked enemy team, false = random
+
 # Role categories for smart draft
 const FRONTLINE_ROLES = ["tank", "dps"]
 const SUSTAIN_ROLES = ["support", "scientist", "mage"]

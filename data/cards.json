@@ -9,8 +9,8 @@
 		"target": "front_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Squire Knight, Joren Kydd/attack.png",
-		"image": "res://asset/Hero/Squire Knight, Joren Kydd/attack.png"
+		"art": "res://asset/Hero/Squire Knight, Joren Kydd/normal attack.png",
+		"image": "res://asset/Hero/Squire Knight, Joren Kydd/normal attack.png"
 	},
 	"squire_ex": {
 		"id": "squire_ex",
@@ -77,8 +77,8 @@
 		"target": "front_enemy",
 		"hero_color": "green",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Ms Priest, Sister Luciana Hale/attack.png",
-		"image": "res://asset/Hero/Ms Priest, Sister Luciana Hale/attack.png"
+		"art": "res://asset/Hero/Ms Priest, Sister Luciana Hale/normal attack.png",
+		"image": "res://asset/Hero/Ms Priest, Sister Luciana Hale/normal attack.png"
 	},
 	"priest_ex": {
 		"id": "priest_ex",
@@ -144,8 +144,8 @@
 		"target": "front_enemy",
 		"hero_color": "red",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/The Markswoman, Rhea Valen/attack.png",
-		"image": "res://asset/Hero/The Markswoman, Rhea Valen/attack.png"
+		"art": "res://asset/Hero/The Markswoman, Rhea Valen/normal attack.png",
+		"image": "res://asset/Hero/The Markswoman, Rhea Valen/normal attack.png"
 	},
 	"markswoman_ex": {
 		"id": "markswoman_ex",
@@ -209,8 +209,8 @@
 		"target": "front_enemy",
 		"hero_color": "purple",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/attack.png",
-		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/attack.png"
+		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/normal attack.png",
+		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/normal attack.png"
 	},
 	"dana_ex": {
 		"id": "dana_ex",
@@ -291,8 +291,8 @@
 		"target": "front_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/The Cow, Makash Barok/attack.png",
-		"image": "res://asset/Hero/The Cow, Makash Barok/attack.png"
+		"art": "res://asset/Hero/The Cow, Makash Barok/normal attack.png",
+		"image": "res://asset/Hero/The Cow, Makash Barok/normal attack.png"
 	},
 	"makash_ex": {
 		"id": "makash_ex",
@@ -359,8 +359,8 @@
 		"target": "front_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Stone Giant, Stony Granitefist/attack.png",
-		"image": "res://asset/Hero/Stone Giant, Stony Granitefist/attack.png"
+		"art": "res://asset/Hero/Stone Giant, Stony Granitefist/normal attack.png",
+		"image": "res://asset/Hero/Stone Giant, Stony Granitefist/normal attack.png"
 	},
 	"stony_ex": {
 		"id": "stony_ex",
@@ -425,8 +425,8 @@
 		"target": "front_enemy",
 		"hero_color": "blue",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Mage Prodigy, Caelum Veyr/attack.png",
-		"image": "res://asset/Hero/Mage Prodigy, Caelum Veyr/attack.png"
+		"art": "res://asset/Hero/Mage Prodigy, Caelum Veyr/normal attack.png",
+		"image": "res://asset/Hero/Mage Prodigy, Caelum Veyr/normal attack.png"
 	},
 	"caelum_ex": {
 		"id": "caelum_ex",
@@ -491,8 +491,8 @@
 		"target": "front_enemy",
 		"hero_color": "blue",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/The Eye of the Storm, Raizel Storme/attack.png",
-		"image": "res://asset/Hero/The Eye of the Storm, Raizel Storme/attack.png"
+		"art": "res://asset/Hero/The Eye of the Storm, Raizel Storme/normal attack.png",
+		"image": "res://asset/Hero/The Eye of the Storm, Raizel Storme/normal attack.png"
 	},
 	"raizel_ex": {
 		"id": "raizel_ex",
@@ -557,8 +557,8 @@
 		"target": "front_enemy",
 		"hero_color": "green",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/normal attack.png",
+		"image": "res://asset/Hero/Bayani Chanter, Elder Amihan Dalisay/normal attack.png"
 	},
 	"amihan_ex": {
 		"id": "amihan_ex",
@@ -624,8 +624,8 @@
 		"target": "front_enemy",
 		"hero_color": "red",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "",
-		"image": ""
+		"art": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/normal attack.png",
+		"image": "res://asset/Hero/Bloodmath Sorcerer, Valen Red Ledger Corvane/normal attack.png"
 	},
 	"valen_ex": {
 		"id": "valen_ex",
@@ -691,8 +691,8 @@
 		"target": "front_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/attack.png",
-		"image": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/attack.png"
+		"art": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/normal attack.png",
+		"image": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/normal attack.png"
 	},
 	"gavran_ex": {
 		"id": "gavran_ex",
@@ -756,8 +756,8 @@
 		"target": "front_enemy",
 		"hero_color": "red",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/attack.png",
-		"image": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/attack.png"
+		"art": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/normal attack.png",
+		"image": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/normal attack.png"
 	},
 	"cinder_ex": {
 		"id": "cinder_ex",
@@ -823,8 +823,8 @@
 		"target": "front_enemy",
 		"hero_color": "blue",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/attack.png",
-		"image": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/attack.png"
+		"art": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/normal attack.png",
+		"image": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/normal attack.png"
 	},
 	"nyxara_ex": {
 		"id": "nyxara_ex",
@@ -889,8 +889,8 @@
 		"target": "front_enemy",
 		"hero_color": "violet",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Hush Engineer, Nyra Sato/attack.png",
-		"image": "res://asset/Hero/Hush Engineer, Nyra Sato/attack.png"
+		"art": "res://asset/Hero/Hush Engineer, Nyra Sato/normal attack.png",
+		"image": "res://asset/Hero/Hush Engineer, Nyra Sato/normal attack.png"
 	},
 	"nyra_ex": {
 		"id": "nyra_ex",
@@ -953,8 +953,8 @@
 		"target": "front_enemy",
 		"hero_color": "yellow",
 		"description": "Deal (100% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png",
-		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png"
+		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/normal attack.png",
+		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/normal attack.png"
 	},
 	"kalasag_ex": {
 		"id": "kalasag_ex",
@@ -1012,5 +1012,204 @@
 		"description": "Deal (130% ATK) damage to target enemy. Apply Weak.",
 		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png",
 		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png"
+	},
+	"scrap_attack": {
+		"id": "scrap_attack",
+		"name": "Scrap Shot",
+		"cost": 0,
+		"type": "basic_attack",
+		"anim_type": "attack",
+		"atk_multiplier": 1.0,
+		"target": "front_enemy",
+		"hero_color": "violet",
+		"description": "Deal (100% ATK) damage to the front enemy.",
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/normal attack.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/normal attack.png"
+	},
+	"scrap_ex": {
+		"id": "scrap_ex",
+		"name": "Scrapyard Overflow",
+		"cost": -1,
+		"type": "ex",
+		"anim_type": "cast",
+		"target": "self",
+		"draw_count": 3,
+		"discard_count": 2,
+		"hero_color": "violet",
+		"description": "Draw 3 cards, then choose 2 to discard.",
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/splash.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/splash.png"
+	},
+	"scrap_sk1": {
+		"id": "scrap_sk1",
+		"name": "Card Barrage",
+		"cost": 3,
+		"type": "attack",
+		"anim_type": "attack",
+		"atk_multiplier": 0.5,
+		"hand_size_scaling": true,
+		"target": "single_enemy",
+		"hero_color": "violet",
+		"description": "Deal (ATK × 0.5 × cards in hand) damage to target enemy.",
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png"
+	},
+	"scrap_sk2": {
+		"id": "scrap_sk2",
+		"name": "Reshuffle",
+		"cost": 2,
+		"type": "buff",
+		"anim_type": "cast",
+		"target": "self",
+		"effects": ["reshuffle"],
+		"hero_color": "violet",
+		"description": "Choose cards from your hand to return to your deck, then draw the same amount.",
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/cast.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/cast.png"
+	},
+	"scrap_sk3": {
+		"id": "scrap_sk3",
+		"name": "Scrap Strike",
+		"cost": 2,
+		"type": "attack",
+		"anim_type": "attack",
+		"atk_multiplier": 1.3,
+		"target": "front_enemy",
+		"hero_color": "violet",
+		"description": "Deal (130% ATK) damage to the front enemy.",
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png"
+	},
+	"dax_attack": {
+		"id": "dax_attack",
+		"name": "Storm Thrust",
+		"cost": 0,
+		"type": "basic_attack",
+		"anim_type": "attack",
+		"atk_multiplier": 1.0,
+		"target": "front_enemy",
+		"hero_color": "red",
+		"description": "Deal (100% ATK) damage to the front enemy.",
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/normal attack.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/normal attack.png"
+	},
+	"dax_ex": {
+		"id": "dax_ex",
+		"name": "Storm Lance",
+		"cost": -1,
+		"type": "ex",
+		"anim_type": "attack",
+		"target": "single_enemy",
+		"atk_multiplier": 2.5,
+		"ignore_shield": true,
+		"hero_color": "red",
+		"description": "Deal (250% ATK) damage to target enemy. Bypasses Shield.",
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/splash.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/splash.png"
+	},
+	"dax_sk1": {
+		"id": "dax_sk1",
+		"name": "Lightning Surge",
+		"cost": 1,
+		"type": "attack",
+		"anim_type": "attack",
+		"atk_multiplier": 1.2,
+		"target": "front_enemy",
+		"hero_color": "red",
+		"description": "Deal (120% ATK) damage to the front enemy.",
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png"
+	},
+	"dax_sk2": {
+		"id": "dax_sk2",
+		"name": "Voltaic Pierce",
+		"cost": 2,
+		"type": "attack",
+		"anim_type": "attack",
+		"atk_multiplier": 1.5,
+		"target": "single_enemy",
+		"hero_color": "red",
+		"description": "Deal (150% ATK) damage to target enemy.",
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png"
+	},
+	"dax_sk3": {
+		"id": "dax_sk3",
+		"name": "Chain Lightning",
+		"cost": 3,
+		"type": "attack",
+		"anim_type": "attack",
+		"atk_multiplier": 0.8,
+		"target": "all_enemy",
+		"hero_color": "red",
+		"description": "Deal (80% ATK) damage to all enemies.",
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png"
+	},
+	"ysolde_attack": {
+		"id": "ysolde_attack",
+		"name": "Thread Lash",
+		"cost": 0,
+		"type": "basic_attack",
+		"anim_type": "attack",
+		"atk_multiplier": 1.0,
+		"target": "front_enemy",
+		"hero_color": "green",
+		"description": "Deal (100% ATK) damage to the front enemy.",
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/normal attack.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/normal attack.png"
+	},
+	"ysolde_ex": {
+		"id": "ysolde_ex",
+		"name": "Thread of Life",
+		"cost": -1,
+		"type": "ex",
+		"anim_type": "cast",
+		"target": "all_ally",
+		"hero_color": "green",
+		"description": "Link all allies (share damage during opponent's turn). Apply Regen (10% max HP) to all.",
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/splash.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/splash.png"
+	},
+	"ysolde_sk1": {
+		"id": "ysolde_sk1",
+		"name": "Mending Thread",
+		"cost": 1,
+		"type": "heal",
+		"anim_type": "cast",
+		"target": "single_ally",
+		"hp_multiplier": 0.10,
+		"effects": ["regen"],
+		"hero_color": "green",
+		"description": "Apply Regen to target ally (heals 10% max HP at start of your turn).",
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png"
+	},
+	"ysolde_sk2": {
+		"id": "ysolde_sk2",
+		"name": "Warsong Drum",
+		"cost": 1,
+		"type": "buff",
+		"anim_type": "cast",
+		"target": "all_ally",
+		"effects": ["empower_heal_all"],
+		"hero_color": "green",
+		"description": "Apply Empower Heal to all allies (+50% healing this turn).",
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png"
+	},
+	"ysolde_sk3": {
+		"id": "ysolde_sk3",
+		"name": "Lifeline Weave",
+		"cost": 2,
+		"type": "heal",
+		"anim_type": "cast",
+		"target": "single_ally",
+		"hp_multiplier": 0.10,
+		"effects": ["regen_draw"],
+		"hero_color": "green",
+		"description": "Apply Regen to target ally (heals 10% max HP at start of your turn) + Draw 1 card when regen fires.",
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png"
 	}
 }

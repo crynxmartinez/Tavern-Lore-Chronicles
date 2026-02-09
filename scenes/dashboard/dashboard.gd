@@ -105,13 +105,28 @@ func _on_find_match_pressed() -> void:
 		return
 	match current_mode:
 		GameMode.VS_AI:
-			HeroDatabase.generate_ai_team()
-			SceneTransition.change_scene("res://scenes/battle/vs_screen.tscn")
+			_open_training_setup()
 		GameMode.VS_NORMAL:
 			# Use ENet multiplayer lobby for testing
 			SceneTransition.change_scene("res://scenes/ui/multiplayer_lobby.tscn")
 		GameMode.VS_RANK:
 			_start_matchmaking("ranked")
+
+func _open_training_setup() -> void:
+	var training_setup_script = preload("res://scenes/dashboard/training_setup.gd")
+	var training_overlay = CanvasLayer.new()
+	training_overlay.set_script(training_setup_script)
+	training_overlay.training_confirmed.connect(_on_training_confirmed)
+	training_overlay.training_cancelled.connect(_on_training_cancelled)
+	add_child(training_overlay)
+
+func _on_training_confirmed(enemy_team: Array, player_first: bool) -> void:
+	HeroDatabase.ai_enemy_team = enemy_team
+	HeroDatabase.training_player_first = player_first
+	SceneTransition.change_scene("res://scenes/battle/vs_screen.tscn")
+
+func _on_training_cancelled() -> void:
+	pass
 
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint():

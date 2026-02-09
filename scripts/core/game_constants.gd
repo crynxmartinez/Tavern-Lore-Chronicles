@@ -27,6 +27,8 @@ const MAX_ENERGY: int = 100
 # DAMAGE MULTIPLIERS
 # ============================================
 const EMPOWER_DAMAGE_MULT: float = 1.5
+const EMPOWER_HEAL_MULT: float = 1.5
+const EMPOWER_SHIELD_MULT: float = 1.5
 const WEAK_DAMAGE_MULT: float = 0.5
 const BREAK_DAMAGE_MULT: float = 1.5
 

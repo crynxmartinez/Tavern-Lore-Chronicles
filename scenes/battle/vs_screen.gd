@@ -46,6 +46,23 @@ func _ready() -> void:
 	vs_label.modulate.a = 0
 	vs_label.scale = Vector2(3.0, 3.0)
 	
+	# Show turn order indicator for training mode
+	if not GameManager.get("is_multiplayer"):
+		var turn_label = Label.new()
+		if HeroDatabase.training_player_first:
+			turn_label.text = "YOU GO FIRST"
+			turn_label.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4))
+		else:
+			turn_label.text = "ENEMY GOES FIRST"
+			turn_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+		turn_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		turn_label.add_theme_font_size_override("font_size", 18)
+		turn_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		turn_label.position.y = -40
+		turn_label.modulate.a = 0
+		turn_label.name = "TurnOrderLabel"
+		add_child(turn_label)
+	
 	# Run entrance animation
 	await _play_entrance()
 
@@ -137,6 +154,13 @@ func _play_entrance() -> void:
 	e_tween.tween_property(enemy_side, "modulate:a", 1.0, 0.4)
 	e_tween.tween_property(enemy_side, "position:x", enemy_side.position.x - 200, 0.5)
 	await e_tween.finished
+	
+	# Fade in turn order label if present
+	var turn_order_label = get_node_or_null("TurnOrderLabel")
+	if turn_order_label:
+		var t_tween = create_tween().set_ease(Tween.EASE_OUT)
+		t_tween.tween_property(turn_order_label, "modulate:a", 1.0, 0.3)
+		await t_tween.finished
 	
 	# Hold for a moment
 	await get_tree().create_timer(1.5).timeout
