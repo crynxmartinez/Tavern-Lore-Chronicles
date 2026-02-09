@@ -26,6 +26,11 @@ var queued_card_visuals: Array = []  # Flying card visuals for queued cards
 
 var _pending_dig: Dictionary = {}
 
+# HP snapshot for Temporal Shift (Nyra EX) — stores HP at start of each player turn
+# Format: { instance_id: { "hp": int, "was_dead": bool } }
+var _hp_snapshot_last_turn: Dictionary = {}
+var _hp_snapshot_this_turn: Dictionary = {}
+
 @onready var hand_container: HBoxContainer = $HandArea/HandContainer
 @onready var mana_label: Label = $UI/ManaDisplay/ManaLabel
 @onready var deck_label: Label = $UI/DeckDisplay/DeckLabel
@@ -737,8 +742,14 @@ func _add_card_to_stack(card: Card) -> void:
 			GameManager.hand.remove_at(i)
 			break
 	
-	# Add to discard pile (skip temporary and equipment cards)
-	if not card.card_data.get("temporary", false) and card.card_data.get("type", "") != "equipment":
+	# Add to discard pile (skip temporary, equipment, and shuffle_to_deck cards)
+	if card.card_data.get("shuffle_to_deck", false):
+		# Shuffle back into deck instead of discard (e.g. Nyxara's Crescent Moon)
+		GameManager.deck.append(card.card_data.duplicate())
+		GameManager.deck.shuffle()
+		_update_deck_display()
+		print("[Shuffle to Deck] " + card.card_data.get("name", "Card") + " shuffled into deck")
+	elif not card.card_data.get("temporary", false) and card.card_data.get("type", "") != "equipment":
 		GameManager.discard_pile.append(card.card_data.duplicate())
 	
 	# Calculate stack position (0 = front, 1+ = behind)
@@ -2377,6 +2388,20 @@ func _animate_card_to_display(card: Card) -> void:
 	if is_instance_valid(card):
 		card.queue_free()
 
+func _find_redirect_target(hero: Hero) -> Hero:
+	# Check if hero has redirect buff and find the hero who should receive redirected damage
+	if not hero.has_buff("redirect"):
+		return null
+	var redirect_id = hero.get_meta("redirect_to", -1)
+	if redirect_id == -1:
+		return null
+	# Search in the same team
+	var team = player_heroes if hero.is_player_hero else enemy_heroes
+	for ally in team:
+		if ally.instance_id == redirect_id and not ally.is_dead:
+			return ally
+	return null
+
 func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 	if source == null or not is_instance_valid(source):
 		target.take_damage(damage, null)
@@ -2409,6 +2434,15 @@ func _animate_attack(source: Hero, target: Hero, damage: int) -> void:
 	if target_guardian > 0:
 		final_damage = max(1, final_damage - target_guardian)
 		print("[Guardian's Shield] " + target.hero_data.get("name", "") + " received " + str(target_guardian) + " less damage")
+	
+	# Redirect: transfer 50% of damage to the redirect target (Kalasag)
+	var redirect_hero = _find_redirect_target(target)
+	if redirect_hero and redirect_hero != target:
+		var redirected = int(final_damage * 0.5)
+		final_damage = final_damage - redirected
+		redirect_hero.take_damage(redirected, source)
+		redirect_hero.play_hit_anim()
+		print("[Redirect] " + str(redirected) + " damage transferred from " + target.hero_data.get("name", "") + " to " + redirect_hero.hero_data.get("name", ""))
 	
 	# Then apply damage and hit animation
 	target.take_damage(final_damage, source)
@@ -2500,6 +2534,15 @@ func _animate_cast(source: Hero, target: Hero, damage: int) -> void:
 	if target_guardian > 0:
 		final_damage = max(1, final_damage - target_guardian)
 		print("[Guardian's Shield] " + target.hero_data.get("name", "") + " received " + str(target_guardian) + " less damage")
+	
+	# Redirect: transfer 50% of damage to the redirect target (Kalasag)
+	var redirect_hero = _find_redirect_target(target)
+	if redirect_hero and redirect_hero != target:
+		var redirected = int(final_damage * 0.5)
+		final_damage = final_damage - redirected
+		redirect_hero.take_damage(redirected, source)
+		redirect_hero.play_hit_anim()
+		print("[Redirect] " + str(redirected) + " damage transferred from " + target.hero_data.get("name", "") + " to " + redirect_hero.hero_data.get("name", ""))
 	
 	# Apply damage
 	target.take_damage(final_damage, source)
@@ -2657,8 +2700,8 @@ func _use_ex_skill(hero: Hero) -> void:
 			network_manager.send_action_result(ex_result)
 		else:
 			_execute_ex_skill(hero, hero)
-	elif ex_type == "thunder_all" or ex_type == "generate_cards":
-		# No-targeting EX skills (thunder_all, generate_cards) - execute immediately
+	elif ex_type == "thunder_all" or ex_type == "generate_cards" or ex_type == "temporal_shift" or ex_type == "shield_all" or _is_aoe_ex(hero):
+		# No-targeting EX skills (thunder_all, generate_cards, temporal_shift, AoE damage) - execute immediately
 		if is_multiplayer and network_manager and not is_host:
 			# GUEST: Send EX skill request to Host
 			var request = {
@@ -2697,6 +2740,12 @@ func _use_ex_skill(hero: Hero) -> void:
 			_highlight_valid_targets(false)
 			if turn_indicator:
 				turn_indicator.text = "SELECT EX TARGET"
+
+func _is_aoe_ex(hero: Hero) -> bool:
+	var ex_card_id = hero.hero_data.get("ex_card", "")
+	if ex_card_id.is_empty():
+		return false
+	return CardDatabase.get_card(ex_card_id).get("target", "") == "all_enemy"
 
 var ex_cutin_scene = preload("res://scenes/effects/ex_cutin.tscn")
 
@@ -2740,6 +2789,13 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 	var elapsed = 0.0
 	
 	var base_atk = hero.hero_data.get("base_attack", 10)
+	
+	# Eclipse buff: double EX damage (base + 100% base), then consume
+	var eclipse_mult = 1.0
+	if hero.has_buff("eclipse_buff"):
+		eclipse_mult = 2.0
+		hero.remove_buff("eclipse_buff")
+		print(hero.hero_data.get("name", "Hero") + " Eclipse consumed! EX damage doubled!")
 	
 	if ex_type == "revive":
 		var hp_mult = ex_data.get("hp_multiplier", 0.0)
@@ -2799,21 +2855,69 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 				_generate_temporary_cards(gen_card_id, gen_count, hero)
 				done = true
 		)
+	elif ex_type == "temporal_shift":
+		# Nyra's Temporal Shift: Rewind all allies' HP to last turn snapshot + revive
+		var allies = player_heroes if hero.is_player_hero else enemy_heroes
+		hero.play_ex_skill_anim(func():
+			if not done:
+				if VFX and hero.sprite:
+					var sprite_center = hero.sprite.global_position + hero.sprite.size / 2
+					VFX.spawn_energy_burst(sprite_center, Color(0.2, 1.0, 0.8))
+				_apply_temporal_shift(allies)
+				done = true
+		)
+	elif ex_type == "shield_all":
+		# Kalasag's Tidal Bulwark: Grant Shield to all allies
+		var allies = player_heroes if hero.is_player_hero else enemy_heroes
+		var ex_base_shield = int(ex_data.get("base_shield", 10))
+		var ex_def_mult = float(ex_data.get("def_multiplier", 3.0))
+		var shield_amount = ex_base_shield + int(hero.get_def() * ex_def_mult)
+		hero.play_ex_skill_anim(func():
+			if not done:
+				if VFX and hero.sprite:
+					var sprite_center = hero.sprite.global_position + hero.sprite.size / 2
+					VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.85, 0.2))
+				for ally in allies:
+					if not ally.is_dead:
+						ally.block += shield_amount
+						ally._update_ui()
+						ally._show_shield_effect()
+						if VFX and ally.sprite:
+							var sc = ally.sprite.global_position + ally.sprite.size / 2
+							VFX.spawn_heal_effect(sc)
+						print("[Tidal Bulwark] " + ally.hero_data.get("name", "Hero") + " gained " + str(shield_amount) + " Shield")
+				done = true
+		)
 	else:
 		var atk_mult = ex_data.get("atk_multiplier", 2.0)
 		var damage_mult = hero.get_damage_multiplier()  # Apply weak/empower
-		var damage = int(base_atk * atk_mult * damage_mult)
+		var damage = int(base_atk * atk_mult * damage_mult * eclipse_mult)
 		var effects = ex_data.get("effects", [])
+		# Check if this EX is AoE (all_enemy) by reading the ex_card target
+		var ex_card_id = hero.hero_data.get("ex_card", "")
+		var ex_card_target = CardDatabase.get_card(ex_card_id).get("target", "single_enemy") if not ex_card_id.is_empty() else "single_enemy"
+		var is_aoe_ex = ex_card_target == "all_enemy"
 		hero.play_ex_skill_anim(func():
 			if not done:
-				# VFX Library: energy burst for EX damage on target sprite
-				if VFX and target.sprite:
-					var sprite_center = target.sprite.global_position + target.sprite.size / 2
-					VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.5, 0.2))
-				target.take_damage(damage, hero)
-				target.play_hit_anim()
-				# Apply effects immediately with damage (weak, penetrate, etc.)
-				_apply_effects(effects, hero, target, base_atk)
+				if is_aoe_ex:
+					# AoE EX: hit all enemies
+					var enemies = enemy_heroes if hero.is_player_hero else player_heroes
+					var alive = enemies.filter(func(h): return not h.is_dead)
+					for enemy in alive:
+						if VFX and enemy.sprite:
+							var sprite_center = enemy.sprite.global_position + enemy.sprite.size / 2
+							VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.5, 0.2))
+						enemy.take_damage(damage, hero)
+						enemy.play_hit_anim()
+						_apply_effects(effects, hero, enemy, base_atk)
+				else:
+					# Single-target EX
+					if VFX and target.sprite:
+						var sprite_center = target.sprite.global_position + target.sprite.size / 2
+						VFX.spawn_energy_burst(sprite_center, Color(1.0, 0.5, 0.2))
+					target.take_damage(damage, hero)
+					target.play_hit_anim()
+					_apply_effects(effects, hero, target, base_atk)
 				done = true
 		)
 	
@@ -2830,6 +2934,87 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 	if turn_indicator:
 		turn_indicator.text = "YOUR TURN"
 	_update_ui()
+
+func _apply_temporal_shift(allies: Array) -> void:
+	# Nyra EX: Rewind all allies' HP to last turn's snapshot. Revives dead allies.
+	var snapshot = _hp_snapshot_last_turn
+	if snapshot.is_empty():
+		# Fallback to this turn's snapshot if no last turn data (turn 1)
+		snapshot = _hp_snapshot_this_turn
+	if snapshot.is_empty():
+		print("[Temporal Shift] No HP snapshot available — nothing to rewind")
+		return
+	for ally in allies:
+		var snap = snapshot.get(ally.instance_id, {})
+		if snap.is_empty():
+			continue
+		var old_hp = int(snap.get("hp", ally.current_hp))
+		var was_dead = bool(snap.get("was_dead", false))
+		if was_dead:
+			# Don't revive heroes who were already dead last turn
+			continue
+		if ally.is_dead:
+			# Revive: they died this turn but were alive last turn
+			ally.revive(old_hp)
+			if VFX and ally.sprite:
+				var sc = ally.sprite.global_position + ally.sprite.size / 2
+				VFX.spawn_heal_effect(sc)
+			print("[Temporal Shift] " + ally.hero_data.get("name", "Hero") + " revived to " + str(old_hp) + " HP!")
+		elif ally.current_hp < old_hp:
+			# Heal back to snapshot HP
+			ally.current_hp = old_hp
+			ally._update_ui()
+			if VFX and ally.sprite:
+				var sc = ally.sprite.global_position + ally.sprite.size / 2
+				VFX.spawn_heal_effect(sc)
+			print("[Temporal Shift] " + ally.hero_data.get("name", "Hero") + " HP rewound to " + str(old_hp))
+		else:
+			print("[Temporal Shift] " + ally.hero_data.get("name", "Hero") + " HP unchanged (already >= snapshot)")
+
+func _detonate_time_bombs(heroes: Array, is_player_team: bool) -> void:
+	# Detonate time_bomb debuffs: 10 flat damage + remove 1 random card of that hero from opponent's hand
+	for hero in heroes:
+		if hero.is_dead:
+			continue
+		if not hero.has_debuff("time_bomb"):
+			continue
+		# Deal 10 flat damage
+		_apply_true_damage(hero, 10)
+		hero.play_hit_anim()
+		print("[Time Bomb] " + hero.hero_data.get("name", "Hero") + " took 10 damage!")
+		# Remove 1 random card belonging to this hero from the opponent's hand
+		# If bomb is on enemy hero → remove from enemy hand; if on player hero → remove from player hand
+		if is_player_team:
+			# Bomb on player hero: remove from player's hand
+			var matching_cards: Array = []
+			for i in range(GameManager.hand.size()):
+				var card = GameManager.hand[i]
+				if card.get("hero_id", "") == hero.hero_id or card.get("id", "").begins_with(hero.hero_id):
+					matching_cards.append(i)
+			if matching_cards.size() > 0:
+				var rand_idx = matching_cards[randi() % matching_cards.size()]
+				var removed = GameManager.hand[rand_idx]
+				GameManager.hand.remove_at(rand_idx)
+				_refresh_hand()
+				print("[Time Bomb] Removed " + removed.get("name", "card") + " from player hand!")
+			else:
+				print("[Time Bomb] No matching cards in player hand to remove")
+		else:
+			# Bomb on enemy hero: remove from enemy hand
+			var e_hand = GameManager.enemy_hand
+			var matching_cards: Array = []
+			for i in range(e_hand.size()):
+				var card = e_hand[i]
+				if card.get("hero_id", "") == hero.hero_id or card.get("id", "").begins_with(hero.hero_id):
+					matching_cards.append(i)
+			if matching_cards.size() > 0:
+				var rand_idx = matching_cards[randi() % matching_cards.size()]
+				var removed = e_hand[rand_idx]
+				GameManager.enemy_deck_manager.hand.remove_at(rand_idx)
+				_refresh_enemy_hand_display()
+				print("[Time Bomb] Removed " + removed.get("name", "card") + " from enemy hand!")
+			else:
+				print("[Time Bomb] No matching cards in enemy hand to remove")
 
 func _generate_temporary_cards(card_id: String, count: int, source_hero: Hero) -> void:
 	# Load the card template from cards.json and create temporary copies
@@ -3438,6 +3623,51 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 					"duration": 1,
 					"expire_on": "opponent_turn_end"
 				})
+			"crescent_moon":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "crescent_moon",
+					"target": "source",
+					"stacks": 1,
+					"duration": 0,
+					"expire_on": ""
+				})
+			"eclipse_buff":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "eclipse_buff",
+					"target": "source",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "own_turn_end"
+				})
+			"rewind":
+				specs.append({
+					"type": "rewind",
+					"target": "source"
+				})
+			"time_bomb":
+				specs.append({
+					"type": EFFECT_APPLY_DEBUFF,
+					"id": "time_bomb",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "opponent_turn_end"
+				})
+			"redirect":
+				specs.append({
+					"type": EFFECT_APPLY_BUFF,
+					"id": "redirect",
+					"target": "primary",
+					"stacks": 1,
+					"duration": 1,
+					"expire_on": "opponent_turn_end"
+				})
+			"shield_all":
+				specs.append({
+					"type": "shield_all",
+					"target": "all_ally"
+				})
 			_:
 				# Leave unknown effects as a passthrough for now to preserve compatibility.
 				specs.append({"type": name})
@@ -3619,6 +3849,59 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 				if source and not source.is_dead:
 					source.apply_debuff("break", 1, source_atk, "opponent_turn_end")
 					print(source.hero_data.get("name", "Hero") + " applied Break to self (opponent_turn_end)")
+			"crescent_moon":
+				# Nyxara SK1: Add 1 Crescent Moon stack. At 4 stacks → consume all, fill EX gauge.
+				if source and not source.is_dead:
+					var current_stacks = source.active_buffs.get("crescent_moon", {}).get("stacks", 0)
+					var new_stacks = current_stacks + 1
+					if new_stacks >= 4:
+						# Consume all stacks and fill EX gauge to max
+						source.remove_buff("crescent_moon")
+						source.energy = source.max_energy
+						source._update_ui()
+						print(source.hero_data.get("name", "Hero") + " Crescent Moon x4! EX gauge filled!")
+					else:
+						source.apply_buff("crescent_moon", new_stacks, 0, "")
+						print(source.hero_data.get("name", "Hero") + " gained Crescent Moon (stack " + str(new_stacks) + "/4)")
+			"eclipse_buff":
+				# Nyxara SK2: Gain Eclipse buff — next EX this turn deals double damage
+				if source and not source.is_dead:
+					source.apply_buff("eclipse_buff", 1, 0, "own_turn_end")
+					print(source.hero_data.get("name", "Hero") + " gained Eclipse (next EX deals double damage)")
+			"rewind":
+				# Nyra SK1: Pull 1 random card from discard pile into hand
+				if source and not source.is_dead:
+					if GameManager.discard_pile.size() > 0:
+						var rand_index = randi() % GameManager.discard_pile.size()
+						var rewound_card = GameManager.discard_pile[rand_index]
+						GameManager.discard_pile.remove_at(rand_index)
+						GameManager.hand.append(rewound_card)
+						_refresh_hand()
+						_update_deck_display()
+						print(source.hero_data.get("name", "Hero") + " Rewind! Retrieved " + rewound_card.get("name", "card") + " from discard")
+					else:
+						print(source.hero_data.get("name", "Hero") + " Rewind failed — discard pile is empty")
+			"time_bomb":
+				# Nyra SK3: Apply time_bomb debuff to target (detonates at opponent turn end)
+				if target and not target.is_dead:
+					target.apply_debuff("time_bomb", 1, source_atk, "opponent_turn_end")
+					print(target.hero_data.get("name", "Hero") + " has a Time Bomb! Detonates at end of opponent's turn")
+			"redirect":
+				# Kalasag SK1: Apply redirect buff to target ally (50% damage transferred to Kalasag)
+				if target and not target.is_dead:
+					# Store the source hero's instance_id so we know who receives the redirected damage
+					target.apply_buff("redirect", 1, 0, "opponent_turn_end")
+					target.set_meta("redirect_to", source.instance_id if source else -1)
+					print(target.hero_data.get("name", "Hero") + " gained Redirect → damage transferred to " + source.hero_data.get("name", "Kalasag"))
+					# Also give Kalasag self-shield (DEF×2)
+					if source and not source.is_dead:
+						var self_shield_mult = card_data.get("self_shield_def_multiplier", 2.0) if card_data else 2.0
+						var shield_amount = int(source.get_def() * self_shield_mult)
+						if shield_amount > 0:
+							source.block += shield_amount
+							source._update_ui()
+							source._show_shield_effect()
+							print(source.hero_data.get("name", "Hero") + " gained " + str(shield_amount) + " Shield (self)")
 
 func _apply_upgrade_shuffle(card_data: Dictionary) -> void:
 	# Upgrade the card's atk_multiplier and shuffle back into deck
@@ -3726,6 +4009,9 @@ func _on_end_turn_pressed() -> void:
 			print("===\n")
 		
 		# === PLAYER TURN END: Expire buffs/debuffs ===
+		# Detonate Time Bombs on enemies before debuffs expire
+		_detonate_time_bombs(enemy_heroes, false)
+		
 		# Player's heroes: remove "own_turn_end" buffs/debuffs (empower, regen, etc.)
 		for hero in player_heroes:
 			if not hero.is_dead:
@@ -3778,6 +4064,15 @@ func _on_turn_started(is_player: bool) -> void:
 	
 	if is_player:
 		# === PLAYER TURN START ===
+		# Snapshot HP for Temporal Shift (Nyra EX) — rotate snapshots
+		_hp_snapshot_last_turn = _hp_snapshot_this_turn.duplicate(true)
+		_hp_snapshot_this_turn.clear()
+		for hero in player_heroes:
+			_hp_snapshot_this_turn[hero.instance_id] = {
+				"hp": hero.current_hp,
+				"was_dead": hero.is_dead
+			}
+		
 		# Buffs/debuffs already expired at end of previous turns.
 		# Just apply start-of-turn effects (regen, cleansing charm, etc.)
 		for hero in player_heroes:
@@ -3796,6 +4091,8 @@ func _on_turn_started(is_player: bool) -> void:
 		# For single-player AI: the "enemy turn end" happens here since AI doesn't
 		# press end turn. Expire enemy's "own_turn_end" and player's "opponent_turn_end".
 		if not is_multiplayer:
+			# Detonate Time Bombs on player heroes before debuffs expire
+			_detonate_time_bombs(player_heroes, true)
 			for enemy in enemy_heroes:
 				if not enemy.is_dead:
 					enemy.on_own_turn_end()
@@ -5869,8 +6166,8 @@ func _execute_ex_skill_and_collect_results(source: Hero, target: Hero) -> Dictio
 			"is_dead": h.is_dead
 		}
 	
-	# For self_buff and thunder_all, target may be source itself
-	if target == null and (ex_type == "self_buff" or ex_type == "thunder_all"):
+	# For self_buff, thunder_all, shield_all, temporal_shift — target may be source itself
+	if target == null and (ex_type == "self_buff" or ex_type == "thunder_all" or ex_type == "shield_all" or ex_type == "temporal_shift"):
 		target = source
 	
 	# Execute the EX skill (runs animation + applies effects on Host)

@@ -47,7 +47,10 @@ const BUFF_ICONS = {
 	"equipped": "res://asset/buff debuff/Bolster.webp",  # Equipment indicator
 	"dana_shield_draw": "res://asset/buff debuff/Shield-0.webp",  # Dana's shield-draw marker
 	"counter_50": "res://asset/buff debuff/Shield-0.webp",  # Counter 50% Reflect
-	"counter_100": "res://asset/buff debuff/Shield-0.webp"  # Counter 100% Reflect
+	"counter_100": "res://asset/buff debuff/Shield-0.webp",  # Counter 100% Reflect
+	"crescent_moon": "res://asset/buff debuff/cresent moon.webp",  # Nyxara Crescent Moon stacks
+	"eclipse_buff": "res://asset/buff debuff/eclipse.webp",  # Nyxara Eclipse (double EX damage)
+	"redirect": "res://asset/buff debuff/redirect.webp"  # Kalasag Redirect (50% damage transferred)
 }
 
 const DEBUFF_ICONS = {
@@ -62,7 +65,8 @@ const DEBUFF_ICONS = {
 	"break": "res://asset/buff debuff/Break.webp",
 	"bomb": "res://asset/buff debuff/Bomb.webp",
 	"thunder": "res://asset/buff debuff/Thunder.webp",
-	"marked": "res://asset/buff debuff/Target.webp"
+	"marked": "res://asset/buff debuff/Target.webp",
+	"time_bomb": "res://asset/buff debuff/Bomb.webp"
 }
 
 const BUFF_DESCRIPTIONS = {
@@ -76,7 +80,10 @@ const BUFF_DESCRIPTIONS = {
 	"equipped": {"name": "Equipped", "effect": "This hero has equipment attached."},
 	"dana_shield_draw": {"name": "Smart Shield", "effect": "When Shield expires, draw 1 card."},
 	"counter_50": {"name": "Counter", "effect": "Reflects 50% of damage back to the attacker."},
-	"counter_100": {"name": "Counter+", "effect": "Reflects 100% of damage back to the attacker."}
+	"counter_100": {"name": "Counter+", "effect": "Reflects 100% of damage back to the attacker."},
+	"crescent_moon": {"name": "Crescent Moon", "effect": "At 4 stacks: consume all, fill EX gauge to max."},
+	"eclipse_buff": {"name": "Eclipse", "effect": "Next EX this turn deals double damage."},
+	"redirect": {"name": "Redirect", "effect": "50% of damage taken is transferred to Kalasag."}
 }
 
 const DEBUFF_DESCRIPTIONS = {
@@ -91,7 +98,8 @@ const DEBUFF_DESCRIPTIONS = {
 	"break": {"name": "Break", "effect": "+50% damage taken."},
 	"bomb": {"name": "Bomb", "effect": "Explodes after duration."},
 	"thunder": {"name": "Thunder", "effect": "Lightning strikes at turn end. Stacks."},
-	"marked": {"name": "Marked", "effect": "Takes increased damage."}
+	"marked": {"name": "Marked", "effect": "Takes increased damage."},
+	"time_bomb": {"name": "Time Bomb", "effect": "Detonates at end of turn: 10 damage + removes 1 card from hand."}
 }
 
 @onready var sprite: TextureRect = $Sprite

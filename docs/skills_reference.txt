@@ -421,8 +421,126 @@ BLEED DEBUFF:
 
 
 ================================================================================
-                      CREATING NEW SKILLS - TEMPLATE
+                 OLD HEROES SANITY CHECKLIST (SP + MULTIPLAYER)
 ================================================================================
+
+Goal:
+- Confirm all old-hero skills are correct in singleplayer.
+- Confirm Host-authoritative multiplayer replication is correct (Host and Guest see the same results).
+
+How to run each check:
+1) Singleplayer (AI battle)
+2) Multiplayer: Host perspective
+3) Multiplayer: Guest perspective
+
+For multiplayer, always verify BOTH clients agree on:
+- HP changes
+- Buff/debuff presence and duration
+- Thunder stacks (if applicable)
+- Shield/block amount
+- Deck/hand counts (especially Dana dig)
+
+
+--------------------------------------------------------------------------------
+SQUIRE (squire)
+--------------------------------------------------------------------------------
+- Basic attack cards play and replicate normally (damage + animations).
+- Any buff/debuff skills:
+  - Verify buff/debuff appears on correct target.
+  - Verify it expires at the expected timing (own_turn_end vs enemy_turn_end).
+
+
+--------------------------------------------------------------------------------
+PRIEST (priest)
+--------------------------------------------------------------------------------
+- Healing:
+  - SP: heal amount matches description.
+  - MP Host/Guest: both clients show identical new HP for healed targets.
+- Cleanse/cleanse_all (if present):
+  - Confirm debuffs are removed from the correct allies.
+  - MP: Guest must see the same debuffs removed.
+
+
+--------------------------------------------------------------------------------
+MARKSWOMAN (markswoman)
+--------------------------------------------------------------------------------
+- Mark / single-target debuffs:
+  - Confirm debuff applies to the selected enemy.
+  - Confirm damage scaling is correct.
+- MP: confirm Guest sees identical debuff + damage results.
+
+
+--------------------------------------------------------------------------------
+DANA / CRAFTSWOMAN (dana)
+--------------------------------------------------------------------------------
+- Dig card (deck manipulation) MUST be deterministic in multiplayer.
+  - SP:
+    - Play Dig.
+    - Confirm it reveals top X cards.
+    - Choose 1 card.
+    - If hand has space: chosen card goes to hand.
+    - If hand full: chosen card goes to discard.
+    - Deck is shuffled after resolving.
+  - MP (Host + Guest):
+    - When Guest plays Dig, Guest should receive a prompt UI to pick.
+    - After choosing, both Host and Guest MUST match on:
+      - Enemy deck size
+      - Enemy hand size
+      - Enemy discard size (if hand was full)
+    - Confirm the chosen card is exactly the one added (instance_id level correctness).
+
+
+--------------------------------------------------------------------------------
+MAKASH (makash)
+--------------------------------------------------------------------------------
+- EX: Rampage
+  - Expected:
+    - Single target damage: 300% ATK to the selected enemy.
+    - Penetrate triggers (unit behind also takes damage, if applicable by your penetrate rules).
+    - Weak is applied to the damaged unit.
+  - MP:
+    - Guest sees the same primary target damage.
+    - Guest sees the same secondary penetrate damage.
+    - Guest sees Weak debuff applied to correct unit.
+
+
+--------------------------------------------------------------------------------
+STONY (stony)
+--------------------------------------------------------------------------------
+- EX: Goliath Strength
+  - Expected:
+    - Gain Shield equal to CURRENT HP (at time of cast).
+    - Gain Taunt.
+    - Taunt uniqueness: no other ally on that team should keep Taunt.
+  - MP:
+    - Guest sees the exact same shield amount.
+    - Guest sees Taunt applied.
+    - Guest sees Taunt removed from any other ally (if previously taunting).
+
+
+--------------------------------------------------------------------------------
+CAELUM (caelum)
+--------------------------------------------------------------------------------
+- Thunder-related skills (if present):
+  - Confirm Thunder stacks increase correctly.
+  - Confirm Thunder ticks and triggers damage at the correct time.
+  - MP: both clients must match on Thunder stack count before/after ticks.
+
+
+--------------------------------------------------------------------------------
+RAIZEL (raizel)
+--------------------------------------------------------------------------------
+- EX: Thunder Detonate
+  - Expected:
+    - Apply 2 Thunder stacks to ALL enemies.
+  - MP:
+    - Guest must show Thunder stacks added (stack count should increase by +2).
+    - Confirm stacks are correct even if enemy already had Thunder.
+
+
+=================================================================================
+                      CREATING NEW SKILLS - TEMPLATE
+=================================================================================
 
 Copy this template when creating new skills:
 

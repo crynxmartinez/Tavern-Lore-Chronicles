@@ -101,6 +101,23 @@ BUFFS (active_buffs)
 
 - Note: Equipment reflect (e.g. Thorned Armor) is a separate system, shows bolster icon, not a counter buff.
 
+- crescent_moon
+  - Effect: At 4 stacks, consume all and fill EX gauge to max.
+  - Default expire_on: permanent (no expiry, persists until consumed)
+  - Stacks up to 4. Each cast of Crescent Moon adds 1 stack.
+  - Card shuffles into deck (not discard) after use.
+
+- eclipse_buff
+  - Effect: Next EX this turn deals double damage (base + 100% base).
+  - Default expire_on: own_turn_end
+  - Consumed when EX is used.
+
+- redirect
+  - Effect: 50% of damage taken is transferred to the hero who applied this buff (Kalasag).
+  - Default expire_on: opponent_turn_end
+  - Applied by Kalasag's Helmsman's Guard (SK1).
+  - If the redirect target (Kalasag) is dead, redirect does nothing.
+
 DEBUFFS (active_debuffs)
 
 - stun
@@ -150,6 +167,11 @@ DEBUFFS (active_debuffs)
 - marked
   - Effect: Takes increased damage.
   - Default expire_on: own_turn_end
+
+- time_bomb
+  - Effect: Detonates at end of opponent's turn: 10 flat damage + removes 1 random card of that hero from opponent's hand.
+  - Default expire_on: opponent_turn_end
+  - Applied by Nyra's Time Bomb (SK3).
 
 --------------------------------------------------------------------------------
 HEROES & CARDS
@@ -388,6 +410,75 @@ Cards (cards.json):
 - cinder_sk2: cost 0 | type attack | target single_enemy | atk_multiplier 1.0 | energy_on_hit 5 | desc: Deal (100% ATK) damage to target enemy. (5 energy on hit.)
 - cinder_sk3: cost 3 | type attack | target front_enemy | atk_multiplier 1.5 | effects: penetrate | desc: Deal (150% ATK) damage to the front enemy. Penetrate.
 - cinder_ex: cost -1 | type ex | target self | effects: generate_cinder_strike | desc: Add 3 Cinder Strike cards to your hand (temporary).
+
+--------------------------------------------------------------------------------
+NYXARA (id: nyxara) | color: blue | role: mage
+Stats: max_hp=90 | base_attack=17 | base_def=0
+Attack Card: nyxara_attack
+Skills: nyxara_sk1, nyxara_sk2, nyxara_sk3
+EX Card: nyxara_ex
+EX Skill (heroes.json):
+- name: Total Eclipse
+- description: Deal (160% ATK) damage to all enemies.
+- atk_multiplier: 1.6
+
+Cards (cards.json):
+- nyxara_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- nyxara_sk1: cost 1 | type buff | target self | effects: crescent_moon | shuffle_to_deck: true | desc: Gain 1 Crescent Moon stack. At 4 stacks: consume all, fill EX gauge. This card shuffles into deck.
+- nyxara_sk2: cost 3 | type buff | target self | effects: eclipse_buff | desc: Gain Eclipse. Your next EX this turn deals double damage.
+- nyxara_sk3: cost 2 | type attack | target single_enemy | atk_multiplier 1.5 | desc: Deal (150% ATK) damage to target enemy.
+- nyxara_ex: cost -1 | type ex | target all_enemy | atk_multiplier 1.6 | desc: Deal (160% ATK) damage to all enemies.
+
+--------------------------------------------------------------------------------
+NYRA (id: nyra) | color: violet | role: support/utility
+Stats: max_hp=110 | base_attack=12 | base_def=2
+Attack Card: nyra_attack
+Skills: nyra_sk1, nyra_sk2, nyra_sk3
+EX Card: nyra_ex
+EX Skill (heroes.json):
+- name: Temporal Shift
+- type: temporal_shift
+- description: Rewind all allies' HP to last turn. Revives allies who died this turn.
+
+New Mechanics:
+- HP Snapshot: At start of each player turn, all ally HP values are stored.
+  _hp_snapshot_last_turn holds the previous turn's snapshot.
+  Temporal Shift restores allies to _hp_snapshot_last_turn values.
+- Rewind: Pull 1 random card from discard pile into hand.
+- Time Bomb: Debuff applied to enemy. At end of opponent's turn:
+  deals 10 flat damage + removes 1 random card of that hero from opponent's hand.
+
+Cards (cards.json):
+- nyra_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- nyra_sk1: cost 2 | type buff | target self | effects: rewind | desc: Retrieve 1 random card from your discard pile to your hand.
+- nyra_sk2: cost 2 | type attack | target front_enemy | atk_multiplier 1.5 | desc: Deal (150% ATK) damage to the front enemy.
+- nyra_sk3: cost 2 | type debuff | target single_enemy | effects: time_bomb | desc: Apply Time Bomb to target enemy. Detonates at end of opponent's turn: 10 damage + removes 1 card from hand.
+- nyra_ex: cost -1 | type ex | target self | desc: Rewind all allies' HP to last turn. Revives allies who died this turn.
+
+--------------------------------------------------------------------------------
+KALASAG (id: kalasag) | color: yellow | role: tank
+Stats: max_hp=160 | base_attack=10 | base_def=5
+Attack Card: kalasag_attack
+Skills: kalasag_sk1, kalasag_sk2, kalasag_sk3
+EX Card: kalasag_ex
+EX Skill (heroes.json):
+- name: Tidal Bulwark
+- type: shield_all
+- description: Grant Shield (10 + DEF×3) to all allies.
+
+New Mechanics:
+- Redirect: Buff applied to an ally. While active, 50% of damage taken by that ally
+  is transferred to Kalasag instead. Expires at opponent_turn_end.
+  Stored via set_meta("redirect_to", source.instance_id) on the buffed hero.
+  Checked in _animate_attack and _animate_cast via _find_redirect_target().
+  If Kalasag is dead, redirect does nothing.
+
+Cards (cards.json):
+- kalasag_attack: cost 0 | type basic_attack | target front_enemy | atk_multiplier 1.0 | desc: Deal (100% ATK) damage to the front enemy.
+- kalasag_sk1: cost 1 | type buff | target single_ally | effects: redirect | desc: Apply Redirect to target ally (50% damage transferred to Kalasag). Kalasag gains Shield (DEF×2).
+- kalasag_sk2: cost 2 | type buff | target self | effects: taunt | base_shield 8 + DEF×2 | desc: Gain Taunt + Shield (8 + DEF×2).
+- kalasag_sk3: cost 2 | type attack | target single_enemy | atk_multiplier 1.3 | effects: weak | desc: Deal (130% ATK) damage to target enemy. Apply Weak.
+- kalasag_ex: cost -1 | type ex | target all_ally | base_shield 10 + DEF×3 | desc: Grant Shield (10 + DEF×3) to all allies.
 
 ================================================================================
 END

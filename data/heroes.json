@@ -397,17 +397,13 @@
 	},
 	"nyra": {
 		"id": "nyra",
-		"name": "Nyra",
-		"color": "purple",
-		"role": "scientist",
-		"base_hp": 10,
-		"hp_multiplier": 11,
+		"name": "Hush Engineer, Nyra Sato",
+		"color": "violet",
 		"max_hp": 110,
-		"base_attack": 13,
+		"base_attack": 12,
 		"base_def": 2,
-		"portrait": "res://asset/Hero/Hush Engineer, Nyra Sato/idle.png",
+		"portrait": "res://asset/Hero/Hush Engineer, Nyra Sato/portrait.png",
 		"splash": "res://asset/Hero/Hush Engineer, Nyra Sato/splash.png",
-		"full_art": "res://asset/Hero/Hush Engineer, Nyra Sato/splash.png",
 		"idle_sprite": "res://asset/Hero/Hush Engineer, Nyra Sato/idle.png",
 		"attack_sprite": "res://asset/Hero/Hush Engineer, Nyra Sato/attack.png",
 		"cast_sprite": "res://asset/Hero/Hush Engineer, Nyra Sato/cast.png",
@@ -421,26 +417,23 @@
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "nyra"}
 		],
 		"ex_skill": {
-			"name": "Silent Protocol",
-			"description": "Deal (150% ATK) damage to all enemies. Apply Weak to all.",
-			"atk_multiplier": 1.5,
-			"effects": ["weak_all"],
+			"name": "Temporal Shift",
+			"type": "temporal_shift",
+			"description": "Rewind all allies' HP to last turn. Revives allies who died this turn.",
 			"image": "res://asset/Hero/Hush Engineer, Nyra Sato/splash.png"
 		},
 		"ex_card": "nyra_ex",
 		"attack_card": "nyra_attack",
-		"cards": []
+		"cards": ["nyra_sk1", "nyra_sk2", "nyra_sk3"]
 	},
 	"kalasag": {
 		"id": "kalasag",
-		"name": "Kalasag",
+		"name": "Kapitan Kalasag, Captain Ramil Kalasag Serrano",
 		"color": "yellow",
 		"role": "tank",
-		"base_hp": 14,
-		"hp_multiplier": 16,
-		"max_hp": 224,
-		"base_attack": 8,
-		"base_def": 7,
+		"max_hp": 160,
+		"base_attack": 10,
+		"base_def": 5,
 		"portrait": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/idle.png",
 		"splash": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/Splash.png",
 		"full_art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/Splash.png",
@@ -457,15 +450,16 @@
 			{"id": "default", "name": "Default", "unlocked": true, "prefix": "kalasag"}
 		],
 		"ex_skill": {
-			"name": "Kalasag's Stand",
-			"description": "Gain Taunt. Gain Shield equal to current HP.",
-			"type": "self_buff",
-			"effects": ["taunt", "shield_current_hp"],
+			"name": "Tidal Bulwark",
+			"description": "Grant Shield (10 + DEF×3) to all allies.",
+			"type": "shield_all",
+			"base_shield": 10,
+			"def_multiplier": 3.0,
 			"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/Splash.png"
 		},
 		"ex_card": "kalasag_ex",
 		"attack_card": "kalasag_attack",
-		"cards": []
+		"cards": ["kalasag_sk1", "kalasag_sk2", "kalasag_sk3"]
 	},
 	"scrap": {
 		"id": "scrap",
@@ -608,5 +602,40 @@
 		"ex_card": "valen_ex",
 		"attack_card": "valen_attack",
 		"cards": ["valen_sk1", "valen_sk2", "valen_sk3"]
+	},
+	"nyxara": {
+		"id": "nyxara",
+		"name": "Nyxara",
+		"color": "blue",
+		"role": "mage",
+		"base_hp": 9,
+		"hp_multiplier": 10,
+		"max_hp": 90,
+		"base_attack": 17,
+		"base_def": 0,
+		"portrait": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/idle.png",
+		"splash": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/splash.png",
+		"full_art": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/splash.png",
+		"idle_sprite": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/idle.png",
+		"attack_sprite": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/attack.png",
+		"cast_sprite": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/cast.png",
+		"hit_sprite": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/on hit.png",
+		"idle_sprite_flip": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/idle flip.png",
+		"attack_sprite_flip": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/attack flip.png",
+		"cast_sprite_flip": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/cast flip.png",
+		"hit_sprite_flip": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/on hit flip.png",
+		"equipped_skin": "default",
+		"skins": [
+			{"id": "default", "name": "Default", "unlocked": true, "prefix": "nyxara"}
+		],
+		"ex_skill": {
+			"name": "Total Eclipse",
+			"description": "Deal (160% ATK) damage to all enemies.",
+			"atk_multiplier": 1.6,
+			"image": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/splash.png"
+		},
+		"ex_card": "nyxara_ex",
+		"attack_card": "nyxara_attack",
+		"cards": ["nyxara_sk1", "nyxara_sk2", "nyxara_sk3"]
 	}
 }
