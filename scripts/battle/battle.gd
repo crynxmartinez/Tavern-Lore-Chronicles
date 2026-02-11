@@ -190,9 +190,11 @@ func _input(event: InputEvent) -> void:
 				_practice_drag_origin = hero.global_position
 				_practice_drag_active = false
 			else:
-				# Clicked empty space — deselect hero
+				# Clicked empty space — deselect hero (but not if clicking on practice panel UI)
 				if _practice_selected_hero:
-					_practice_deselect()
+					var panel_rect = practice_panel.get_global_rect() if practice_panel and is_instance_valid(practice_panel) else Rect2()
+					if not panel_rect.has_point(mouse_pos):
+						_practice_deselect()
 		else:
 			# Mouse up — finish drag or let click through
 			if _practice_drag_active and _practice_dragging_hero:
@@ -1489,6 +1491,10 @@ func _play_queued_heal_all(card_data: Dictionary, visual: Node) -> void:
 	for ally in alive_allies:
 		ally.heal(heal_amount)
 		total_heal += heal_amount
+		# Apply card effects (regen, regen_draw, etc.) to each ally
+		var effects = card_data.get("effects", [])
+		if not effects.is_empty():
+			_apply_effects(effects, source_hero, ally, base_atk, card_data)
 	
 	if source_hero:
 		GameManager.add_healing_done(source_hero.hero_id, total_heal)
@@ -1533,6 +1539,11 @@ func _play_queued_heal(card_data: Dictionary, visual: Node, target: Hero) -> voi
 	
 	if source_hero:
 		GameManager.add_healing_done(source_hero.hero_id, heal_amount)
+	
+	# Apply card effects (regen, regen_draw, etc.)
+	var effects = card_data.get("effects", [])
+	if not effects.is_empty():
+		_apply_effects(effects, source_hero, target, base_atk, card_data)
 	
 	await _hide_card_display()
 	
