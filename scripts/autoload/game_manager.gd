@@ -18,6 +18,10 @@ var turn_number: int = 1
 var current_mana: int = 3
 var max_mana: int = 3
 
+# Enemy mana (used in practice mode when player controls enemy team)
+var enemy_current_mana: int = 3
+var enemy_max_mana: int = 3
+
 var last_rps_choice: int = 0  # 0=Rock, 1=Scissors, 2=Paper (persists across battles)
 const MANA_CAP: int = 10
 
@@ -94,15 +98,14 @@ func start_player_turn() -> void:
 	mana_changed.emit(current_mana, max_mana)
 	turn_started.emit(true)
 	phase_changed.emit(current_phase)
-	
-	for hero in player_heroes:
-		if hero.has_method("on_turn_start"):
-			hero.on_turn_start()
+	# NOTE: hero.on_turn_start() is called by battle.gd in _on_turn_started()
+	# to avoid double-calling regen/regen_draw and to handle regen_draw_triggered routing.
 
 func end_player_turn() -> void:
+	# NOTE: on_own_turn_end() is called by battle.gd before this function.
+	# Only add energy here to avoid double buff/debuff expiry.
 	for hero in player_heroes:
-		if hero.has_method("on_turn_end"):
-			hero.on_turn_end()
+		if hero.has_method("add_energy"):
 			hero.add_energy(GameConstants.ENERGY_ON_TURN_END)
 	
 	turn_ended.emit(true)
@@ -111,13 +114,36 @@ func end_player_turn() -> void:
 func start_enemy_turn() -> void:
 	is_player_turn = false
 	current_phase = GamePhase.ENEMY_TURN
+	# Update enemy mana (mirrors player mana logic)
+	if turn_number > 1:
+		if enemy_max_mana < MANA_CAP:
+			enemy_max_mana += 1
+		enemy_current_mana = enemy_max_mana
 	turn_started.emit(false)
 	phase_changed.emit(current_phase)
 
+func practice_play_enemy_card(card_data: Dictionary, source_hero, target) -> bool:
+	var cost = card_data.get("cost", 0)
+	if cost == -1:
+		if enemy_current_mana < 1:
+			return false
+		card_data["mana_spent"] = enemy_current_mana
+		cost = enemy_current_mana
+	if enemy_current_mana < cost:
+		return false
+	enemy_current_mana -= cost
+	mana_changed.emit(enemy_current_mana, enemy_max_mana)
+	if source_hero and source_hero.has_method("add_energy"):
+		if card_data.get("type", "") == "attack":
+			source_hero.add_energy(GameConstants.ENERGY_ON_ATTACK)
+	enemy_deck_manager.play_card(card_data)
+	return true
+
 func end_enemy_turn() -> void:
+	# NOTE: on_own_turn_end() is called by battle.gd before this function.
+	# Only add energy here to avoid double buff/debuff expiry.
 	for hero in enemy_heroes:
-		if hero.has_method("on_turn_end"):
-			hero.on_turn_end()
+		if hero.has_method("add_energy"):
 			hero.add_energy(GameConstants.ENERGY_ON_TURN_END)
 	
 	turn_ended.emit(false)
@@ -199,11 +225,17 @@ func play_mana_card() -> void:
 	current_mana += 1
 	mana_changed.emit(current_mana, max_mana)
 
-func build_deck(heroes: Array) -> void:
-	player_deck_manager.build_from_heroes(heroes, true)  # true = include equipment
+func build_deck(heroes: Array, include_equipment: bool = true) -> void:
+	player_deck_manager.build_from_heroes(heroes, include_equipment)
+
+func build_deck_from_instances(hero_instances: Array, include_equipment: bool = false) -> void:
+	player_deck_manager.build_from_hero_instances(hero_instances, include_equipment)
 
 func build_enemy_deck(heroes: Array) -> void:
 	enemy_deck_manager.build_from_heroes(heroes, false)  # false = no equipment
+
+func build_enemy_deck_from_instances(hero_instances: Array) -> void:
+	enemy_deck_manager.build_from_hero_instances(hero_instances, false)
 
 func enemy_draw_cards(count: int) -> Array:
 	return enemy_deck_manager.draw_cards(count)

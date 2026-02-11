@@ -1,0 +1,108 @@
+{
+	"textures": [
+		{
+			"image": "fire explosion.png",
+			"size": {
+				"w": 1813,
+				"h": 202
+			},
+			"sprites": [
+				{
+					"filename": "1.png",
+					"region": {
+						"x": 1,
+						"y": 1,
+						"w": 300,
+						"h": 200
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				},
+				{
+					"filename": "2.png",
+					"region": {
+						"x": 303,
+						"y": 1,
+						"w": 300,
+						"h": 200
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				},
+				{
+					"filename": "3.png",
+					"region": {
+						"x": 605,
+						"y": 1,
+						"w": 300,
+						"h": 200
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				},
+				{
+					"filename": "4.png",
+					"region": {
+						"x": 907,
+						"y": 1,
+						"w": 300,
+						"h": 200
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				},
+				{
+					"filename": "5.png",
+					"region": {
+						"x": 1209,
+						"y": 1,
+						"w": 300,
+						"h": 200
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				},
+				{
+					"filename": "6.png",
+					"region": {
+						"x": 1511,
+						"y": 1,
+						"w": 300,
+						"h": 200
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "1.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:959582d9e0f795f76afb249e8bb24224:0ae451515b9653eabfe9878e57a2bb44:b7bd457b69424a7ed089a44706798459$"
+	}
+}

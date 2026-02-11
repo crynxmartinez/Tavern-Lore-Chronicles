@@ -20,9 +20,10 @@ var selected_card: Card = null
 var mulligan_selections: Array = []
 
 # Card queue system for rapid clicking
-var card_queue: Array = []  # Array of {card: Card, target: Hero or null}
+var card_queue: Array = []  # Array of {card_data, card_id, queue_uid, mana_spent}
 var is_casting: bool = false
 var queued_card_visuals: Array = []  # Flying card visuals for queued cards
+var _queue_uid_counter: int = 0  # Unique ID per queued card to avoid duplicate card_id collisions
 
 var _pending_dig: Dictionary = {}
 
@@ -104,6 +105,29 @@ var waiting_for_opponent: bool = false
 var my_player_id: String = ""  # My account UID
 var opponent_player_id: String = ""  # Opponent's account UID
 
+# Practice mode
+var is_practice_mode: bool = false
+var practice_panel: PanelContainer = null
+var practice_panel_vbox: VBoxContainer = null
+var practice_panel_collapsed: bool = false
+var practice_panel_dragging: bool = false
+var practice_panel_drag_offset: Vector2 = Vector2.ZERO
+var practice_hero_picker: CanvasLayer = null
+var _practice_spawn_is_player: bool = false
+var _practice_controlling_enemy: bool = false
+var _practice_dragging_hero: Hero = null
+var _practice_drag_ghost: TextureRect = null
+var _practice_drag_start_pos: Vector2 = Vector2.ZERO
+var _practice_drag_origin: Vector2 = Vector2.ZERO
+var _practice_drag_active: bool = false
+const PRACTICE_DRAG_THRESHOLD: float = 10.0
+var _practice_selected_hero: Hero = null
+var _practice_select_highlight: ColorRect = null
+var _practice_selected_label: Label = null
+var _practice_unli_mana: bool = false
+var _practice_unli_mana_btn: Button = null
+var _practice_replace_btn: Button = null
+
 func _ready() -> void:
 	GameManager.mana_changed.connect(_on_mana_changed)
 	GameManager.turn_started.connect(_on_turn_started)
@@ -142,7 +166,142 @@ func _ready() -> void:
 	_setup_battle_log()
 	_setup_battle()
 
+func _input(event: InputEvent) -> void:
+	# Right-click to cancel targeting / EX targeting
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			if current_phase == BattlePhase.TARGETING:
+				_deselect_card()
+			elif current_phase == BattlePhase.EX_TARGETING:
+				_cancel_ex_skill()
+	
+	# Practice mode: drag-and-drop hero repositioning
+	if not is_practice_mode:
+		return
+	
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			# Mouse down — check if we clicked on a hero
+			var mouse_pos = event.global_position
+			var hero = _practice_get_hero_at(mouse_pos)
+			if hero and not hero.is_dead:
+				_practice_dragging_hero = hero
+				_practice_drag_start_pos = mouse_pos
+				_practice_drag_origin = hero.global_position
+				_practice_drag_active = false
+			else:
+				# Clicked empty space — deselect hero
+				if _practice_selected_hero:
+					_practice_deselect()
+		else:
+			# Mouse up — finish drag or let click through
+			if _practice_drag_active and _practice_dragging_hero:
+				_practice_finish_drag()
+				# Consume the event so the ClickArea button doesn't fire hero_clicked
+				get_viewport().set_input_as_handled()
+			_practice_dragging_hero = null
+			_practice_drag_active = false
+	
+	elif event is InputEventMouseMotion and _practice_dragging_hero:
+		var dist = event.global_position.distance_to(_practice_drag_start_pos)
+		if not _practice_drag_active and dist >= PRACTICE_DRAG_THRESHOLD:
+			# Start drag
+			_practice_drag_active = true
+			_practice_start_drag()
+		if _practice_drag_active:
+			_practice_update_drag(event.global_position)
+
+func _practice_get_hero_at(pos: Vector2) -> Hero:
+	for hero in player_heroes + enemy_heroes:
+		if not is_instance_valid(hero):
+			continue
+		var rect = Rect2(hero.global_position, hero.size)
+		if rect.has_point(pos):
+			return hero
+	return null
+
+func _practice_start_drag() -> void:
+	if not _practice_dragging_hero:
+		return
+	# Create ghost preview
+	_practice_drag_ghost = TextureRect.new()
+	_practice_drag_ghost.custom_minimum_size = Vector2(100, 100)
+	_practice_drag_ghost.size = Vector2(100, 100)
+	_practice_drag_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_practice_drag_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var portrait_path = _practice_dragging_hero.hero_data.get("portrait", "")
+	if not portrait_path.is_empty() and ResourceLoader.exists(portrait_path):
+		_practice_drag_ghost.texture = load(portrait_path)
+	_practice_drag_ghost.modulate = Color(1, 1, 1, 0.7)
+	_practice_drag_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_practice_drag_ghost.z_index = 100
+	add_child(_practice_drag_ghost)
+	# Dim the dragged hero
+	_practice_dragging_hero.modulate = Color(0.5, 0.5, 0.5, 0.5)
+
+func _practice_update_drag(mouse_pos: Vector2) -> void:
+	if _practice_drag_ghost:
+		_practice_drag_ghost.global_position = mouse_pos - Vector2(50, 50)
+
+func _practice_finish_drag() -> void:
+	var mouse_pos = get_global_mouse_position()
+	var drop_target = _practice_get_hero_at(mouse_pos)
+	
+	if drop_target and drop_target != _practice_dragging_hero and not drop_target.is_dead:
+		# Swap positions
+		var pos_a = _practice_drag_origin
+		var pos_b = drop_target.global_position
+		var z_a = _practice_dragging_hero.z_index
+		var z_b = drop_target.z_index
+		var idx_a = _practice_dragging_hero.team_index
+		var idx_b = drop_target.team_index
+		
+		_practice_dragging_hero.global_position = pos_b
+		drop_target.global_position = pos_a
+		_practice_dragging_hero.z_index = z_b
+		drop_target.z_index = z_a
+		_practice_dragging_hero.team_index = idx_b
+		drop_target.team_index = idx_a
+		
+		# Update array order for same-team swaps
+		if _practice_dragging_hero.is_player_hero == drop_target.is_player_hero:
+			var arr = player_heroes if _practice_dragging_hero.is_player_hero else enemy_heroes
+			var i_a = arr.find(_practice_dragging_hero)
+			var i_b = arr.find(drop_target)
+			if i_a >= 0 and i_b >= 0:
+				arr[i_a] = drop_target
+				arr[i_b] = _practice_dragging_hero
+		
+		print("[Practice] Swapped: ", _practice_dragging_hero.hero_data.get("name", "?"), " <-> ", drop_target.hero_data.get("name", "?"))
+	else:
+		# Snap back to original position
+		_practice_dragging_hero.global_position = _practice_drag_origin
+	
+	# Restore hero appearance
+	_practice_dragging_hero.modulate = Color(1, 1, 1, 1)
+	
+	# Remove ghost
+	if _practice_drag_ghost and is_instance_valid(_practice_drag_ghost):
+		_practice_drag_ghost.queue_free()
+	_practice_drag_ghost = null
+
 func _setup_battle() -> void:
+	# Check for practice mode
+	if HeroDatabase.practice_mode:
+		is_practice_mode = true
+		HeroDatabase.practice_mode = false  # Reset flag so returning to collection doesn't re-trigger
+		var practice_hero = HeroDatabase.practice_hero_id
+		var player_team = [practice_hero]
+		var enemy_team = HeroDatabase.ai_enemy_team
+		if enemy_team.is_empty():
+			var all_ids = HeroDatabase.heroes.keys()
+			var others = all_ids.filter(func(id): return id != practice_hero)
+			others.shuffle()
+			enemy_team = [others[0]]
+		print("Battle: Practice mode — hero: ", practice_hero, " vs ", enemy_team)
+		_finalize_battle_setup(player_team, enemy_team)
+		return
+	
 	# Check if this is a multiplayer battle
 	_setup_multiplayer()
 	
@@ -221,39 +380,51 @@ func _finalize_battle_setup(player_team: Array, enemy_team: Array) -> void:
 	GameManager.reset_battle_stats()
 	for hero in player_heroes:
 		var hero_data = hero.hero_data
+		var stat_key = hero.instance_id if is_practice_mode else hero.hero_id
 		GameManager.init_hero_stats(
-			hero.hero_id,
+			stat_key,
 			true,
 			hero_data.get("portrait", ""),
 			hero_data.get("name", "Hero")
 		)
 	for hero in enemy_heroes:
 		var hero_data = hero.hero_data
+		var stat_key = hero.instance_id if is_practice_mode else ("enemy_" + hero.hero_id)
 		GameManager.init_hero_stats(
-			"enemy_" + hero.hero_id,
+			stat_key,
 			false,
 			hero_data.get("portrait", ""),
 			hero_data.get("name", "Hero")
 		)
 	
 	# Build player deck
-	var hero_data_list = []
-	for hero_id in player_team:
-		hero_data_list.append(HeroDatabase.get_hero(hero_id))
-	GameManager.build_deck(hero_data_list)
+	if is_practice_mode:
+		# Instance-based build supports duplicate heroes (3× Squire etc.)
+		GameManager.build_deck_from_instances(player_heroes, false)
+	else:
+		var hero_data_list = []
+		for hero_id in player_team:
+			hero_data_list.append(HeroDatabase.get_hero(hero_id))
+		GameManager.build_deck(hero_data_list)
 	
 	# Build enemy deck (only for AI battles - in multiplayer, opponent manages their own deck)
 	if not is_multiplayer:
-		var enemy_hero_data_list = []
-		for hero_id in enemy_team:
-			enemy_hero_data_list.append(HeroDatabase.get_hero(hero_id))
-		GameManager.build_enemy_deck(enemy_hero_data_list)
+		if is_practice_mode:
+			GameManager.build_enemy_deck_from_instances(enemy_heroes)
+		else:
+			var enemy_hero_data_list = []
+			for hero_id in enemy_team:
+				enemy_hero_data_list.append(HeroDatabase.get_hero(hero_id))
+			GameManager.build_enemy_deck(enemy_hero_data_list)
 		
 		# Enemy draws initial hand (same as player starting hand)
 		GameManager.enemy_draw_cards(5)
 	
 	_setup_enemy_hand_display()
 	_start_rps_minigame()
+	
+	if is_practice_mode:
+		_setup_practice_ui()
 
 const PLAYER_HERO_POSITIONS = [
 	Vector2(120, 285),  # Position 1
@@ -369,7 +540,10 @@ func _refresh_enemy_hand_display() -> void:
 
 func _update_deck_display() -> void:
 	if deck_label:
-		deck_label.text = str(GameManager.deck.size())
+		if _practice_controlling_enemy:
+			deck_label.text = str(GameManager.enemy_deck.size())
+		else:
+			deck_label.text = str(GameManager.deck.size())
 
 func _update_turn_display() -> void:
 	if turn_label:
@@ -507,6 +681,11 @@ func _do_enemy_mulligan() -> void:
 	_update_ui()
 
 func _refresh_hand(animate: bool = false) -> void:
+	# In practice enemy control, show enemy hand instead
+	if _practice_controlling_enemy:
+		_practice_show_enemy_hand()
+		return
+	
 	for child in hand_container.get_children():
 		if is_instance_valid(child):
 			child.queue_free()
@@ -517,6 +696,11 @@ func _refresh_hand(animate: bool = false) -> void:
 		hand_container.add_child(card_instance)
 		card_instance.setup(card_data)
 		card_instance.card_clicked.connect(_on_card_clicked)
+		
+		# Apply frost cost modifier
+		var source_hero_frost = _get_source_hero(card_data)
+		if source_hero_frost and source_hero_frost.has_debuff("frost"):
+			card_instance.update_display_cost(1)
 		
 		if current_phase == BattlePhase.MULLIGAN:
 			card_instance.can_interact = true
@@ -550,6 +734,11 @@ func _deal_hand_animated() -> void:
 		card_instance.setup(card_data)
 		card_instance.card_clicked.connect(_on_card_clicked)
 		card_instance.modulate.a = 0
+		
+		# Apply frost cost modifier
+		var source_hero_frost = _get_source_hero(card_data)
+		if source_hero_frost and source_hero_frost.has_debuff("frost"):
+			card_instance.update_display_cost(1)
 		
 		if current_phase == BattlePhase.MULLIGAN:
 			card_instance.can_interact = true
@@ -607,10 +796,14 @@ func _on_card_clicked(card: Card) -> void:
 		return
 	elif current_phase == BattlePhase.MULLIGAN:
 		_toggle_mulligan_selection(card)
-	elif current_phase == BattlePhase.PLAYING and GameManager.is_player_turn:
-		# Only allow playing cards during player's turn
+	elif current_phase == BattlePhase.PLAYING and (GameManager.is_player_turn or _practice_controlling_enemy):
+		# Block new cards while a deck manipulation card is mid-execution (awaiting selection UI)
+		if _deck_manipulation_active:
+			return
+		# Only allow playing cards during player's turn (or enemy turn in practice)
 		var source_hero = _get_source_hero(card.card_data)
-		if card.can_play(GameManager.current_mana) and _can_pay_hp_cost(card.card_data, source_hero):
+		var active_mana = GameManager.enemy_current_mana if _practice_controlling_enemy else GameManager.current_mana
+		if card.can_play(active_mana) and _can_pay_hp_cost(card.card_data, source_hero):
 			# Check if the source hero is stunned
 			if source_hero and source_hero.is_stunned():
 				print("Cannot play card - " + source_hero.hero_data.get("name", "Hero") + " is stunned!")
@@ -640,12 +833,16 @@ func _on_card_clicked(card: Card) -> void:
 				# Debuff cards that target all enemies auto-cast
 				if target_type == "all_enemy":
 					auto_cast = true
+			elif card_type in ["dig", "search_deck", "check_discard"]:
+				auto_cast = true
 			
 			if auto_cast:
 				# UNIFIED STACK SYSTEM: Auto-cast cards go to the stack
 				_add_card_to_stack(card)
 			else:
-				# Requires targeting - use the selection system
+				# Requires targeting - block if a queued card is mid-execution
+				if is_casting:
+					return
 				_select_card(card)
 
 func _toggle_mulligan_selection(card: Card) -> void:
@@ -727,35 +924,42 @@ func _execute_reshuffle(cards_to_return: Array) -> void:
 	if count == 0:
 		print("[Reshuffle] No cards selected — nothing to reshuffle")
 		return
+	var rs_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+	var rs_deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
 	# Remove selected cards from hand and put back in deck
 	for card_data in cards_to_return:
 		var idx = -1
-		for i in range(GameManager.hand.size()):
-			if GameManager.hand[i].get("id", "") == card_data.get("id", "") and GameManager.hand[i] == card_data:
+		for i in range(rs_hand.size()):
+			if rs_hand[i].get("id", "") == card_data.get("id", "") and rs_hand[i] == card_data:
 				idx = i
 				break
 		if idx >= 0:
-			GameManager.hand.remove_at(idx)
-			GameManager.deck.append(card_data)
+			rs_hand.remove_at(idx)
+			rs_deck.append(card_data)
 	# Shuffle deck
-	GameManager.deck.shuffle()
+	rs_deck.shuffle()
 	# Draw same amount
-	GameManager.draw_cards(count)
+	if _practice_controlling_enemy:
+		GameManager.enemy_draw_cards(count)
+	else:
+		GameManager.draw_cards(count)
 	_refresh_hand(true)
 	_update_deck_display()
 	print("[Reshuffle] Returned " + str(count) + " cards to deck, drew " + str(count) + " new cards")
 
 func _execute_scrapyard_discard(cards_to_discard: Array) -> void:
+	var sd_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+	var sd_discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
 	for card_data in cards_to_discard:
 		var idx = -1
-		for i in range(GameManager.hand.size()):
-			if GameManager.hand[i].get("id", "") == card_data.get("id", "") and GameManager.hand[i] == card_data:
+		for i in range(sd_hand.size()):
+			if sd_hand[i].get("id", "") == card_data.get("id", "") and sd_hand[i] == card_data:
 				idx = i
 				break
 		if idx >= 0:
-			var removed = GameManager.hand[idx]
-			GameManager.hand.remove_at(idx)
-			GameManager.discard_pile.append(removed)
+			var removed = sd_hand[idx]
+			sd_hand.remove_at(idx)
+			sd_discard.append(removed)
 	_refresh_hand(true)
 	_update_deck_display()
 	print("[Scrapyard Overflow] Discarded " + str(cards_to_discard.size()) + " cards")
@@ -767,14 +971,10 @@ func _add_card_to_stack(card: Card) -> void:
 	if not _can_pay_hp_cost(card.card_data, source_hero):
 		return
 	
-	# Check if card is already in stack
-	for queued in card_queue:
-		if queued.card_id == card_id:
-			return
-	
 	# Handle Mana Surge (cost = -1 means use ALL mana)
+	var active_mana_pool = GameManager.enemy_current_mana if _practice_controlling_enemy else GameManager.current_mana
 	if this_cost == -1:
-		this_cost = GameManager.current_mana
+		this_cost = active_mana_pool
 		if this_cost < 1:
 			return  # Need at least 1 mana
 		# Store the mana spent for damage calculation
@@ -785,7 +985,7 @@ func _add_card_to_stack(card: Card) -> void:
 			this_cost += 1
 	
 	# Check if we have enough mana
-	if GameManager.current_mana < this_cost:
+	if active_mana_pool < this_cost:
 		return
 	
 	# Determine target for auto-cast cards
@@ -859,38 +1059,48 @@ func _add_card_to_stack(card: Card) -> void:
 			return
 	
 	# SPEND MANA IMMEDIATELY (Host or single-player)
-	GameManager.current_mana -= this_cost
-	GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
+	if _practice_controlling_enemy:
+		GameManager.enemy_current_mana -= this_cost
+		GameManager.mana_changed.emit(GameManager.enemy_current_mana, GameManager.enemy_max_mana)
+	else:
+		GameManager.current_mana -= this_cost
+		GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 	
-	# Store card data
+	# Store card data with unique queue ID
+	_queue_uid_counter += 1
+	var queue_uid = _queue_uid_counter
 	var queued_data = {
 		card_data = card.card_data.duplicate(),
 		card_id = card_id,
+		queue_uid = queue_uid,
 		mana_spent = this_cost
 	}
 	card_queue.append(queued_data)
 	
-	# Remove from GameManager.hand
-	for i in range(GameManager.hand.size() - 1, -1, -1):
-		if GameManager.hand[i].get("id", "") == card_id:
-			GameManager.hand.remove_at(i)
+	# Remove from hand (player or enemy)
+	var active_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+	for i in range(active_hand.size() - 1, -1, -1):
+		if active_hand[i].get("id", "") == card_id:
+			active_hand.remove_at(i)
 			break
 	
 	# Add to discard pile (skip temporary, equipment, and shuffle_to_deck cards)
 	if card.card_data.get("shuffle_to_deck", false):
 		# Shuffle back into deck instead of discard (e.g. Nyxara's Crescent Moon)
-		GameManager.deck.append(card.card_data.duplicate())
-		GameManager.deck.shuffle()
+		var active_deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
+		active_deck.append(card.card_data.duplicate())
+		active_deck.shuffle()
 		_update_deck_display()
 		print("[Shuffle to Deck] " + card.card_data.get("name", "Card") + " shuffled into deck")
 	elif not card.card_data.get("temporary", false) and card.card_data.get("type", "") != "equipment":
-		GameManager.discard_pile.append(card.card_data.duplicate())
+		var active_discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
+		active_discard.append(card.card_data.duplicate())
 	
 	# Calculate stack position (0 = front, 1+ = behind)
 	var stack_position = card_queue.size() - 1
 	
 	# Create visual and add to stack
-	_create_stack_visual(card, stack_position)
+	_create_stack_visual(card, stack_position, queue_uid)
 	
 	# If this is the first card (front of stack), start playing it
 	if stack_position == 0:
@@ -899,7 +1109,7 @@ func _add_card_to_stack(card: Card) -> void:
 		await get_tree().create_timer(0.3).timeout
 		_play_front_card()
 
-func _create_stack_visual(card: Card, stack_position: int) -> void:
+func _create_stack_visual(card: Card, stack_position: int, queue_uid: int = -1) -> void:
 	if not is_instance_valid(card):
 		return
 	
@@ -924,9 +1134,8 @@ func _create_stack_visual(card: Card, stack_position: int) -> void:
 	# z_index: front card = 0, others go negative (behind)
 	flying_card.z_index = -stack_position
 	
-	# Store visual reference
-	var card_id = card.card_data.get("id", "")
-	queued_card_visuals.append({visual = flying_card, card_id = card_id})
+	# Store visual reference using unique queue_uid
+	queued_card_visuals.append({visual = flying_card, queue_uid = queue_uid})
 	
 	# Remove original card from hand
 	card.queue_free()
@@ -948,12 +1157,12 @@ func _play_front_card() -> void:
 	
 	var front = card_queue[0]
 	var card_data = front.card_data
-	var card_id = front.card_id
+	var uid = front.queue_uid
 	
-	# Find the front visual
-	var front_visual: Card = null
+	# Find the front visual by unique queue_uid
+	var front_visual: Node = null
 	for visual_data in queued_card_visuals:
-		if visual_data.card_id == card_id:
+		if visual_data.queue_uid == uid:
 			front_visual = visual_data.visual
 			break
 	
@@ -961,7 +1170,7 @@ func _play_front_card() -> void:
 		# No visual, remove from queue and try next
 		card_queue.pop_front()
 		for i in range(queued_card_visuals.size() - 1, -1, -1):
-			if queued_card_visuals[i].card_id == card_id:
+			if queued_card_visuals[i].queue_uid == uid:
 				queued_card_visuals.remove_at(i)
 				break
 		_play_front_card()
@@ -970,7 +1179,7 @@ func _play_front_card() -> void:
 	# Execute the card effect
 	await _play_queued_card(card_data, front_visual)
 
-func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
+func _play_queued_card(card_data: Dictionary, visual: Node) -> void:
 	var card_type = card_data.get("type", "")
 	var target_type = card_data.get("target", "single")
 	var source_hero = _get_source_hero(card_data)
@@ -1010,8 +1219,12 @@ func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 	
 	if card_type == "mana":
 		var mana_gain := int(card_data.get("mana_gain", 1))
-		GameManager.current_mana += mana_gain
-		GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
+		if _practice_controlling_enemy:
+			GameManager.enemy_current_mana += mana_gain
+			GameManager.mana_changed.emit(GameManager.enemy_current_mana, GameManager.enemy_max_mana)
+		else:
+			GameManager.current_mana += mana_gain
+			GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 		await _fade_out_visual(visual)
 		_finish_card_play()
 	elif card_type == "energy":
@@ -1075,11 +1288,40 @@ func _play_queued_card(card_data: Dictionary, visual: Card) -> void:
 			# If somehow one ends up here, just fade out without applying effects
 			await _fade_out_visual(visual)
 			_finish_card_play()
+	elif card_type in ["dig", "search_deck", "check_discard"]:
+		# Deck manipulation cards: block new card plays during execution
+		_deck_manipulation_active = true
+		if card_type in ["dig", "search_deck"]:
+			var required = int(card_data.get("dig_count", 3)) if card_type == "dig" else 1
+			var proceed = await _check_deck_size_confirm(card_data, required)
+			if not proceed:
+				# Player chose No — refund card to hand
+				var mana_cost = card_queue[0].mana_spent if not card_queue.is_empty() else 0
+				await _fade_out_visual(visual)
+				_refund_card_to_hand(card_data, mana_cost)
+				_deck_manipulation_active = false
+				_finish_card_play()
+				return
+		await _show_card_display(card_data)
+		if source_hero:
+			source_hero.play_attack_anim_with_callback(func(): pass)
+		await get_tree().create_timer(0.3).timeout
+		await _hide_card_display()
+		await _fade_out_visual(visual)
+		match card_type:
+			"dig":
+				await _handle_dig_card(card_data, source_hero)
+			"search_deck":
+				await _handle_search_deck_card(card_data, source_hero)
+			"check_discard":
+				await _handle_check_discard_card(card_data, source_hero)
+		_deck_manipulation_active = false
+		_finish_card_play()
 	else:
 		await _fade_out_visual(visual)
 		_finish_card_play()
 
-func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
+func _play_queued_card_as_host(card_data: Dictionary, visual: Node) -> void:
 	## HOST ONLY: Execute card and send results to Guest
 	var card_type = card_data.get("type", "")
 	var target_type = card_data.get("target", "single")
@@ -1154,7 +1396,7 @@ func _play_queued_card_as_host(card_data: Dictionary, visual: Card) -> void:
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_attack(card_data: Dictionary, visual: Card, target: Hero) -> void:
+func _play_queued_attack(card_data: Dictionary, visual: Node, target: Hero) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	# Mana already spent when queued, just execute the effect
@@ -1169,7 +1411,7 @@ func _play_queued_attack(card_data: Dictionary, visual: Card, target: Hero) -> v
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_attack_all(card_data: Dictionary, visual: Card) -> void:
+func _play_queued_attack_all(card_data: Dictionary, visual: Node) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	# Mana already spent when queued, just execute the effect
@@ -1185,7 +1427,8 @@ func _play_queued_attack_all(card_data: Dictionary, visual: Card) -> void:
 	var damage = int(base_atk * atk_mult * damage_mult)
 	if damage == 0:
 		damage = 10
-	var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
+	var opp_team_aoe = player_heroes if _practice_controlling_enemy else enemy_heroes
+	var alive_enemies = opp_team_aoe.filter(func(h): return not h.is_dead)
 	
 	if source_hero:
 		source_hero._play_attack_animation()
@@ -1221,7 +1464,7 @@ func _play_queued_attack_all(card_data: Dictionary, visual: Card) -> void:
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_heal_all(card_data: Dictionary, visual: Card) -> void:
+func _play_queued_heal_all(card_data: Dictionary, visual: Node) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	# Mana already spent when queued
@@ -1239,7 +1482,8 @@ func _play_queued_heal_all(card_data: Dictionary, visual: Card) -> void:
 	else:
 		var heal_mult = card_data.get("heal_multiplier", 1.0)
 		heal_amount = int(base_atk * heal_mult)
-	var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
+	var my_team_heal_all = enemy_heroes if _practice_controlling_enemy else player_heroes
+	var alive_allies = my_team_heal_all.filter(func(h): return not h.is_dead)
 	var total_heal = 0
 	
 	for ally in alive_allies:
@@ -1254,7 +1498,7 @@ func _play_queued_heal_all(card_data: Dictionary, visual: Card) -> void:
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_heal(card_data: Dictionary, visual: Card, target: Hero) -> void:
+func _play_queued_heal(card_data: Dictionary, visual: Node, target: Hero) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	await _show_card_display(card_data)
@@ -1295,7 +1539,7 @@ func _play_queued_heal(card_data: Dictionary, visual: Card, target: Hero) -> voi
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_buff_all(card_data: Dictionary, visual: Card) -> void:
+func _play_queued_buff_all(card_data: Dictionary, visual: Node) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	# Mana already spent when queued
@@ -1314,7 +1558,8 @@ func _play_queued_buff_all(card_data: Dictionary, visual: Card) -> void:
 		shield_amount = source_hero.calculate_shield(card_base_shield, def_mult) if source_hero else card_base_shield
 	elif shield_mult_legacy > 0:
 		shield_amount = int(base_atk * shield_mult_legacy)
-	var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
+	var my_team_buff_all = enemy_heroes if _practice_controlling_enemy else player_heroes
+	var alive_allies = my_team_buff_all.filter(func(h): return not h.is_dead)
 	var total_shield = 0
 	
 	for ally in alive_allies:
@@ -1335,7 +1580,7 @@ func _play_queued_buff_all(card_data: Dictionary, visual: Card) -> void:
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_debuff_single(card_data: Dictionary, visual: Card, target: Hero) -> void:
+func _play_queued_debuff_single(card_data: Dictionary, visual: Node, target: Hero) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	await _show_card_display(card_data)
@@ -1356,7 +1601,7 @@ func _play_queued_debuff_single(card_data: Dictionary, visual: Card, target: Her
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_debuff_all(card_data: Dictionary, visual: Card) -> void:
+func _play_queued_debuff_all(card_data: Dictionary, visual: Node) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	await _show_card_display(card_data)
@@ -1377,7 +1622,7 @@ func _play_queued_debuff_all(card_data: Dictionary, visual: Card) -> void:
 	await _fade_out_visual(visual)
 	_finish_card_play()
 
-func _play_queued_buff(card_data: Dictionary, visual: Card, target: Hero) -> void:
+func _play_queued_buff(card_data: Dictionary, visual: Node, target: Hero) -> void:
 	var source_hero = _get_source_hero(card_data)
 	
 	await _show_card_display(card_data)
@@ -1411,7 +1656,8 @@ func _play_queued_buff(card_data: Dictionary, visual: Card, target: Hero) -> voi
 	_finish_card_play()
 
 func _get_lowest_hp_ally() -> Hero:
-	var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
+	var my_team_heal = enemy_heroes if _practice_controlling_enemy else player_heroes
+	var alive_allies = my_team_heal.filter(func(h): return not h.is_dead)
 	if alive_allies.is_empty():
 		return null
 	var lowest = alive_allies[0]
@@ -1421,12 +1667,13 @@ func _get_lowest_hp_ally() -> Hero:
 	return lowest
 
 func _get_first_alive_ally() -> Hero:
-	var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
+	var my_team_first = enemy_heroes if _practice_controlling_enemy else player_heroes
+	var alive_allies = my_team_first.filter(func(h): return not h.is_dead)
 	if alive_allies.is_empty():
 		return null
 	return alive_allies[0]
 
-func _fade_out_visual(visual: Card) -> void:
+func _fade_out_visual(visual: Node) -> void:
 	if visual == null or not is_instance_valid(visual):
 		return
 	var fade_tween = create_tween().set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
@@ -1546,8 +1793,11 @@ func _highlight_valid_targets(target_allies: bool, is_equipment: bool = false) -
 	# Show vignette overlay
 	_show_targeting_vignette()
 	
-	var targets = player_heroes if target_allies else enemy_heroes
-	var non_targets = enemy_heroes if target_allies else player_heroes
+	# In practice enemy control: flip ally/enemy meaning
+	var my_team = enemy_heroes if _practice_controlling_enemy else player_heroes
+	var opp_team = player_heroes if _practice_controlling_enemy else enemy_heroes
+	var targets = my_team if target_allies else opp_team
+	var non_targets = opp_team if target_allies else my_team
 	
 	# Dim non-targets (keep them under vignette)
 	for hero in non_targets:
@@ -1562,8 +1812,8 @@ func _highlight_valid_targets(target_allies: bool, is_equipment: bool = false) -
 	# Highlight valid targets with circle animation (bring above vignette)
 	for hero in targets:
 		if not hero.is_dead:
-			# For equipment, check if hero already has one
-			if is_equipment and hero.has_equipment():
+			# For equipment, check if hero already has one (skip in practice mode)
+			if is_equipment and hero.has_equipment() and not is_practice_mode:
 				# Hero already has equipment - dim them
 				hero.z_index = 0
 				hero.modulate = Color(0.5, 0.5, 0.5)
@@ -1621,13 +1871,16 @@ func _highlight_revive_targets() -> void:
 	# Show vignette overlay
 	_show_targeting_vignette()
 	
-	# Keep all enemies under vignette
-	for hero in enemy_heroes:
+	var my_team_r = enemy_heroes if _practice_controlling_enemy else player_heroes
+	var opp_team_r = player_heroes if _practice_controlling_enemy else enemy_heroes
+	
+	# Keep all opponents under vignette
+	for hero in opp_team_r:
 		hero.z_index = 0
 		hero.modulate = Color(1.0, 1.0, 1.0)
 	
 	# Highlight dead allies for revive (bring above vignette)
-	for hero in player_heroes:
+	for hero in my_team_r:
 		if hero.is_dead:
 			hero.z_index = 20
 			hero.modulate = Color(1.0, 1.0, 1.0)
@@ -1637,19 +1890,24 @@ func _highlight_revive_targets() -> void:
 			hero.modulate = Color(1.0, 1.0, 1.0)
 
 func _on_hero_clicked(hero: Hero) -> void:
+	# If we just finished a drag, ignore this click (it's the button release after drag)
+	if _practice_drag_active:
+		return
 	if current_phase == BattlePhase.TARGETING and selected_card:
 		var card_type = selected_card.get_card_type()
 		var valid_target = false
+		# When controlling enemy in practice, flip ally/enemy meaning
+		var is_ally = hero.is_player_hero if not _practice_controlling_enemy else not hero.is_player_hero
 		
-		if (card_type == "attack" or card_type == "basic_attack") and not hero.is_player_hero and not hero.is_dead:
+		if (card_type == "attack" or card_type == "basic_attack") and not is_ally and not hero.is_dead:
 			valid_target = true
-		elif card_type == "debuff" and not hero.is_player_hero and not hero.is_dead:
+		elif card_type == "debuff" and not is_ally and not hero.is_dead:
 			valid_target = true
-		elif (card_type == "heal" or card_type == "buff") and hero.is_player_hero and not hero.is_dead:
+		elif (card_type == "heal" or card_type == "buff") and is_ally and not hero.is_dead:
 			valid_target = true
-		elif card_type == "equipment" and hero.is_player_hero and not hero.is_dead:
-			# Check if hero already has equipment (limit: 1 per hero)
-			if hero.has_equipment():
+		elif card_type == "equipment" and is_ally and not hero.is_dead:
+			# In practice mode, allow replacing existing equipment
+			if hero.has_equipment() and not is_practice_mode:
 				print("[Equipment] " + hero.hero_data.get("name", "Hero") + " already has equipment!")
 				return  # Don't allow targeting
 			valid_target = true
@@ -1660,8 +1918,9 @@ func _on_hero_clicked(hero: Hero) -> void:
 		var ex_data = ex_skill_hero.hero_data.get("ex_skill", {})
 		var ex_type = ex_data.get("type", "damage")
 		
+		var is_ally_ex = hero.is_player_hero if not _practice_controlling_enemy else not hero.is_player_hero
 		if ex_type == "revive":
-			if hero.is_player_hero and hero.is_dead:
+			if is_ally_ex and hero.is_dead:
 				if is_multiplayer and network_manager and not is_host:
 					# GUEST: Send EX skill request to Host
 					var request = {
@@ -1692,9 +1951,10 @@ func _on_hero_clicked(hero: Hero) -> void:
 				else:
 					_execute_ex_skill(ex_skill_hero, hero)
 		else:
-			if not hero.is_player_hero and not hero.is_dead:
+			if not is_ally_ex and not hero.is_dead:
 				# Enforce taunt: if an enemy has taunt, only allow targeting them
-				var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
+				var opp_team_ex = player_heroes if _practice_controlling_enemy else enemy_heroes
+				var alive_enemies = opp_team_ex.filter(func(h): return not h.is_dead)
 				var taunt_target = _get_taunt_target(alive_enemies)
 				if taunt_target and hero != taunt_target:
 					return  # Can't target non-taunt enemy
@@ -1728,12 +1988,17 @@ func _on_hero_clicked(hero: Hero) -> void:
 				else:
 					_execute_ex_skill(ex_skill_hero, hero)
 	elif current_phase == BattlePhase.PLAYING:
-		if hero.is_player_hero and hero.energy >= hero.max_energy:
+		var is_my_hero = hero.is_player_hero if not _practice_controlling_enemy else not hero.is_player_hero
+		if is_my_hero and hero.energy >= hero.max_energy:
 			# Check if hero is stunned
 			if hero.is_stunned():
 				print("Cannot use EX skill - " + hero.hero_data.get("name", "Hero") + " is stunned!")
 				return
 			_use_ex_skill(hero)
+			return
+		# Practice mode: select/deselect hero for practice tools
+		if is_practice_mode:
+			_practice_toggle_select(hero)
 
 func _play_card_on_target(card: Card, target: Hero) -> void:
 	var source_hero = _get_source_hero(card.card_data)
@@ -1832,7 +2097,7 @@ func _play_card_on_target(card: Card, target: Hero) -> void:
 		current_phase = BattlePhase.PLAYING
 		return
 	
-	if GameManager.play_card(card_data_copy, source_hero, target):
+	if _battle_play_card(card_data_copy, source_hero, target):
 		await _show_card_display(card_data_copy)
 		await _resolve_card_effect(card_data_copy, source_hero, target)
 		await _hide_card_display()
@@ -1863,7 +2128,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			
 			# Card Barrage: damage scales with number of cards in hand
 			if card_data.get("hand_size_scaling", false):
-				var hand_count = GameManager.hand.size()
+				var hand_count = GameManager.enemy_hand.size() if _practice_controlling_enemy else GameManager.hand.size()
 				atk_mult *= float(hand_count)
 				print("[Card Barrage] Hand size " + str(hand_count) + " × " + str(card_data.get("atk_multiplier", 0.5)) + " ATK = " + str(int(base_atk * atk_mult * damage_mult)) + " damage")
 			
@@ -1950,8 +2215,13 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			
 			# Check if hero already has equipment (limit: 1 per hero)
 			if target.has_equipment():
-				print("[Equipment] " + target.hero_data.get("name", "Hero") + " already has equipment! Cannot equip " + equip_name)
-				return
+				if not is_practice_mode:
+					print("[Equipment] " + target.hero_data.get("name", "Hero") + " already has equipment! Cannot equip " + equip_name)
+					return
+				else:
+					# Practice mode: remove old equipment before adding new
+					print("[Practice] Replacing " + target.hero_data.get("name", "Hero") + "'s equipment with " + equip_name)
+					target.clear_equipment()
 			
 			# Add equipment to hero using new equipment system
 			target.add_equipment({
@@ -2038,8 +2308,12 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 			"mana_gain":
 				# Mana Siphon: Gain mana on kill
 				var mana_amount = int(value)
-				GameManager.current_mana = min(GameManager.current_mana + mana_amount, GameManager.max_mana)
-				GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
+				if _practice_controlling_enemy:
+					GameManager.enemy_current_mana = min(GameManager.enemy_current_mana + mana_amount, GameManager.enemy_max_mana)
+					GameManager.mana_changed.emit(GameManager.enemy_current_mana, GameManager.enemy_max_mana)
+				else:
+					GameManager.current_mana = min(GameManager.current_mana + mana_amount, GameManager.max_mana)
+					GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 				_update_ui()
 				print("[Equipment] " + equip_name + ": Gained " + str(mana_amount) + " mana")
 				_log_status(hero.hero_data.get("portrait", ""), equip_name + ": +" + str(mana_amount) + " Mana", Color(0.5, 0.6, 1.0))
@@ -2105,6 +2379,165 @@ func _get_guardian_reduction(hero: Hero) -> int:
 # DECK MANIPULATION CARD HANDLERS
 # ============================================
 
+var _confirm_result := false
+var _confirm_done := false
+var _deck_manipulation_active := false
+
+func _show_confirm_dialog(message: String) -> bool:
+	## Shows a Yes/No confirmation dialog and awaits the player's choice.
+	## Returns true if Yes, false if No.
+	_confirm_result = false
+	_confirm_done = false
+	
+	var overlay = CanvasLayer.new()
+	overlay.layer = 90
+	add_child(overlay)
+	
+	# Root control that fills the screen — this is the single input receiver
+	var root = Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.add_child(root)
+	
+	# Dim background (pass-through clicks to siblings above)
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(dim)
+	
+	# Center container for the panel
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
+	
+	# Panel
+	var panel = PanelContainer.new()
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.08, 0.14, 0.95)
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.9, 0.7, 0.2, 0.8)
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
+	style.content_margin_left = 24
+	style.content_margin_right = 24
+	style.content_margin_top = 16
+	style.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+	
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+	
+	# Message label
+	var label = Label.new()
+	label.text = message
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.8))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size = Vector2(320, 0)
+	vbox.add_child(label)
+	
+	# Button row
+	var hbox = HBoxContainer.new()
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hbox.add_theme_constant_override("separation", 20)
+	vbox.add_child(hbox)
+	
+	var yes_btn = Button.new()
+	yes_btn.text = "Yes"
+	yes_btn.custom_minimum_size = Vector2(100, 36)
+	yes_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var yes_style = StyleBoxFlat.new()
+	yes_style.bg_color = Color(0.2, 0.6, 0.3, 0.9)
+	yes_style.corner_radius_top_left = 6
+	yes_style.corner_radius_top_right = 6
+	yes_style.corner_radius_bottom_left = 6
+	yes_style.corner_radius_bottom_right = 6
+	yes_btn.add_theme_stylebox_override("normal", yes_style)
+	hbox.add_child(yes_btn)
+	
+	var no_btn = Button.new()
+	no_btn.text = "No"
+	no_btn.custom_minimum_size = Vector2(100, 36)
+	no_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var no_style = StyleBoxFlat.new()
+	no_style.bg_color = Color(0.6, 0.2, 0.2, 0.9)
+	no_style.corner_radius_top_left = 6
+	no_style.corner_radius_top_right = 6
+	no_style.corner_radius_bottom_left = 6
+	no_style.corner_radius_bottom_right = 6
+	no_btn.add_theme_stylebox_override("normal", no_style)
+	hbox.add_child(no_btn)
+	
+	yes_btn.pressed.connect(_on_confirm_yes)
+	no_btn.pressed.connect(_on_confirm_no)
+	
+	while not _confirm_done:
+		await get_tree().process_frame
+	
+	overlay.queue_free()
+	return _confirm_result
+
+func _on_confirm_yes() -> void:
+	_confirm_result = true
+	_confirm_done = true
+
+func _on_confirm_no() -> void:
+	_confirm_result = false
+	_confirm_done = true
+
+func _refund_card_to_hand(card_data: Dictionary, mana_cost: int) -> void:
+	## Refunds a card back to hand: removes from discard, re-adds to hand, refunds mana.
+	var active_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+	var active_discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
+	
+	# Remove from discard pile (it was added there by _add_card_to_stack)
+	var card_id = card_data.get("id", "")
+	for i in range(active_discard.size() - 1, -1, -1):
+		if active_discard[i].get("id", "") == card_id:
+			active_discard.remove_at(i)
+			break
+	
+	# Re-add to hand
+	active_hand.append(card_data.duplicate())
+	
+	# Refund mana
+	if _practice_controlling_enemy:
+		GameManager.enemy_current_mana += mana_cost
+		GameManager.mana_changed.emit(GameManager.enemy_current_mana, GameManager.enemy_max_mana)
+	else:
+		GameManager.current_mana += mana_cost
+		GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
+	
+	_refresh_hand()
+	_update_deck_display()
+	print("[Refund] Card returned to hand: " + card_data.get("name", "Card") + " | Mana refunded: " + str(mana_cost))
+
+func _check_deck_size_confirm(card_data: Dictionary, required: int) -> bool:
+	## Checks if deck has enough cards. If not, shows confirmation dialog.
+	## Returns true to proceed, false to cancel.
+	var deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
+	if deck.size() >= required:
+		return true
+	
+	var card_name = card_data.get("name", "Card")
+	var msg: String
+	if deck.size() == 0:
+		msg = "Deck is empty. " + card_name + " needs " + str(required) + " card(s).\nProceed anyway?"
+	else:
+		msg = "Deck has " + str(deck.size()) + " card(s). " + card_name + " needs " + str(required) + ".\nProceed anyway?"
+	
+	return await _show_confirm_dialog(msg)
+
 func _handle_dig_card(card_data: Dictionary, source: Hero) -> void:
 	# Dig: Reveal top X cards from deck, player picks one matching filter
 	var dig_count = card_data.get("dig_count", 3)
@@ -2112,14 +2545,26 @@ func _handle_dig_card(card_data: Dictionary, source: Hero) -> void:
 	var card_name = card_data.get("name", "Dig")
 	
 	# Get top X cards from deck (without removing them yet)
-	var deck = GameManager.deck
+	var deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
+	
+	# If deck is empty, reshuffle discard pile into deck first
+	if deck.is_empty():
+		if _practice_controlling_enemy:
+			GameManager.enemy_reshuffle_discard_into_deck()
+		else:
+			GameManager.reshuffle_discard_into_deck()
+		deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
+		_update_deck_display()
+		if not deck.is_empty():
+			print("[" + card_name + "] Reshuffled discard into deck (" + str(deck.size()) + " cards)")
+	
 	var revealed_cards: Array = []
 	
 	for i in range(min(dig_count, deck.size())):
 		revealed_cards.append(deck[deck.size() - 1 - i])  # Top of deck is end of array
 	
 	if revealed_cards.is_empty():
-		print("[" + card_name + "] Deck is empty!")
+		print("[" + card_name + "] Deck and discard are both empty!")
 		return
 	
 	print("[" + card_name + "] Revealing " + str(revealed_cards.size()) + " cards, filter: " + dig_filter)
@@ -2135,13 +2580,15 @@ func _handle_dig_card(card_data: Dictionary, source: Hero) -> void:
 				break
 		
 		# Add to hand (or discard if hand full)
-		if GameManager.hand.size() < GameManager.HAND_SIZE:
-			GameManager.hand.append(selected_card)
+		var dig_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+		if dig_hand.size() < GameManager.HAND_SIZE:
+			dig_hand.append(selected_card)
 			print("[" + card_name + "] Added " + selected_card.get("name", "card") + " to hand")
 			_refresh_hand()
 			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Dug → Hand")
 		else:
-			GameManager.discard_pile.append(selected_card)
+			var dig_discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
+			dig_discard.append(selected_card)
 			print("[" + card_name + "] Hand full! " + selected_card.get("name", "card") + " goes to discard")
 			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Dug → Discard (full)")
 	
@@ -2154,7 +2601,19 @@ func _handle_search_deck_card(card_data: Dictionary, source: Hero) -> void:
 	var search_filter = card_data.get("search_filter", "equipment")
 	var card_name = card_data.get("name", "Search")
 	
-	var deck = GameManager.deck
+	var deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
+	
+	# If deck is empty, reshuffle discard pile into deck first
+	if deck.is_empty():
+		if _practice_controlling_enemy:
+			GameManager.enemy_reshuffle_discard_into_deck()
+		else:
+			GameManager.reshuffle_discard_into_deck()
+		deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
+		_update_deck_display()
+		if not deck.is_empty():
+			print("[" + card_name + "] Reshuffled discard into deck (" + str(deck.size()) + " cards)")
+	
 	var matching_cards: Array = []
 	
 	for card in deck:
@@ -2178,13 +2637,15 @@ func _handle_search_deck_card(card_data: Dictionary, source: Hero) -> void:
 				break
 		
 		# Add to hand (or discard if full)
-		if GameManager.hand.size() < GameManager.HAND_SIZE:
-			GameManager.hand.append(selected_card)
+		var search_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+		if search_hand.size() < GameManager.HAND_SIZE:
+			search_hand.append(selected_card)
 			print("[" + card_name + "] Added " + selected_card.get("name", "card") + " to hand")
 			_refresh_hand()
 			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Search → Hand")
 		else:
-			GameManager.discard_pile.append(selected_card)
+			var search_discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
+			search_discard.append(selected_card)
 			print("[" + card_name + "] Hand full! " + selected_card.get("name", "card") + " goes to discard")
 			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Search → Discard (full)")
 	
@@ -2197,7 +2658,7 @@ func _handle_check_discard_card(card_data: Dictionary, source: Hero) -> void:
 	var discard_filter = card_data.get("discard_filter", "any")
 	var card_name = card_data.get("name", "Recycle")
 	
-	var discard = GameManager.discard_pile
+	var discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
 	var matching_cards: Array = []
 	
 	for card in discard:
@@ -2221,8 +2682,9 @@ func _handle_check_discard_card(card_data: Dictionary, source: Hero) -> void:
 				break
 		
 		# Add to hand (or back to discard if full)
-		if GameManager.hand.size() < GameManager.HAND_SIZE:
-			GameManager.hand.append(selected_card)
+		var recycle_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+		if recycle_hand.size() < GameManager.HAND_SIZE:
+			recycle_hand.append(selected_card)
 			print("[" + card_name + "] Returned " + selected_card.get("name", "card") + " to hand")
 			_refresh_hand()
 			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Recycle → Hand")
@@ -2239,32 +2701,159 @@ func _card_matches_filter_type(card: Dictionary, filter: String) -> bool:
 	var card_type = card.get("type", "")
 	return card_type == filter
 
+var _card_selection_result: Dictionary = {}
+var _card_selection_done := false
+
 func _show_card_selection(cards: Array, filter: String, title: String) -> Dictionary:
-	# Show the card selection UI and wait for player choice
-	if not card_selection_ui:
-		return {}
+	# Build a fresh card selection dialog on a high CanvasLayer (same pattern as _show_confirm_dialog)
+	_card_selection_result = {}
+	_card_selection_done = false
 	
-	var selected_card: Dictionary = {}
-	var selection_done = false
+	var overlay = CanvasLayer.new()
+	overlay.layer = 90
+	add_child(overlay)
 	
-	# Connect signals
-	var on_selected = func(card: Dictionary):
-		selected_card = card
-		selection_done = true
-	var on_cancelled = func():
-		selection_done = true
+	# Root control fills screen and blocks input behind it
+	var root = Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.add_child(root)
 	
-	card_selection_ui.card_selected.connect(on_selected, CONNECT_ONE_SHOT)
-	card_selection_ui.selection_cancelled.connect(on_cancelled, CONNECT_ONE_SHOT)
+	# Dim background
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.7)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(dim)
 	
-	# Show UI
-	card_selection_ui.show_cards(cards, filter, title)
+	# Center container
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
+	
+	# Panel
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(800, 420)
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.1, 0.08, 0.06, 0.95)
+	panel_style.border_width_left = 3
+	panel_style.border_width_right = 3
+	panel_style.border_width_top = 3
+	panel_style.border_width_bottom = 3
+	panel_style.border_color = Color(0.8, 0.7, 0.4, 1)
+	panel_style.corner_radius_top_left = 12
+	panel_style.corner_radius_top_right = 12
+	panel_style.corner_radius_bottom_left = 12
+	panel_style.corner_radius_bottom_right = 12
+	panel_style.content_margin_left = 20
+	panel_style.content_margin_right = 20
+	panel_style.content_margin_top = 15
+	panel_style.content_margin_bottom = 15
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+	
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+	
+	# Title
+	var title_label = Label.new()
+	title_label.text = title
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.add_theme_font_size_override("font_size", 24)
+	title_label.add_theme_color_override("font_color", Color(1, 0.9, 0.7, 1))
+	vbox.add_child(title_label)
+	
+	# Info label (created early so card click lambdas can reference it)
+	var info_lbl = Label.new()
+	info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info_lbl.add_theme_font_size_override("font_size", 14)
+	info_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8, 1))
+	
+	# Buttons (created early so card click lambdas can reference confirm_btn)
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.custom_minimum_size = Vector2(130, 40)
+	cancel_btn.add_theme_font_size_override("font_size", 16)
+	
+	var confirm_btn = Button.new()
+	confirm_btn.custom_minimum_size = Vector2(130, 40)
+	confirm_btn.add_theme_font_size_override("font_size", 16)
+	
+	# Cards container
+	var cards_hbox = HBoxContainer.new()
+	cards_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	cards_hbox.add_theme_constant_override("separation", 10)
+	cards_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cards_hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(cards_hbox)
+	
+	var card_scene_res = preload("res://scenes/components/card.tscn")
+	var valid_count := 0
+	var card_instances: Array = []
+	
+	for card_data in cards:
+		var card_inst = card_scene_res.instantiate()
+		cards_hbox.add_child(card_inst)
+		card_inst.setup(card_data)
+		card_inst.scale = Vector2(0.8, 0.8)
+		
+		var is_valid = (filter == "any") or (card_data.get("type", "") == filter)
+		if is_valid:
+			valid_count += 1
+			card_inst.modulate = Color(1, 1, 1, 1)
+			card_inst.mouse_filter = Control.MOUSE_FILTER_STOP
+			var _cd = card_data
+			var _ci = card_inst
+			card_inst.gui_input.connect(func(event: InputEvent):
+				if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+					_card_selection_result = _cd
+					for c in card_instances:
+						c.modulate = Color(1, 1, 1, 1) if c != _ci else Color(1.2, 1.2, 0.8, 1)
+					info_lbl.text = "Selected: " + _cd.get("name", "Unknown")
+					confirm_btn.disabled = false
+					confirm_btn.text = "Confirm"
+			)
+		else:
+			card_inst.modulate = Color(0.5, 0.5, 0.5, 0.8)
+			card_inst.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card_instances.append(card_inst)
+	
+	# Now add info label and buttons to the layout
+	if valid_count > 0:
+		info_lbl.text = "Click a highlighted card to select it"
+		confirm_btn.text = "Confirm"
+		confirm_btn.disabled = true
+	else:
+		info_lbl.text = "No valid cards found. Click OK to continue."
+		confirm_btn.text = "OK"
+		confirm_btn.disabled = false
+	vbox.add_child(info_lbl)
+	
+	var btn_hbox = HBoxContainer.new()
+	btn_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_hbox.add_theme_constant_override("separation", 40)
+	vbox.add_child(btn_hbox)
+	btn_hbox.add_child(cancel_btn)
+	btn_hbox.add_child(confirm_btn)
+	
+	confirm_btn.pressed.connect(_on_card_selection_confirm)
+	cancel_btn.pressed.connect(_on_card_selection_cancel)
 	
 	# Wait for selection
-	while not selection_done:
+	while not _card_selection_done:
 		await get_tree().process_frame
 	
-	return selected_card
+	overlay.queue_free()
+	return _card_selection_result
+
+func _on_card_selection_confirm() -> void:
+	_card_selection_done = true
+
+func _on_card_selection_cancel() -> void:
+	_card_selection_result = {}
+	_card_selection_done = true
 
 func _trigger_thunder_damage(heroes: Array) -> void:
 	# Tick Thunder debuff on all heroes - triggers after 2 turns
@@ -2282,8 +2871,8 @@ func _trigger_thunder_damage(heroes: Array) -> void:
 		
 		if damage > 0:
 			# Thunder is ready to strike!
-			# Spawn blue lightning VFX on the target hero
-			hero._spawn_lightning_effect()
+			# Spawn lightning explosion VFX on the target hero
+			hero._spawn_thunder_explode_effect()
 			
 			# Deal damage
 			hero.take_damage(damage)
@@ -2319,14 +2908,20 @@ func _get_hero_by_color(color: String) -> Hero:
 
 func _get_source_hero(card_data: Dictionary) -> Hero:
 	var hero_id = card_data.get("hero_id", "")
+	var search_team = enemy_heroes if _practice_controlling_enemy else player_heroes
 	if hero_id != "":
-		var hero = _get_hero_by_id(hero_id)
-		if hero:
+		for hero in search_team:
+			if hero.hero_id == hero_id:
+				return hero
+	var color = card_data.get("hero_color", "")
+	for hero in search_team:
+		if hero.get_color() == color:
 			return hero
-	return _get_hero_by_color(card_data.get("hero_color", ""))
+	return null
 
 func _get_nearest_enemy() -> Hero:
-	var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
+	var opp_team = player_heroes if _practice_controlling_enemy else enemy_heroes
+	var alive_enemies = opp_team.filter(func(h): return not h.is_dead)
 	if alive_enemies.is_empty():
 		return null
 	# Check for taunt - if any enemy has taunt, target them instead
@@ -2334,7 +2929,7 @@ func _get_nearest_enemy() -> Hero:
 	if taunt_target:
 		return taunt_target
 	# Use team_index to find the front enemy reliably
-	return _get_front_hero(enemy_heroes)
+	return _get_front_hero(opp_team)
 
 func _play_attack_on_nearest(card: Card) -> void:
 	var target = _get_nearest_enemy()
@@ -2352,7 +2947,7 @@ func _play_attack_on_all_enemies(card: Card) -> void:
 	selected_card = null
 	await _animate_card_to_display(card)
 	
-	if GameManager.play_card(card_data_copy, source_hero, null):
+	if _battle_play_card(card_data_copy, source_hero, null):
 		await _show_card_display(card_data_copy)
 		
 		var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
@@ -2361,7 +2956,8 @@ func _play_attack_on_all_enemies(card: Card) -> void:
 		var damage = int(base_atk * atk_mult * damage_mult)
 		if damage == 0:
 			damage = 10
-		var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
+		var opp_team = player_heroes if _practice_controlling_enemy else enemy_heroes
+		var alive_enemies = opp_team.filter(func(h): return not h.is_dead)
 		
 		# Play attack animation first
 		if source_hero:
@@ -2401,7 +2997,7 @@ func _play_heal_on_all_allies(card: Card) -> void:
 	selected_card = null
 	await _animate_card_to_display(card)
 	
-	if GameManager.play_card(card_data_copy, source_hero, null):
+	if _battle_play_card(card_data_copy, source_hero, null):
 		await _show_card_display(card_data_copy)
 		
 		var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
@@ -2412,7 +3008,8 @@ func _play_heal_on_all_allies(card: Card) -> void:
 		else:
 			var heal_mult = card_data_copy.get("heal_multiplier", 1.0)
 			heal_amount = int(base_atk * heal_mult)
-		var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
+		var my_team = enemy_heroes if _practice_controlling_enemy else player_heroes
+		var alive_allies = my_team.filter(func(h): return not h.is_dead)
 		var total_heal = 0
 		
 		for ally in alive_allies:
@@ -2434,7 +3031,7 @@ func _play_buff_on_all_allies(card: Card) -> void:
 	selected_card = null
 	await _animate_card_to_display(card)
 	
-	if GameManager.play_card(card_data_copy, source_hero, null):
+	if _battle_play_card(card_data_copy, source_hero, null):
 		await _show_card_display(card_data_copy)
 		
 		var base_atk = source_hero.hero_data.get("base_attack", 10) if source_hero else 10
@@ -2446,7 +3043,8 @@ func _play_buff_on_all_allies(card: Card) -> void:
 			shield_amount = source_hero.calculate_shield(card_base_shield, def_mult) if source_hero else card_base_shield
 		elif shield_mult_legacy > 0:
 			shield_amount = int(base_atk * shield_mult_legacy)
-		var alive_allies = player_heroes.filter(func(h): return not h.is_dead)
+		var my_team_b = enemy_heroes if _practice_controlling_enemy else player_heroes
+		var alive_allies = my_team_b.filter(func(h): return not h.is_dead)
 		var total_shield = 0
 		
 		for ally in alive_allies:
@@ -2462,21 +3060,38 @@ func _play_buff_on_all_allies(card: Card) -> void:
 	
 	_finish_card_play()
 
+func _battle_play_card(card_data: Dictionary, source_hero, target) -> bool:
+	if _practice_controlling_enemy:
+		return GameManager.practice_play_enemy_card(card_data, source_hero, target)
+	return GameManager.play_card(card_data, source_hero, target)
+
 func _finish_card_play() -> void:
 	_clear_highlights()
 	selected_card = null
 	current_phase = BattlePhase.PLAYING
 	if turn_indicator:
-		turn_indicator.text = "YOUR TURN"
+		if _practice_controlling_enemy:
+			turn_indicator.text = "ENEMY TURN (YOU)"
+		else:
+			turn_indicator.text = "YOUR TURN"
+	
+	# Unlimited mana: refill both teams after every card play
+	if is_practice_mode and _practice_unli_mana:
+		GameManager.current_mana = GameManager.MANA_CAP
+		GameManager.max_mana = GameManager.MANA_CAP
+		GameManager.enemy_current_mana = GameManager.MANA_CAP
+		GameManager.enemy_max_mana = GameManager.MANA_CAP
+		GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 	
 	# Remove the front card from queue and visuals (it just finished playing)
 	if not card_queue.is_empty():
 		var finished_card = card_queue.pop_front()
-		var finished_id = finished_card.card_id
+		var finished_uid = finished_card.queue_uid
 		
-		# Remove its visual
+		# Remove its visual tracking entry by unique queue_uid
+		# (The visual itself is already freed by _fade_out_visual)
 		for i in range(queued_card_visuals.size() - 1, -1, -1):
-			if queued_card_visuals[i].card_id == finished_id:
+			if queued_card_visuals[i].queue_uid == finished_uid:
 				queued_card_visuals.remove_at(i)
 				break
 	
@@ -2502,16 +3117,21 @@ func _play_mana_card(card: Card) -> void:
 	await _animate_card_to_display(card)
 	
 	var mana_gain := int(card.card_data.get("mana_gain", 1))
-	GameManager.current_mana += mana_gain
-	GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
+	if _practice_controlling_enemy:
+		GameManager.enemy_current_mana += mana_gain
+		GameManager.mana_changed.emit(GameManager.enemy_current_mana, GameManager.enemy_max_mana)
+	else:
+		GameManager.current_mana += mana_gain
+		GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 	
+	var active_hand_m = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
 	var card_index = -1
-	for i in range(GameManager.hand.size()):
-		if GameManager.hand[i].get("id", "") == card.card_data.get("id", ""):
+	for i in range(active_hand_m.size()):
+		if active_hand_m[i].get("id", "") == card.card_data.get("id", ""):
 			card_index = i
 			break
 	if card_index != -1:
-		GameManager.hand.remove_at(card_index)
+		active_hand_m.remove_at(card_index)
 	
 	_finish_card_play()
 
@@ -2567,8 +3187,8 @@ func _find_redirect_target(hero: Hero) -> Hero:
 	# Check if hero has redirect buff and find the hero who should receive redirected damage
 	if not hero.has_buff("redirect"):
 		return null
-	var redirect_id = hero.get_meta("redirect_to", -1)
-	if redirect_id == -1:
+	var redirect_id = hero.get_meta("redirect_to", "")
+	if str(redirect_id).is_empty() or redirect_id == -1:
 		return null
 	# Search in the same team
 	var team = player_heroes if hero.is_player_hero else enemy_heroes
@@ -3113,7 +3733,10 @@ func _execute_ex_skill(hero: Hero, target: Hero) -> void:
 					var sprite_center = hero.sprite.global_position + hero.sprite.size / 2
 					VFX.spawn_energy_burst(sprite_center, Color(0.6, 0.2, 1.0))
 				# Draw cards first
-				GameManager.draw_cards(draw_count)
+				if _practice_controlling_enemy:
+					GameManager.enemy_draw_cards(draw_count)
+				else:
+					GameManager.draw_cards(draw_count)
 				_refresh_hand(true)
 				_update_deck_display()
 				print("[Scrapyard Overflow] Drew " + str(draw_count) + " cards — now select " + str(discard_count) + " to discard")
@@ -3286,11 +3909,12 @@ func _generate_temporary_cards(card_id: String, count: int, source_hero: Hero) -
 	if template.is_empty():
 		print("[Generate Cards] ERROR: Card template not found: " + card_id)
 		return
+	var active_hand_gen = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
 	for i in range(count):
 		var temp_card = template.duplicate()
 		temp_card["temporary"] = true  # Mark as temporary — won't go to discard
 		temp_card["hero_id"] = source_hero.hero_id
-		GameManager.hand.append(temp_card)
+		active_hand_gen.append(temp_card)
 	_refresh_hand()
 	print("[Generate Cards] " + source_hero.hero_data.get("name", "Hero") + " generated " + str(count) + "x " + template.get("name", card_id) + " (temporary)")
 
@@ -3618,6 +4242,7 @@ func _eh_hp_cost_pct(ctx: Dictionary, spec: Dictionary) -> Array:
 func _eh_bleed_on_action(ctx: Dictionary, spec: Dictionary) -> Array:
 	# Phase 4: Bleed trigger (10 true self-damage) on any non-EX action.
 	var source: Hero = ctx.get("source", null)
+	print("[DEBUG Bleed] _eh_bleed_on_action called. source=", source.hero_id if source else "null", " has_debuff('bleed')=", source.has_debuff("bleed") if source else "N/A", " is_ex=", ctx.get("is_ex", false), " debuffs=", source.active_debuffs.keys() if source else [])
 	if source == null or not is_instance_valid(source) or source.is_dead:
 		return []
 	if bool(ctx.get("is_ex", false)):
@@ -3670,8 +4295,11 @@ func _eh_draw(ctx: Dictionary, spec: Dictionary) -> Array:
 	var amount := int(spec.get("amount", 1))
 	if amount <= 0:
 		return []
-	if bool(ctx.get("apply_now", false)) and source.is_player_hero:
-		GameManager.draw_cards(amount)
+	if bool(ctx.get("apply_now", false)):
+		if _practice_controlling_enemy and not source.is_player_hero:
+			GameManager.enemy_draw_cards(amount)
+		elif source.is_player_hero:
+			GameManager.draw_cards(amount)
 		_refresh_hand()
 	var op := _op_base_for_hero(source)
 	op["type"] = OP_DRAW
@@ -3909,14 +4537,7 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 					"target": "primary"
 				})
 			"dana_shield_draw":
-				specs.append({
-					"type": EFFECT_APPLY_BUFF,
-					"id": "dana_shield_draw",
-					"target": "primary",
-					"stacks": 1,
-					"duration": 1,
-					"expire_on": "own_turn_end"
-				})
+				pass  # Handled entirely by custom handler in _apply_effects
 			"counter_50":
 				specs.append({
 					"type": EFFECT_APPLY_BUFF,
@@ -3945,14 +4566,7 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 					"expire_on": "opponent_turn_end"
 				})
 			"crescent_moon":
-				specs.append({
-					"type": EFFECT_APPLY_BUFF,
-					"id": "crescent_moon",
-					"target": "source",
-					"stacks": 1,
-					"duration": 0,
-					"expire_on": ""
-				})
+				pass  # Handled entirely by custom handler in _apply_effects — no generic buff spec
 			"eclipse_buff":
 				specs.append({
 					"type": EFFECT_APPLY_BUFF,
@@ -4015,7 +4629,7 @@ func _apply_true_damage(hero: Hero, amount: int) -> void:
 	hero.current_hp = max(0, hero.current_hp - amount)
 	hero._update_ui()
 	if hero.current_hp <= 0:
-		hero._die()
+		hero.die()
 
 func _can_pay_hp_cost(card_data: Dictionary, source_hero: Hero) -> bool:
 	var hp_cost = _get_hp_cost(card_data, source_hero)
@@ -4209,7 +4823,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 			"dana_shield_draw":
 				# Dana's Smart Shield: attach marker buff to target
 				if target and not target.is_dead:
-					target.apply_buff("dana_shield_draw", 1, 0, "own_turn_end")
+					target.apply_buff("dana_shield_draw", -1, 0, "permanent")
 					_log_status(target.hero_data.get("portrait", ""), "Smart Shield", Color(0.6, 0.85, 1.0))
 			"counter_50":
 				# Gavran SK1: Reflect 50% of damage back to attacker
@@ -4242,7 +4856,8 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						print(source.hero_data.get("name", "Hero") + " Crescent Moon x4! EX gauge filled!")
 						_log_status(source.hero_data.get("portrait", ""), "Crescent Moon x4 → EX Full!", Color(1.0, 0.85, 0.3))
 					else:
-						source.apply_buff("crescent_moon", new_stacks, 0, "")
+						source.apply_buff("crescent_moon", -1, 0, "permanent")
+						source.active_buffs["crescent_moon"]["stacks"] = new_stacks
 						print(source.hero_data.get("name", "Hero") + " gained Crescent Moon (stack " + str(new_stacks) + "/4)")
 						_log_status(source.hero_data.get("portrait", ""), "Crescent Moon " + str(new_stacks) + "/4", Color(0.8, 0.75, 1.0))
 			"eclipse_buff":
@@ -4254,11 +4869,13 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 			"rewind":
 				# Nyra SK1: Pull 1 random card from discard pile into hand
 				if source and not source.is_dead:
-					if GameManager.discard_pile.size() > 0:
-						var rand_index = randi() % GameManager.discard_pile.size()
-						var rewound_card = GameManager.discard_pile[rand_index]
-						GameManager.discard_pile.remove_at(rand_index)
-						GameManager.hand.append(rewound_card)
+					var rw_discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
+					var rw_hand = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+					if rw_discard.size() > 0:
+						var rand_index = randi() % rw_discard.size()
+						var rewound_card = rw_discard[rand_index]
+						rw_discard.remove_at(rand_index)
+						rw_hand.append(rewound_card)
 						_refresh_hand()
 						_update_deck_display()
 						print(source.hero_data.get("name", "Hero") + " Rewind! Retrieved " + rewound_card.get("name", "card") + " from discard")
@@ -4304,19 +4921,21 @@ func _apply_upgrade_shuffle(card_data: Dictionary) -> void:
 	var new_mult = current_mult + upgrade_mult
 	
 	# Find the card in discard pile and upgrade it
-	for i in range(GameManager.discard_pile.size() - 1, -1, -1):
-		var discard_card = GameManager.discard_pile[i]
+	var ws_discard = GameManager.enemy_discard_pile if _practice_controlling_enemy else GameManager.discard_pile
+	var ws_deck = GameManager.enemy_deck if _practice_controlling_enemy else GameManager.deck
+	for i in range(ws_discard.size() - 1, -1, -1):
+		var discard_card = ws_discard[i]
 		if discard_card.get("id", "") == card_data.get("id", ""):
 			# Remove from discard
-			GameManager.discard_pile.remove_at(i)
+			ws_discard.remove_at(i)
 			# Upgrade the multiplier
 			discard_card["atk_multiplier"] = new_mult
 			# Update description
 			var new_damage = int(10 * new_mult)
 			discard_card["description"] = "Deal " + str(new_damage) + " damage to all enemies. Gain Taunt. +2 damage on shuffle."
 			# Add back to deck
-			GameManager.deck.append(discard_card)
-			GameManager.deck.shuffle()
+			ws_deck.append(discard_card)
+			ws_deck.shuffle()
 			print("War Stomp upgraded to " + str(new_mult * 100) + "% ATK and shuffled into deck")
 			break
 
@@ -4390,14 +5009,6 @@ func _deselect_card() -> void:
 	if turn_indicator:
 		turn_indicator.text = "YOUR TURN"
 
-func _input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-			if current_phase == BattlePhase.TARGETING:
-				_deselect_card()
-			elif current_phase == BattlePhase.EX_TARGETING:
-				_cancel_ex_skill()
-
 func _on_end_turn_pressed() -> void:
 	if current_phase == BattlePhase.PLAYING or current_phase == BattlePhase.TARGETING or current_phase == BattlePhase.EX_TARGETING:
 		# Disable button immediately to prevent double-clicks
@@ -4446,6 +5057,11 @@ func _on_end_turn_pressed() -> void:
 				print("===\n")
 				return  # Don't execute turn end logic locally
 			print("===\n")
+		
+		# Practice mode: ending enemy turn (player-controlled)
+		if is_practice_mode and _practice_controlling_enemy:
+			_practice_end_enemy_turn()
+			return
 		
 		# === PLAYER TURN END: Expire buffs/debuffs ===
 		# Detonate Time Bombs on enemies before debuffs expire
@@ -4510,6 +5126,9 @@ func _on_turn_started(is_player: bool) -> void:
 	
 	if is_player:
 		# === PLAYER TURN START ===
+		# Reset practice enemy control flag
+		_practice_controlling_enemy = false
+		
 		# Snapshot HP for Temporal Shift (Nyra EX) — rotate snapshots
 		_hp_snapshot_last_turn = _hp_snapshot_this_turn.duplicate(true)
 		_hp_snapshot_this_turn.clear()
@@ -4524,6 +5143,11 @@ func _on_turn_started(is_player: bool) -> void:
 		for hero in player_heroes:
 			if not hero.is_dead:
 				hero.on_turn_start()
+				if hero.regen_draw_triggered:
+					hero.regen_draw_triggered = false
+					GameManager.draw_cards(1)
+					_refresh_hand()
+					print("[Regen+] " + hero.hero_data.get("name", "Hero") + " drew 1 card!")
 				_trigger_equipment_effects(hero, "on_turn_start", {})
 		
 		current_phase = BattlePhase.PLAYING
@@ -4542,12 +5166,15 @@ func _on_turn_started(is_player: bool) -> void:
 		for enemy in enemy_heroes:
 			if not enemy.is_dead:
 				enemy.on_turn_start()
+				if enemy.regen_draw_triggered:
+					enemy.regen_draw_triggered = false
+					# In multiplayer, opponent manages their own hand — don't draw for them
+					if not is_multiplayer:
+						GameManager.enemy_draw_cards(1)
+						print("[Regen+] " + enemy.hero_data.get("name", "Hero") + " (enemy) drew 1 card!")
 		
-		current_phase = BattlePhase.ENEMY_TURN
 		if turn_indicator:
 			turn_indicator.text = "ENEMY TURN"
-		end_turn_button.disabled = true
-		_flip_to_opponent_turn()
 		_log_turn_header(GameManager.turn_number, false)
 		# Enemy draws cards at start of turn (only for AI - in multiplayer, opponent manages their own hand)
 		if not is_multiplayer:
@@ -4557,6 +5184,20 @@ func _on_turn_started(is_player: bool) -> void:
 				if cards_to_draw > 0:
 					GameManager.enemy_draw_cards(cards_to_draw)
 					_refresh_enemy_hand_display()
+		
+		# Practice mode: player controls enemy team instead of AI
+		if is_practice_mode:
+			_practice_controlling_enemy = true
+			current_phase = BattlePhase.PLAYING
+			end_turn_button.disabled = false
+			if turn_indicator:
+				turn_indicator.text = "ENEMY TURN (YOU)"
+			_practice_show_enemy_hand()
+			return
+		
+		current_phase = BattlePhase.ENEMY_TURN
+		end_turn_button.disabled = true
+		_flip_to_opponent_turn()
 		_do_enemy_turn()
 
 func _animate_turn_transition(is_player: bool) -> void:
@@ -4842,7 +5483,12 @@ func _ai_get_card_priority(card: Dictionary, players: Array, enemies: Array, man
 			elif eff_type == "apply_break" or eff_type == "apply_weak" or eff_type == "break" or eff_type == "weak":
 				priority += 18  # Debuffs on enemies before attacking
 			elif eff_type == "redirect":
-				priority += 12  # Redirect is situationally good
+				# Redirect is useless if a teammate already has taunt (enemies can't hit the redirected ally anyway)
+				var ally_has_taunt = enemies.any(func(e): return e.has_buff("taunt"))
+				if ally_has_taunt:
+					priority += 2  # Almost worthless — taunt already protects squishies
+				else:
+					priority += 12
 			elif eff_type == "reshuffle":
 				priority += 5  # Low priority for AI (hand management is less useful)
 		# Shield value scales with how damaged allies are
@@ -4989,6 +5635,7 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 		var has_empower_heal = false
 		var has_shield = card.get("base_shield", 0) > 0 or card.get("def_multiplier", 0.0) > 0 or card.get("shield_multiplier", 0.0) > 0
 		var has_taunt_buff = false
+		var has_redirect = false
 		var is_all_ally = card.get("target", "") == "all_ally"
 		for eff in buff_effects:
 			var eff_type = eff.get("type", "") if eff is Dictionary else str(eff)
@@ -4998,9 +5645,25 @@ func _ai_get_best_target(targets: Array, action_type: String, card: Dictionary =
 				has_empower_heal = true
 			if eff_type in ["apply_taunt", "taunt"]:
 				has_taunt_buff = true
+			if eff_type == "redirect":
+				has_redirect = true
 		
 		# AoE buffs: just return any alive ally (target doesn't matter for all_ally)
 		if is_all_ally:
+			return targets[0]
+		
+		# Redirect: protect the squishiest non-taunting ally (never redirect the taunter)
+		if has_redirect:
+			var best = null
+			var lowest_hp = 999999
+			for t in targets:
+				if t.has_buff("taunt"):
+					continue
+				if t.current_hp < lowest_hp:
+					lowest_hp = t.current_hp
+					best = t
+			if best:
+				return best
 			return targets[0]
 		
 		if has_empower:
@@ -5241,6 +5904,8 @@ func _on_shield_broken(hero: Hero) -> void:
 		else:
 			GameManager.enemy_draw_cards(1)
 			_refresh_enemy_hand_display()
+			if _practice_controlling_enemy:
+				_practice_show_enemy_hand()
 			print("[Dana Shield Draw] " + hero.hero_data.get("name", "Hero") + " (enemy) shield broken → draw 1")
 
 func _on_hero_died(hero: Hero) -> void:
@@ -5259,6 +5924,9 @@ func _on_hero_died(hero: Hero) -> void:
 		# Process card removal for enemy heroes
 		GameManager.on_enemy_hero_died(hero_id, hero_color)
 		_refresh_enemy_hand_display()
+		# In practice enemy control, also refresh the main hand (showing enemy cards)
+		if _practice_controlling_enemy:
+			_practice_show_enemy_hand()
 
 func _on_mana_changed(current: int, max_mana: int) -> void:
 	if mana_label:
@@ -5279,11 +5947,23 @@ func _animate_mana_gain() -> void:
 
 func _update_ui() -> void:
 	if mana_label:
-		mana_label.text = str(GameManager.current_mana) + "/" + str(GameManager.max_mana)
+		if _practice_controlling_enemy:
+			mana_label.text = str(GameManager.enemy_current_mana) + "/" + str(GameManager.enemy_max_mana)
+		else:
+			mana_label.text = str(GameManager.current_mana) + "/" + str(GameManager.max_mana)
 	if deck_label:
-		deck_label.text = str(GameManager.deck.size())
+		if _practice_controlling_enemy:
+			deck_label.text = str(GameManager.enemy_deck.size())
+		else:
+			deck_label.text = str(GameManager.deck.size())
 
 func _on_game_over(player_won: bool) -> void:
+	# In practice mode, skip game over — just let user reset
+	if is_practice_mode:
+		current_phase = BattlePhase.PLAYING
+		print("[Practice] Game over suppressed — use Reset HP to continue")
+		return
+	
 	current_phase = BattlePhase.GAME_OVER
 	
 	# In multiplayer, notify opponent of game over
@@ -7277,3 +7957,841 @@ func _log_event(text: String, color: Color = Color(0.75, 0.72, 0.65)) -> void:
 	row.custom_minimum_size.y = 24
 	row.add_child(_create_log_text("  " + text, color, 11))
 	_add_visual_log_entry(row)
+
+# ============================================
+# PRACTICE MODE UI
+# ============================================
+
+func _setup_practice_ui() -> void:
+	# Create a side panel with practice tools
+	practice_panel = PanelContainer.new()
+	practice_panel.position = Vector2(10, 80)
+	practice_panel.z_index = 50
+	
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.05, 0.05, 0.1, 0.85)
+	panel_style.border_width_left = 2
+	panel_style.border_width_right = 2
+	panel_style.border_width_top = 2
+	panel_style.border_width_bottom = 2
+	panel_style.border_color = Color(0.3, 0.6, 1.0, 0.6)
+	panel_style.corner_radius_top_left = 10
+	panel_style.corner_radius_top_right = 10
+	panel_style.corner_radius_bottom_left = 10
+	panel_style.corner_radius_bottom_right = 10
+	panel_style.content_margin_left = 8
+	panel_style.content_margin_right = 8
+	panel_style.content_margin_top = 8
+	panel_style.content_margin_bottom = 8
+	practice_panel.add_theme_stylebox_override("panel", panel_style)
+	add_child(practice_panel)
+	
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	practice_panel.add_child(vbox)
+	practice_panel_vbox = vbox
+	
+	# Title — clickable to collapse, draggable to move panel
+	var title_btn = Button.new()
+	title_btn.text = "PRACTICE"
+	title_btn.custom_minimum_size = Vector2(100, 24)
+	title_btn.add_theme_font_size_override("font_size", 14)
+	title_btn.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	var title_style = StyleBoxFlat.new()
+	title_style.bg_color = Color(0.1, 0.15, 0.3, 0.9)
+	title_style.corner_radius_top_left = 6
+	title_style.corner_radius_top_right = 6
+	title_style.corner_radius_bottom_left = 6
+	title_style.corner_radius_bottom_right = 6
+	title_btn.add_theme_stylebox_override("normal", title_style)
+	var title_hover = title_style.duplicate()
+	title_hover.bg_color = Color(0.15, 0.2, 0.4, 0.9)
+	title_btn.add_theme_stylebox_override("hover", title_hover)
+	title_btn.add_theme_stylebox_override("pressed", title_hover)
+	title_btn.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
+	title_btn.gui_input.connect(_on_practice_title_gui_input)
+	vbox.add_child(title_btn)
+	
+	# Separator
+	var sep = HSeparator.new()
+	vbox.add_child(sep)
+	
+	# --- Selected hero label ---
+	_practice_selected_label = Label.new()
+	_practice_selected_label.text = ">> None"
+	_practice_selected_label.add_theme_font_size_override("font_size", 11)
+	_practice_selected_label.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
+	vbox.add_child(_practice_selected_label)
+	
+	# --- Spawn buttons ---
+	_add_practice_button(vbox, "+ Enemy", _on_practice_add_enemy, Color(0.8, 0.3, 0.3))
+	_add_practice_button(vbox, "+ Ally", _on_practice_add_ally, Color(0.3, 0.7, 0.4))
+	_practice_replace_btn = _add_practice_button(vbox, "Replace Hero", _on_practice_replace_hero, Color(0.7, 0.5, 0.9))
+	_practice_replace_btn.disabled = true
+	
+	# Separator
+	var sep2 = HSeparator.new()
+	vbox.add_child(sep2)
+	
+	# --- Resource buttons ---
+	_add_practice_button(vbox, "Fill EX", _on_practice_fill_ex, Color(0.9, 0.7, 0.2))
+	_add_practice_button(vbox, "Reset HP", _on_practice_reset_hp, Color(0.3, 0.8, 0.5))
+	_add_practice_button(vbox, "Clear Status", _on_practice_clear_status, Color(0.9, 0.4, 0.4))
+	_add_practice_button(vbox, "Draw Card", _on_practice_draw_card, Color(0.6, 0.5, 0.8))
+	_add_practice_button(vbox, "Redeck", _on_practice_redeck, Color(0.4, 0.6, 0.9))
+	_add_practice_button(vbox, "+ Equip", _on_practice_add_equipment, Color(0.85, 0.6, 0.2))
+	
+	# Separator
+	var sep3 = HSeparator.new()
+	vbox.add_child(sep3)
+	
+	# --- Toggle & Turn buttons ---
+	_practice_unli_mana_btn = _add_practice_button(vbox, "Unli Mana: OFF", _on_practice_toggle_unli_mana, Color(0.3, 0.5, 0.9))
+	_add_practice_button(vbox, "Skip Turn", _on_practice_skip_turn, Color(0.6, 0.6, 0.6))
+	
+	# Separator
+	var sep4 = HSeparator.new()
+	vbox.add_child(sep4)
+	
+	# --- Exit ---
+	_add_practice_button(vbox, "Exit", _on_practice_exit, Color(0.7, 0.3, 0.3))
+
+func _add_practice_button(parent: VBoxContainer, text: String, callback: Callable, accent: Color) -> Button:
+	var btn = Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(100, 28)
+	btn.add_theme_font_size_override("font_size", 12)
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	
+	var style = StyleBoxFlat.new()
+	style.bg_color = accent.darkened(0.6)
+	style.border_width_left = 1
+	style.border_width_right = 1
+	style.border_width_top = 1
+	style.border_width_bottom = 1
+	style.border_color = accent.darkened(0.2)
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4
+	style.corner_radius_bottom_right = 4
+	btn.add_theme_stylebox_override("normal", style)
+	
+	var hover = style.duplicate()
+	hover.bg_color = accent.darkened(0.4)
+	hover.border_color = accent
+	btn.add_theme_stylebox_override("hover", hover)
+	
+	btn.pressed.connect(callback)
+	parent.add_child(btn)
+	return btn
+
+var _practice_drag_started_pos: Vector2 = Vector2.ZERO
+
+func _on_practice_title_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				practice_panel_dragging = true
+				practice_panel_drag_offset = practice_panel.position - event.global_position
+				_practice_drag_started_pos = event.global_position
+			else:
+				# If released without significant movement, treat as click → collapse
+				var moved = event.global_position.distance_to(_practice_drag_started_pos)
+				if moved < 5.0:
+					_toggle_practice_panel_collapse()
+				practice_panel_dragging = false
+	elif event is InputEventMouseMotion and practice_panel_dragging:
+		practice_panel.position = event.global_position + practice_panel_drag_offset
+
+func _toggle_practice_panel_collapse() -> void:
+	practice_panel_collapsed = not practice_panel_collapsed
+	if practice_panel_vbox:
+		for i in range(1, practice_panel_vbox.get_child_count()):
+			practice_panel_vbox.get_child(i).visible = not practice_panel_collapsed
+		var title_btn = practice_panel_vbox.get_child(0) as Button
+		if title_btn:
+			title_btn.text = "PRACTICE ▶" if practice_panel_collapsed else "PRACTICE"
+	# Force panel to shrink when collapsed
+	if practice_panel:
+		practice_panel.reset_size()
+
+func _on_practice_add_enemy() -> void:
+	if enemy_heroes.size() >= 4:
+		print("[Practice] Max 4 enemies")
+		return
+	_practice_spawn_is_player = false
+	_show_hero_picker_modal("Choose Enemy")
+
+func _on_practice_add_ally() -> void:
+	if player_heroes.size() >= 4:
+		print("[Practice] Max 4 allies")
+		return
+	_practice_spawn_is_player = true
+	_show_hero_picker_modal("Choose Ally")
+
+func _show_hero_picker_modal(title_text: String) -> void:
+	if practice_hero_picker and is_instance_valid(practice_hero_picker):
+		practice_hero_picker.queue_free()
+	
+	practice_hero_picker = CanvasLayer.new()
+	practice_hero_picker.layer = 100
+	add_child(practice_hero_picker)
+	
+	# Dim background
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	practice_hero_picker.add_child(dim)
+	
+	# Center panel
+	var panel = PanelContainer.new()
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.08, 0.08, 0.14, 0.95)
+	panel_style.border_width_left = 2
+	panel_style.border_width_right = 2
+	panel_style.border_width_top = 2
+	panel_style.border_width_bottom = 2
+	panel_style.border_color = Color(0.3, 0.6, 1.0, 0.7)
+	panel_style.corner_radius_top_left = 12
+	panel_style.corner_radius_top_right = 12
+	panel_style.corner_radius_bottom_left = 12
+	panel_style.corner_radius_bottom_right = 12
+	panel_style.content_margin_left = 16
+	panel_style.content_margin_right = 16
+	panel_style.content_margin_top = 12
+	panel_style.content_margin_bottom = 16
+	panel.add_theme_stylebox_override("panel", panel_style)
+	
+	# Center the panel
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	practice_hero_picker.add_child(center)
+	center.add_child(panel)
+	
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+	
+	# Title row with close button
+	var title_row = HBoxContainer.new()
+	vbox.add_child(title_row)
+	
+	var title_label = Label.new()
+	title_label.text = title_text
+	title_label.add_theme_font_size_override("font_size", 18)
+	title_label.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title_label)
+	
+	var close_btn = Button.new()
+	close_btn.text = "X"
+	close_btn.custom_minimum_size = Vector2(30, 30)
+	close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	close_btn.pressed.connect(_close_hero_picker)
+	title_row.add_child(close_btn)
+	
+	# Hero grid
+	var grid = GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	vbox.add_child(grid)
+	
+	# Collect heroes already on the field
+	var used_ids = []
+	for h in player_heroes:
+		used_ids.append(h.hero_id)
+	for h in enemy_heroes:
+		used_ids.append(h.hero_id)
+	
+	# Add all heroes as selectable thumbnails
+	for hero_id in HeroDatabase.heroes.keys():
+		var hero_data = HeroDatabase.get_hero(hero_id)
+		var is_on_field = hero_id in used_ids
+		var thumb = _create_picker_thumbnail(hero_id, hero_data, is_on_field)
+		grid.add_child(thumb)
+
+func _create_picker_thumbnail(hero_id: String, hero_data: Dictionary, is_on_field: bool) -> Control:
+	var thumb_size = 80
+	var container = Control.new()
+	container.custom_minimum_size = Vector2(thumb_size, thumb_size + 20)
+	
+	# Border panel with role color
+	var border = Panel.new()
+	border.custom_minimum_size = Vector2(thumb_size, thumb_size)
+	border.position = Vector2(0, 0)
+	var style = StyleBoxFlat.new()
+	var role = hero_data.get("role", "tank")
+	var role_color = HeroDatabase.get_role_color(role)
+	style.bg_color = Color(0.12, 0.12, 0.12, 0.95)
+	style.border_width_left = 3
+	style.border_width_right = 3
+	style.border_width_top = 3
+	style.border_width_bottom = 3
+	style.border_color = role_color if not is_on_field else role_color.darkened(0.5)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	border.add_theme_stylebox_override("panel", style)
+	container.add_child(border)
+	
+	# Portrait
+	var portrait = TextureRect.new()
+	portrait.custom_minimum_size = Vector2(thumb_size - 6, thumb_size - 6)
+	portrait.position = Vector2(3, 3)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var portrait_path = hero_data.get("portrait", "")
+	if ResourceLoader.exists(portrait_path):
+		portrait.texture = load(portrait_path)
+	if is_on_field:
+		portrait.modulate = Color(0.5, 0.5, 0.5, 0.7)
+	container.add_child(portrait)
+	
+	# Name label
+	var name_label = Label.new()
+	name_label.text = hero_data.get("name", hero_id)
+	name_label.position = Vector2(0, thumb_size + 2)
+	name_label.custom_minimum_size = Vector2(thumb_size, 16)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_font_size_override("font_size", 10)
+	if is_on_field:
+		name_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+	container.add_child(name_label)
+	
+	# Clickable button overlay
+	var btn = Button.new()
+	btn.flat = true
+	btn.custom_minimum_size = Vector2(thumb_size, thumb_size)
+	btn.position = Vector2(0, 0)
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.pressed.connect(_on_hero_picker_selected.bind(hero_id))
+	container.add_child(btn)
+	
+	return container
+
+func _on_hero_picker_selected(hero_id: String) -> void:
+	_close_hero_picker()
+	# Check if we're replacing an existing hero
+	if _practice_selected_hero and is_instance_valid(_practice_selected_hero):
+		_practice_replace_selected_hero(hero_id)
+	else:
+		_practice_spawn_hero(hero_id, _practice_spawn_is_player)
+
+func _close_hero_picker() -> void:
+	if practice_hero_picker and is_instance_valid(practice_hero_picker):
+		practice_hero_picker.queue_free()
+		practice_hero_picker = null
+
+func _practice_spawn_hero(hero_id: String, as_player: bool) -> void:
+	if as_player:
+		var positions = PLAYER_HERO_POSITIONS
+		var z_indices = PLAYER_HERO_Z_INDEX
+		var idx = player_heroes.size()
+		
+		var hero_instance = hero_scene.instantiate()
+		$Board.add_child(hero_instance)
+		hero_instance.setup(hero_id)
+		hero_instance.is_player_hero = true
+		hero_instance.team_index = idx
+		hero_instance.instance_id = "p_" + hero_id + "_" + str(idx) + "_" + str(randi() % 1000)
+		hero_instance.hero_clicked.connect(_on_hero_clicked)
+		hero_instance.hero_died.connect(_on_hero_died)
+		hero_instance.shield_broken.connect(_on_shield_broken)
+		hero_instance.counter_triggered.connect(_on_counter_triggered)
+		player_heroes.append(hero_instance)
+		hero_instance.global_position = positions[idx]
+		hero_instance.z_index = z_indices[idx]
+		
+		GameManager.player_heroes = player_heroes
+		GameManager.init_hero_stats(hero_instance.instance_id, true, hero_instance.hero_data.get("portrait", ""), hero_instance.hero_data.get("name", "Hero"))
+		
+		# Rebuild player deck using instances (supports duplicate heroes, skip dead)
+		var alive_players = player_heroes.filter(func(h): return not h.is_dead)
+		GameManager.build_deck_from_instances(alive_players, false)
+		var cards_to_draw = min(3, GameConstants.HAND_SIZE - GameManager.hand.size())
+		if cards_to_draw > 0:
+			GameManager.draw_cards(cards_to_draw)
+		_refresh_hand()
+		print("[Practice] Added ally: ", hero_id, " (", hero_instance.instance_id, ")")
+	else:
+		var positions = ENEMY_HERO_POSITIONS
+		var z_indices = ENEMY_HERO_Z_INDEX
+		var idx = enemy_heroes.size()
+		
+		var hero_instance = hero_scene.instantiate()
+		$Board.add_child(hero_instance)
+		hero_instance.setup(hero_id)
+		hero_instance.is_player_hero = false
+		hero_instance.team_index = idx
+		hero_instance.instance_id = "e_" + hero_id + "_" + str(idx) + "_" + str(randi() % 1000)
+		hero_instance.hero_clicked.connect(_on_hero_clicked)
+		hero_instance.hero_died.connect(_on_hero_died)
+		hero_instance.shield_broken.connect(_on_shield_broken)
+		hero_instance.counter_triggered.connect(_on_counter_triggered)
+		enemy_heroes.append(hero_instance)
+		hero_instance.global_position = positions[idx]
+		hero_instance.z_index = z_indices[idx]
+		hero_instance.flip_sprite()
+		
+		GameManager.enemy_heroes = enemy_heroes
+		GameManager.init_hero_stats(hero_instance.instance_id, false, hero_instance.hero_data.get("portrait", ""), hero_instance.hero_data.get("name", "Hero"))
+		
+		# Rebuild enemy deck using instances (supports duplicate heroes, skip dead)
+		var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
+		GameManager.build_enemy_deck_from_instances(alive_enemies)
+		GameManager.enemy_draw_cards(5)
+		_refresh_enemy_hand_display()
+		print("[Practice] Added enemy: ", hero_id, " (", hero_instance.instance_id, ")")
+
+func _on_practice_toggle_unli_mana() -> void:
+	_practice_unli_mana = not _practice_unli_mana
+	if _practice_unli_mana_btn:
+		_practice_unli_mana_btn.text = "Unli Mana: ON" if _practice_unli_mana else "Unli Mana: OFF"
+	if _practice_unli_mana:
+		# Immediately fill both teams' mana
+		GameManager.current_mana = GameManager.MANA_CAP
+		GameManager.max_mana = GameManager.MANA_CAP
+		GameManager.enemy_current_mana = GameManager.MANA_CAP
+		GameManager.enemy_max_mana = GameManager.MANA_CAP
+		GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
+	print("[Practice] Unlimited mana: ", "ON" if _practice_unli_mana else "OFF")
+
+func _on_practice_fill_ex() -> void:
+	if _practice_selected_hero:
+		_practice_selected_hero.energy = _practice_selected_hero.max_energy
+		_practice_selected_hero._update_ui()
+		print("[Practice] EX filled: ", _practice_selected_hero.hero_data.get("name", "Hero"))
+	else:
+		var team = enemy_heroes if _practice_controlling_enemy else player_heroes
+		for hero in team:
+			hero.energy = hero.max_energy
+			hero._update_ui()
+		var side = "enemy" if _practice_controlling_enemy else "player"
+		print("[Practice] All ", side, " heroes EX filled")
+
+func _on_practice_reset_hp() -> void:
+	if _practice_selected_hero:
+		_practice_selected_hero.current_hp = _practice_selected_hero.max_hp
+		_practice_selected_hero.block = 0
+		_practice_selected_hero.is_dead = false
+		_practice_selected_hero.visible = true
+		_practice_selected_hero.modulate.a = 1.0
+		_practice_selected_hero._update_ui()
+		print("[Practice] HP reset: ", _practice_selected_hero.hero_data.get("name", "Hero"))
+	else:
+		var team = enemy_heroes if _practice_controlling_enemy else player_heroes
+		for hero in team:
+			hero.current_hp = hero.max_hp
+			hero.block = 0
+			hero.is_dead = false
+			hero.visible = true
+			hero.modulate.a = 1.0
+			hero._update_ui()
+		var side = "enemy" if _practice_controlling_enemy else "player"
+		print("[Practice] All ", side, " heroes HP reset")
+
+func _on_practice_clear_status() -> void:
+	if _practice_selected_hero:
+		_practice_selected_hero.clear_all_buffs_and_debuffs()
+		_practice_selected_hero._update_ui()
+		print("[Practice] Status cleared: ", _practice_selected_hero.hero_data.get("name", "Hero"))
+	else:
+		var team = enemy_heroes if _practice_controlling_enemy else player_heroes
+		for hero in team:
+			hero.clear_all_buffs_and_debuffs()
+			hero._update_ui()
+		var side = "enemy" if _practice_controlling_enemy else "player"
+		print("[Practice] All ", side, " heroes status cleared")
+
+func _on_practice_draw_card() -> void:
+	if _practice_controlling_enemy:
+		var drawn = GameManager.enemy_draw_cards(1)
+		if drawn.size() > 0:
+			_practice_show_enemy_hand()
+			print("[Practice] Enemy drew 1 card")
+		else:
+			GameManager.enemy_reshuffle_discard_into_deck()
+			drawn = GameManager.enemy_draw_cards(1)
+			if drawn.size() > 0:
+				_practice_show_enemy_hand()
+				print("[Practice] Enemy reshuffled and drew 1 card")
+			else:
+				print("[Practice] No enemy cards to draw")
+	else:
+		var drawn = GameManager.draw_cards(1)
+		if drawn.size() > 0:
+			_refresh_hand()
+			print("[Practice] Drew 1 card")
+		else:
+			GameManager.reshuffle_discard_into_deck()
+			drawn = GameManager.draw_cards(1)
+			if drawn.size() > 0:
+				_refresh_hand()
+				print("[Practice] Reshuffled and drew 1 card")
+			else:
+				print("[Practice] No cards to draw")
+
+func _on_practice_redeck() -> void:
+	if _practice_controlling_enemy:
+		var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
+		GameManager.build_enemy_deck_from_instances(alive_enemies)
+		var deck_size = GameManager.enemy_deck.size()
+		_update_deck_display()
+		print("[Practice] Enemy redecked — " + str(deck_size) + " cards in deck")
+	else:
+		var alive_players = player_heroes.filter(func(h): return not h.is_dead)
+		GameManager.build_deck_from_instances(alive_players, false)
+		var deck_size = GameManager.deck.size()
+		_update_deck_display()
+		print("[Practice] Player redecked — " + str(deck_size) + " cards in deck")
+
+func _on_practice_skip_turn() -> void:
+	_on_end_turn_pressed()
+	print("[Practice] Turn skipped")
+
+func _on_practice_add_equipment() -> void:
+	_show_equipment_picker_modal()
+
+func _on_practice_replace_hero() -> void:
+	if not _practice_selected_hero:
+		print("[Practice] No hero selected to replace")
+		return
+	# Store whether we're replacing a player or enemy hero
+	_practice_spawn_is_player = _practice_selected_hero.is_player_hero
+	_show_hero_picker_modal("Replace: " + _practice_selected_hero.hero_data.get("name", "Hero"))
+
+func _practice_replace_selected_hero(new_hero_id: String) -> void:
+	var old_hero = _practice_selected_hero
+	if not old_hero or not is_instance_valid(old_hero):
+		_practice_deselect()
+		return
+	
+	var is_player = old_hero.is_player_hero
+	var old_pos = old_hero.global_position
+	var old_z = old_hero.z_index
+	var old_idx = old_hero.team_index
+	var old_flipped = not is_player
+	var old_name = old_hero.hero_data.get("name", "Hero")
+	
+	# Remove old hero from array
+	var arr = player_heroes if is_player else enemy_heroes
+	var arr_index = arr.find(old_hero)
+	if arr_index >= 0:
+		arr.remove_at(arr_index)
+	
+	# Remove old hero's cards from hand/deck/discard
+	if is_player:
+		_practice_remove_hero_cards(old_hero, false)
+	else:
+		_practice_remove_hero_cards(old_hero, true)
+	
+	# Deselect and destroy old hero
+	_practice_deselect()
+	old_hero.queue_free()
+	
+	# Spawn new hero at the same position
+	var hero_instance = hero_scene.instantiate()
+	$Board.add_child(hero_instance)
+	hero_instance.setup(new_hero_id)
+	hero_instance.is_player_hero = is_player
+	hero_instance.team_index = old_idx
+	var prefix = "p_" if is_player else "e_"
+	hero_instance.instance_id = prefix + new_hero_id + "_" + str(old_idx) + "_" + str(randi() % 1000)
+	hero_instance.hero_clicked.connect(_on_hero_clicked)
+	hero_instance.hero_died.connect(_on_hero_died)
+	hero_instance.shield_broken.connect(_on_shield_broken)
+	hero_instance.counter_triggered.connect(_on_counter_triggered)
+	hero_instance.global_position = old_pos
+	hero_instance.z_index = old_z
+	if old_flipped:
+		hero_instance.flip_sprite()
+	
+	# Insert into array at the same index
+	if arr_index >= 0 and arr_index <= arr.size():
+		arr.insert(arr_index, hero_instance)
+	else:
+		arr.append(hero_instance)
+	
+	# Update GameManager references
+	GameManager.player_heroes = player_heroes
+	GameManager.enemy_heroes = enemy_heroes
+	GameManager.init_hero_stats(hero_instance.instance_id, is_player, hero_instance.hero_data.get("portrait", ""), hero_instance.hero_data.get("name", "Hero"))
+	
+	# Rebuild deck for the affected team
+	if is_player:
+		GameManager.build_deck_from_instances(player_heroes, false)
+		_refresh_hand()
+	else:
+		GameManager.build_enemy_deck_from_instances(enemy_heroes)
+		_refresh_enemy_hand_display()
+		if _practice_controlling_enemy:
+			_practice_show_enemy_hand()
+	
+	print("[Practice] Replaced ", old_name, " with ", hero_instance.hero_data.get("name", new_hero_id))
+
+func _practice_remove_hero_cards(hero: Hero, is_enemy: bool) -> void:
+	var hid = hero.hero_id
+	var iid = hero.instance_id
+	if is_enemy:
+		GameManager.enemy_hand = GameManager.enemy_hand.filter(func(c): return c.get("hero_id", "") != hid and c.get("instance_id", "").find(iid) == -1)
+		GameManager.enemy_deck = GameManager.enemy_deck.filter(func(c): return c.get("hero_id", "") != hid and c.get("instance_id", "").find(iid) == -1)
+		GameManager.enemy_discard_pile = GameManager.enemy_discard_pile.filter(func(c): return c.get("hero_id", "") != hid and c.get("instance_id", "").find(iid) == -1)
+	else:
+		GameManager.hand = GameManager.hand.filter(func(c): return c.get("hero_id", "") != hid and c.get("instance_id", "").find(iid) == -1)
+		GameManager.deck = GameManager.deck.filter(func(c): return c.get("hero_id", "") != hid and c.get("instance_id", "").find(iid) == -1)
+		GameManager.discard_pile = GameManager.discard_pile.filter(func(c): return c.get("hero_id", "") != hid and c.get("instance_id", "").find(iid) == -1)
+
+func _show_equipment_picker_modal() -> void:
+	if practice_hero_picker and is_instance_valid(practice_hero_picker):
+		practice_hero_picker.queue_free()
+	
+	practice_hero_picker = CanvasLayer.new()
+	practice_hero_picker.layer = 100
+	add_child(practice_hero_picker)
+	
+	# Dim background
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	practice_hero_picker.add_child(dim)
+	
+	# Center panel
+	var panel = PanelContainer.new()
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.08, 0.08, 0.14, 0.95)
+	panel_style.border_width_left = 2
+	panel_style.border_width_right = 2
+	panel_style.border_width_top = 2
+	panel_style.border_width_bottom = 2
+	panel_style.border_color = Color(0.85, 0.6, 0.2, 0.7)
+	panel_style.corner_radius_top_left = 12
+	panel_style.corner_radius_top_right = 12
+	panel_style.corner_radius_bottom_left = 12
+	panel_style.corner_radius_bottom_right = 12
+	panel_style.content_margin_left = 16
+	panel_style.content_margin_right = 16
+	panel_style.content_margin_top = 12
+	panel_style.content_margin_bottom = 16
+	panel.add_theme_stylebox_override("panel", panel_style)
+	
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	practice_hero_picker.add_child(center)
+	center.add_child(panel)
+	
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+	
+	# Title row with close button
+	var title_row = HBoxContainer.new()
+	vbox.add_child(title_row)
+	
+	var title_label = Label.new()
+	title_label.text = "Choose Equipment"
+	title_label.add_theme_font_size_override("font_size", 18)
+	title_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.2))
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title_label)
+	
+	var close_btn = Button.new()
+	close_btn.text = "X"
+	close_btn.custom_minimum_size = Vector2(30, 30)
+	close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	close_btn.pressed.connect(_close_hero_picker)
+	title_row.add_child(close_btn)
+	
+	# Equipment grid
+	var grid = GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	vbox.add_child(grid)
+	
+	var all_equips = EquipmentDatabase.get_all_equipments()
+	for equip_id in all_equips.keys():
+		var equip_data = all_equips[equip_id]
+		var thumb = _create_equip_thumbnail(equip_id, equip_data)
+		grid.add_child(thumb)
+
+func _create_equip_thumbnail(equip_id: String, equip_data: Dictionary) -> Control:
+	var thumb_size = 80
+	var container = Control.new()
+	container.custom_minimum_size = Vector2(thumb_size, thumb_size + 20)
+	
+	# Border panel
+	var border = Panel.new()
+	border.custom_minimum_size = Vector2(thumb_size, thumb_size)
+	border.position = Vector2(0, 0)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.12, 0.95)
+	style.border_width_left = 3
+	style.border_width_right = 3
+	style.border_width_top = 3
+	style.border_width_bottom = 3
+	style.border_color = Color(0.85, 0.6, 0.2, 0.8)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	border.add_theme_stylebox_override("panel", style)
+	container.add_child(border)
+	
+	# Equipment art
+	var art = TextureRect.new()
+	art.custom_minimum_size = Vector2(thumb_size - 6, thumb_size - 6)
+	art.position = Vector2(3, 3)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var art_path = equip_data.get("art", equip_data.get("image", ""))
+	if ResourceLoader.exists(art_path):
+		art.texture = load(art_path)
+	container.add_child(art)
+	
+	# Name label
+	var name_label = Label.new()
+	name_label.text = equip_data.get("name", equip_id)
+	name_label.position = Vector2(0, thumb_size + 2)
+	name_label.custom_minimum_size = Vector2(thumb_size, 16)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_font_size_override("font_size", 9)
+	container.add_child(name_label)
+	
+	# Clickable button overlay
+	var btn = Button.new()
+	btn.flat = true
+	btn.custom_minimum_size = Vector2(thumb_size, thumb_size)
+	btn.position = Vector2(0, 0)
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.pressed.connect(_on_equip_picker_selected.bind(equip_id))
+	container.add_child(btn)
+	
+	return container
+
+func _on_equip_picker_selected(equip_id: String) -> void:
+	_close_hero_picker()
+	var equip_data = EquipmentDatabase.get_equipment(equip_id)
+	if equip_data.is_empty():
+		print("[Practice] Equipment not found: ", equip_id)
+		return
+	# Create a card copy and add it directly to the active hand
+	var equip_card = equip_data.duplicate()
+	equip_card["base_id"] = equip_id
+	equip_card["id"] = equip_id + "_practice_" + str(randi())
+	equip_card["instance_id"] = equip_card["id"]
+	var active_hand_eq = GameManager.enemy_hand if _practice_controlling_enemy else GameManager.hand
+	active_hand_eq.append(equip_card)
+	_refresh_hand()
+	print("[Practice] Added equipment to hand: ", equip_data.get("name", equip_id))
+
+# ============================================
+# PRACTICE MODE — HERO SELECTION & TOOLS
+# ============================================
+
+func _practice_toggle_select(hero: Hero) -> void:
+	if _practice_selected_hero == hero:
+		_practice_deselect()
+	else:
+		_practice_deselect()
+		_practice_selected_hero = hero
+		# Add highlight
+		_practice_select_highlight = ColorRect.new()
+		_practice_select_highlight.color = Color(0.3, 0.7, 1.0, 0.25)
+		_practice_select_highlight.size = hero.size
+		_practice_select_highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hero.add_child(_practice_select_highlight)
+		# Update label
+		if _practice_selected_label:
+			_practice_selected_label.text = ">> " + hero.hero_data.get("name", "Hero")
+		# Enable replace button
+		if _practice_replace_btn:
+			_practice_replace_btn.disabled = false
+		print("[Practice] Selected: ", hero.hero_data.get("name", "Hero"))
+
+func _practice_deselect() -> void:
+	if _practice_select_highlight and is_instance_valid(_practice_select_highlight):
+		_practice_select_highlight.queue_free()
+	_practice_select_highlight = null
+	_practice_selected_hero = null
+	if _practice_selected_label:
+		_practice_selected_label.text = ">> None"
+	if _practice_replace_btn:
+		_practice_replace_btn.disabled = true
+
+func _on_practice_exit() -> void:
+	# Clean up practice mode and return to collection
+	is_practice_mode = false
+	_practice_controlling_enemy = false
+	HeroDatabase.practice_mode = false
+	SceneTransition.change_scene("res://scenes/collection/collection_new.tscn")
+
+# ============================================
+# PRACTICE MODE — ENEMY HAND CONTROL
+# ============================================
+
+func _practice_show_enemy_hand() -> void:
+	# Clear current hand display and populate with enemy cards
+	for child in hand_container.get_children():
+		if is_instance_valid(child):
+			child.queue_free()
+	
+	for card_data in GameManager.enemy_hand:
+		var card_instance = card_scene.instantiate()
+		hand_container.add_child(card_instance)
+		card_instance.setup(card_data)
+		card_instance.card_clicked.connect(_on_card_clicked)
+		
+		# Apply frost cost modifier
+		var source_hero_frost = _get_source_hero(card_data)
+		if source_hero_frost and source_hero_frost.has_debuff("frost"):
+			card_instance.update_display_cost(1)
+		
+		var source_hero = _get_source_hero(card_data)
+		var can_play = card_instance.can_play(GameManager.enemy_current_mana) and _can_pay_hp_cost(card_data, source_hero)
+		card_instance.set_playable(can_play)
+	
+	_update_deck_display()
+
+func _practice_end_enemy_turn() -> void:
+	# Mirror of player turn end but for enemy heroes
+	end_turn_button.disabled = true
+	
+	# Detonate Time Bombs on player heroes before debuffs expire
+	_detonate_time_bombs(player_heroes, true)
+	
+	# Enemy's heroes: remove "own_turn_end" buffs/debuffs
+	for enemy in enemy_heroes:
+		if not enemy.is_dead:
+			enemy.on_own_turn_end()
+	# Player's heroes: remove "opponent_turn_end" buffs/debuffs
+	for hero in player_heroes:
+		if not hero.is_dead:
+			hero.on_opponent_turn_end()
+	
+	# Trigger Thunder damage on ALL heroes at end of enemy turn
+	await _trigger_thunder_damage(player_heroes)
+	await _trigger_thunder_damage(enemy_heroes)
+	
+	# Clear PLAYER shields at end of enemy turn (player used them last turn)
+	for hero in player_heroes:
+		if hero.block > 0:
+			if hero.has_buff("dana_shield_draw"):
+				hero.remove_buff("dana_shield_draw")
+				GameManager.draw_cards(1)
+				print("[Dana Shield Draw] " + hero.hero_data.get("name", "Hero") + " (player) shield expired → draw 1")
+			hero.block = 0
+			hero._update_ui()
+			hero._hide_shield_effect()
+	
+	# Reset enemy control flag before transitioning
+	_practice_controlling_enemy = false
+	
+	# Restore player hand display
+	_refresh_hand()
+	
+	current_phase = BattlePhase.ENEMY_TURN
+	GameManager.end_enemy_turn()

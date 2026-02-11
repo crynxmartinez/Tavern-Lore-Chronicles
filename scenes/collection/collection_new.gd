@@ -21,6 +21,7 @@ var cards_display_container: HBoxContainer = null
 var selected_cards_hero_id: String = ""
 
 @onready var back_button: Button = $UI/MainLayout/ContentArea/TopBar/BackButton
+@onready var practice_button: Button = $UI/MainLayout/ContentArea/TopBar/PracticeButton
 @onready var left_menu: Panel = $UI/MainLayout/LeftMenu
 @onready var left_menu_vbox: VBoxContainer = $UI/MainLayout/LeftMenu/VBox
 @onready var hero_roster_panel: Panel = $UI/MainLayout/ContentArea/HeroRoster
@@ -36,6 +37,7 @@ var selected_cards_hero_id: String = ""
 
 func _ready() -> void:
 	back_button.pressed.connect(_on_back_pressed)
+	_setup_practice_button()
 	_hide_scrollbars()
 	_setup_left_menu()
 	_setup_hero_roster()
@@ -140,6 +142,27 @@ func _create_hero_thumbnail(hero_id: String, hero_data: Dictionary) -> Control:
 	container.add_child(button)
 	
 	return container
+
+func _setup_practice_button() -> void:
+	practice_button.pressed.connect(_on_practice_pressed)
+	practice_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	practice_button.add_theme_font_size_override("font_size", 13)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.3, 0.5, 0.95)
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.3, 0.6, 1.0, 0.8)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	practice_button.add_theme_stylebox_override("normal", style)
+	var hover = style.duplicate()
+	hover.bg_color = Color(0.18, 0.4, 0.6, 0.95)
+	hover.border_color = Color(0.4, 0.7, 1.0)
+	practice_button.add_theme_stylebox_override("hover", hover)
 
 func _setup_skins_container() -> void:
 	# Create skins container inside the right menu VBox (after the label)
@@ -281,6 +304,20 @@ func _on_skin_selected(hero_id: String, skin: Dictionary) -> void:
 	
 	_display_hero_skins(hero_id)
 	_display_hero_poses(hero_id)
+
+func _on_practice_pressed() -> void:
+	if selected_hero_id.is_empty():
+		return
+	# Set practice mode flags
+	HeroDatabase.practice_mode = true
+	HeroDatabase.practice_hero_id = selected_hero_id
+	# Pick a random enemy hero (different from practice hero)
+	var all_ids = HeroDatabase.heroes.keys()
+	var enemy_ids = all_ids.filter(func(id): return id != selected_hero_id)
+	enemy_ids.shuffle()
+	HeroDatabase.ai_enemy_team = [enemy_ids[0]]
+	HeroDatabase.training_player_first = true
+	SceneTransition.change_scene("res://scenes/battle/battle.tscn")
 
 func _on_back_pressed() -> void:
 	SceneTransition.change_scene("res://scenes/dashboard/dashboard.tscn")
@@ -875,16 +912,62 @@ func _create_card_display(card_data: Dictionary, role_color: Color) -> Control:
 	bg.add_theme_stylebox_override("panel", style)
 	container.add_child(bg)
 	
-	# Card image
-	var card_image = TextureRect.new()
-	card_image.position = Vector2(10, 10)
-	card_image.custom_minimum_size = Vector2(120, 90)
-	card_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	card_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# Card image — prefer skill art (layered system) over legacy full image
+	var art_path = card_data.get("art", "")
 	var image_path = card_data.get("image", "")
-	if ResourceLoader.exists(image_path):
+	
+	if not art_path.is_empty() and ResourceLoader.exists(art_path):
+		# Layered system: skill art + template frame
+		var hero_id = card_data.get("hero_id", "")
+		var hero_color = card_data.get("hero_color", "")
+		if not hero_id.is_empty() and hero_color.is_empty():
+			var hero_data_lookup = HeroDatabase.get_hero(hero_id)
+			hero_color = hero_data_lookup.get("color", "yellow")
+		var template_id = _get_template_for_color(hero_color)
+		var template = _get_template(template_id)
+		
+		var base_width = 160.0
+		var base_height = 230.0
+		var panel_w = 120.0
+		var panel_h = 90.0
+		var scale_x = panel_w / base_width
+		var scale_y = panel_h / base_height
+		
+		# Skill art (behind)
+		var skill_art = TextureRect.new()
+		var art_region = template.get("art_region", {"x": 8, "y": 18, "width": 144, "height": 88})
+		var art_x = 10 + art_region.get("x", 8) * scale_x
+		var art_y = 10 + art_region.get("y", 18) * scale_y
+		var art_w = art_region.get("width", 144) * scale_x
+		var art_h = art_region.get("height", 88) * scale_y
+		skill_art.position = Vector2(art_x, art_y)
+		skill_art.custom_minimum_size = Vector2(art_w, art_h)
+		skill_art.size = Vector2(art_w, art_h)
+		skill_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		skill_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		skill_art.texture = load(art_path)
+		container.add_child(skill_art)
+		
+		# Template frame (on top)
+		var frame_path = template.get("frame", "res://asset/card template/new template grey.png")
+		if ResourceLoader.exists(frame_path):
+			var template_frame = TextureRect.new()
+			template_frame.position = Vector2(10, 10)
+			template_frame.custom_minimum_size = Vector2(panel_w, panel_h)
+			template_frame.size = Vector2(panel_w, panel_h)
+			template_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			template_frame.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			template_frame.texture = load(frame_path)
+			container.add_child(template_frame)
+	elif not image_path.is_empty() and ResourceLoader.exists(image_path):
+		# Legacy: full card image
+		var card_image = TextureRect.new()
+		card_image.position = Vector2(10, 10)
+		card_image.custom_minimum_size = Vector2(120, 90)
+		card_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		card_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		card_image.texture = load(image_path)
-	container.add_child(card_image)
+		container.add_child(card_image)
 	
 	# Card name
 	var name_label = Label.new()

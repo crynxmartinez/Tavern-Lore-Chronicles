@@ -84,6 +84,10 @@ var ai_enemy_team: Array = []
 var training_player_first: bool = true  # true = player goes first, false = AI goes first
 var training_custom_team: bool = false  # true = user picked enemy team, false = random
 
+# Practice mode settings
+var practice_mode: bool = false  # true = sandbox practice mode
+var practice_hero_id: String = ""  # Hero being practiced
+
 # Role categories for smart draft
 const FRONTLINE_ROLES = ["tank", "dps"]
 const SUSTAIN_ROLES = ["support", "scientist", "mage"]

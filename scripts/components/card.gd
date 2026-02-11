@@ -363,12 +363,24 @@ func set_playable(playable: bool) -> void:
 		# Not playable: dimmed
 		modulate = Color(0.5, 0.5, 0.5, 1)
 
+var extra_cost: int = 0
+
+func update_display_cost(extra: int) -> void:
+	extra_cost = extra
+	var is_ex_card = card_data.get("is_ex", false)
+	if cost_label and not is_ex_card:
+		var base = card_data.get("cost", 0)
+		if base == -1:
+			cost_label.text = "X"
+		else:
+			cost_label.text = str(int(base + extra))
+
 func can_play(current_mana: int) -> bool:
 	var cost = card_data.get("cost", 0)
 	# Mana Surge (cost = -1) requires at least 1 mana
 	if cost == -1:
 		return current_mana >= 1
-	return cost <= current_mana
+	return (cost + extra_cost) <= current_mana
 
 func reset_position() -> void:
 	if tween:
@@ -381,7 +393,7 @@ func reset_position() -> void:
 	highlight.visible = false
 
 func get_cost() -> int:
-	return card_data.get("cost", 0)
+	return card_data.get("cost", 0) + extra_cost
 
 func get_card_type() -> String:
 	return card_data.get("type", "")

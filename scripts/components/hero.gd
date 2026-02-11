@@ -28,6 +28,7 @@ var block: int = 0
 
 var is_dead: bool = false
 var is_flipped: bool = false
+var regen_draw_triggered: bool = false
 
 # Buff/Debuff system
 var active_buffs: Dictionary = {}  # {buff_name: {duration: int, source_atk: int, instance_id: String}}
@@ -229,6 +230,14 @@ func _update_ui() -> void:
 		else:
 			hp_label.text = str(current_hp)
 	
+	# Ensure shield effect overlay matches block state
+	if block > 0:
+		if shield_effect and not shield_effect.visible:
+			_show_shield_effect()
+	else:
+		if shield_effect and shield_effect.visible:
+			_hide_shield_effect()
+	
 	# Energy bar with smooth tween
 	if energy_bar:
 		energy_bar.max_value = max_energy
@@ -412,17 +421,14 @@ func on_turn_start() -> void:
 		if heal_amount > 0:
 			heal(heal_amount)
 		remove_buff("regen")
-	# Regen Draw: same as regen but also draws 1 card
+	# Regen Draw: same as regen but also draws 1 card (draw handled by battle.gd)
 	if has_buff("regen_draw"):
 		var regen_draw_data = active_buffs["regen_draw"]
 		var heal_amount = regen_draw_data.get("heal_amount", 0)
 		if heal_amount > 0:
 			heal(heal_amount)
-		# Draw 1 card
-		if is_player_hero:
-			GameManager.draw_cards(1)
-			print(hero_data.get("name", "Hero") + " Regen+ drew 1 card!")
 		remove_buff("regen_draw")
+		regen_draw_triggered = true
 
 func on_turn_end() -> void:
 	# DEPRECATED - use on_own_turn_end() and on_opponent_turn_end() instead
@@ -903,8 +909,6 @@ func die() -> void:
 		VFX.spawn_particles(sprite_center, Color(0.3, 0.3, 0.3), 15)
 	_play_death_animation()
 	hero_died.emit(self)
-	if is_player_hero:
-		GameManager.on_hero_died(hero_id, get_color())
 	GameManager.check_game_over()
 
 func _play_death_animation() -> void:
@@ -1398,10 +1402,28 @@ func _spawn_slash_effect(color: Color) -> void:
 		_spawn_generic_impact(color)
 
 func _spawn_lightning_effect() -> void:
-	var center = global_position + Vector2(size.x / 2, size.y * 0.5)
+	# Position lightning at the HP bar area (hero's feet)
+	var center: Vector2
+	if hp_bar:
+		center = hp_bar.global_position + Vector2(hp_bar.size.x / 2, 0)
+	else:
+		center = sprite.global_position + Vector2(sprite.size.x / 2, sprite.size.y)
 	var texture = load("res://asset/Others/Skill Sprite VFX/blue lightning.png")
 	if texture:
 		_play_spritesheet_effect(texture, 5, center, 0.08, Color(1, 1, 1, 1), Vector2(0.8, 0.8), 100)
+	else:
+		_spawn_generic_impact(Color(0.3, 0.6, 1.0))
+
+func _spawn_thunder_explode_effect() -> void:
+	# Position lightning at the HP bar area (hero's feet)
+	var center: Vector2
+	if hp_bar:
+		center = hp_bar.global_position + Vector2(hp_bar.size.x / 2, 0)
+	else:
+		center = sprite.global_position + Vector2(sprite.size.x / 2, sprite.size.y)
+	var texture = load("res://asset/Others/Skill Sprite VFX/lightning explode.png")
+	if texture:
+		_play_spritesheet_effect(texture, 7, center, 0.08, Color(1, 1, 1, 1), Vector2(1.2, 1.2), 100)
 	else:
 		_spawn_generic_impact(Color(0.3, 0.6, 1.0))
 

@@ -224,7 +224,7 @@
 		"hero_color": "purple",
 		"description": "Deal (150% ATK) damage to target enemy. Empower all allies.",
 		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/EX.png",
-		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/CraftswomanEX.png"
+		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/EX.png"
 	},
 	"dana_sk1": {
 		"id": "dana_sk1",
@@ -233,10 +233,10 @@
 		"type": "dig",
 		"anim_type": "cast",
 		"dig_count": 3,
-		"dig_filter": "equipment",
+		"dig_filter": "any",
 		"target": "none",
 		"hero_color": "purple",
-		"description": "Check the top 3 cards of your deck. Add 1 equipment to your hand.",
+		"description": "Check the top 3 cards of your deck. Add 1 to your hand.",
 		"art": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/s1.png",
 		"image": "res://asset/Hero/Craftswoman, Engr. Elara Quinto/CraftswomanS1.png"
 	},
@@ -704,8 +704,8 @@
 		"effects": ["counter_100", "self_break"],
 		"hero_color": "yellow",
 		"description": "Apply Break to self. Gain Counter (Reflect 100%). Both expire at opponent's turn end.",
-		"art": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/splash.png",
-		"image": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/splash.png"
+		"art": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/ex.png",
+		"image": "res://asset/Hero/Boneforge Paladin, Sir Gavran Uldric/ex.png"
 	},
 	"gavran_sk1": {
 		"id": "gavran_sk1",
@@ -769,8 +769,8 @@
 		"effects": ["generate_cinder_strike"],
 		"hero_color": "red",
 		"description": "Add 3 Cinder Strike cards to your hand (temporary).",
-		"art": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/splash.png",
-		"image": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/splash.png"
+		"art": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/ex.png",
+		"image": "res://asset/Hero/Cinder Duelist, Seraphine Cinder Azuela/ex.png"
 	},
 	"cinder_sk1": {
 		"id": "cinder_sk1",
@@ -836,8 +836,8 @@
 		"target": "all_enemy",
 		"hero_color": "blue",
 		"description": "Deal (160% ATK) damage to all enemies.",
-		"art": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/splash.png",
-		"image": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/splash.png"
+		"art": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/ex.png",
+		"image": "res://asset/Hero/Eclipse Weaver, Nyxara Moonthread Vael/ex.png"
 	},
 	"nyxara_sk1": {
 		"id": "nyxara_sk1",
@@ -967,8 +967,8 @@
 		"def_multiplier": 3.0,
 		"hero_color": "yellow",
 		"description": "Grant Shield (10 + DEF×3) to all allies.",
-		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/Splash.png",
-		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/Splash.png"
+		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/ex.png",
+		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/ex.png"
 	},
 	"kalasag_sk1": {
 		"id": "kalasag_sk1",
@@ -981,8 +981,8 @@
 		"self_shield_def_multiplier": 2.0,
 		"hero_color": "yellow",
 		"description": "Apply Redirect to target ally (50% damage transferred to Kalasag). Kalasag gains Shield (DEF×2).",
-		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/cast.png",
-		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/cast.png"
+		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/s1.png",
+		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/s1.png"
 	},
 	"kalasag_sk2": {
 		"id": "kalasag_sk2",
@@ -996,8 +996,8 @@
 		"effects": ["taunt"],
 		"hero_color": "yellow",
 		"description": "Gain Taunt + Shield (8 + DEF×2).",
-		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/cast.png",
-		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/cast.png"
+		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/s2.png",
+		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/s2.png"
 	},
 	"kalasag_sk3": {
 		"id": "kalasag_sk3",
@@ -1010,8 +1010,8 @@
 		"effects": ["weak"],
 		"hero_color": "yellow",
 		"description": "Deal (130% ATK) damage to target enemy. Apply Weak.",
-		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png",
-		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/attack.png"
+		"art": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/s3.png",
+		"image": "res://asset/Hero/Kapitan Kalasag, Captain Ramil Kalasag Serrano/s3.png"
 	},
 	"scrap_attack": {
 		"id": "scrap_attack",
@@ -1037,8 +1037,8 @@
 		"discard_count": 2,
 		"hero_color": "violet",
 		"description": "Draw 3 cards, then choose 2 to discard.",
-		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/splash.png",
-		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/splash.png"
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/ex.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/ex.png"
 	},
 	"scrap_sk1": {
 		"id": "scrap_sk1",
@@ -1051,8 +1051,8 @@
 		"target": "single_enemy",
 		"hero_color": "violet",
 		"description": "Deal (ATK × 0.5 × cards in hand) damage to target enemy.",
-		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png",
-		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png"
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/s1.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/s1.png"
 	},
 	"scrap_sk2": {
 		"id": "scrap_sk2",
@@ -1064,8 +1064,8 @@
 		"effects": ["reshuffle"],
 		"hero_color": "violet",
 		"description": "Choose cards from your hand to return to your deck, then draw the same amount.",
-		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/cast.png",
-		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/cast.png"
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/s2.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/s2.png"
 	},
 	"scrap_sk3": {
 		"id": "scrap_sk3",
@@ -1077,8 +1077,8 @@
 		"target": "front_enemy",
 		"hero_color": "violet",
 		"description": "Deal (130% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png",
-		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/attack.png"
+		"art": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/s3.png",
+		"image": "res://asset/Hero/Scrap Oracle, Tomas Scrap Ibarra/s3.png"
 	},
 	"dax_attack": {
 		"id": "dax_attack",
@@ -1104,8 +1104,8 @@
 		"ignore_shield": true,
 		"hero_color": "red",
 		"description": "Deal (250% ATK) damage to target enemy. Bypasses Shield.",
-		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/splash.png",
-		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/splash.png"
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/ex.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/ex.png"
 	},
 	"dax_sk1": {
 		"id": "dax_sk1",
@@ -1117,8 +1117,8 @@
 		"target": "front_enemy",
 		"hero_color": "red",
 		"description": "Deal (120% ATK) damage to the front enemy.",
-		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
-		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png"
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/s1.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/s1.png"
 	},
 	"dax_sk2": {
 		"id": "dax_sk2",
@@ -1130,8 +1130,8 @@
 		"target": "single_enemy",
 		"hero_color": "red",
 		"description": "Deal (150% ATK) damage to target enemy.",
-		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
-		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png"
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/s2.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/s2.png"
 	},
 	"dax_sk3": {
 		"id": "dax_sk3",
@@ -1143,8 +1143,8 @@
 		"target": "all_enemy",
 		"hero_color": "red",
 		"description": "Deal (80% ATK) damage to all enemies.",
-		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png",
-		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/attack.png"
+		"art": "res://asset/Hero/Storm Lancer, Dax Aerwyn/s3.png",
+		"image": "res://asset/Hero/Storm Lancer, Dax Aerwyn/s3.png"
 	},
 	"ysolde_attack": {
 		"id": "ysolde_attack",
@@ -1168,8 +1168,8 @@
 		"target": "all_ally",
 		"hero_color": "green",
 		"description": "Link all allies (share damage during opponent's turn). Apply Regen (10% max HP) to all.",
-		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/splash.png",
-		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/splash.png"
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/ex.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/ex.png"
 	},
 	"ysolde_sk1": {
 		"id": "ysolde_sk1",
@@ -1182,8 +1182,8 @@
 		"effects": ["regen"],
 		"hero_color": "green",
 		"description": "Apply Regen to target ally (heals 10% max HP at start of your turn).",
-		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
-		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png"
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/s1.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/s1.png"
 	},
 	"ysolde_sk2": {
 		"id": "ysolde_sk2",
@@ -1195,8 +1195,8 @@
 		"effects": ["empower_heal_all"],
 		"hero_color": "green",
 		"description": "Apply Empower Heal to all allies (+50% healing this turn).",
-		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
-		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png"
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/s2.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/s2.png"
 	},
 	"ysolde_sk3": {
 		"id": "ysolde_sk3",
@@ -1209,7 +1209,7 @@
 		"effects": ["regen_draw"],
 		"hero_color": "green",
 		"description": "Apply Regen to target ally (heals 10% max HP at start of your turn) + Draw 1 card when regen fires.",
-		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png",
-		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/cast.png"
+		"art": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/s3.png",
+		"image": "res://asset/Hero/Threadsaint, Sister Ysolde Mirelle/s3.png"
 	}
 }

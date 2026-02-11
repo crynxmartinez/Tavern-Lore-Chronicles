@@ -74,6 +74,54 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 	
 	shuffle_deck()
 
+func build_from_hero_instances(hero_instances: Array, include_equipment: bool = false) -> void:
+	## Practice mode: builds deck from Hero node instances, using instance_id to
+	## make card IDs unique per copy (supports duplicate heroes like 3× Squire).
+	clear()
+	
+	for hero_inst in hero_instances:
+		var hero_data = hero_inst.hero_data
+		var hero_iid = hero_inst.instance_id  # e.g. "p_squire_0", "p_squire_1"
+		var hero_cards = HeroDatabase.get_hero_cards(hero_inst.hero_id)
+		for card in hero_cards:
+			var card_copy = card.duplicate()
+			card_copy["base_id"] = card_copy.get("id", "")
+			card_copy["id"] = id_prefix + hero_iid + "_" + card_copy.get("id", "")
+			card_copy["hero_id"] = hero_inst.hero_id
+			card_copy["hero_instance_id"] = hero_iid
+			card_copy["instance_id"] = _generate_card_instance_id(card_copy)
+			deck.append(card_copy)
+		
+		var attack_card_id = hero_data.get("attack_card", hero_inst.hero_id + "_attack")
+		var base_attack = CardDatabase.get_card(attack_card_id)
+		var portrait_path = hero_data.get("portrait", "")
+		var attack_image = _get_attack_image_path(portrait_path)
+		
+		for i in range(GameConstants.ATTACK_CARDS_PER_HERO):
+			var attack_card = base_attack.duplicate() if not base_attack.is_empty() else {}
+			attack_card["id"] = id_prefix + hero_iid + "_attack_" + str(i)
+			attack_card["base_id"] = attack_card_id
+			attack_card["hero_id"] = hero_inst.hero_id
+			attack_card["hero_instance_id"] = hero_iid
+			if not attack_image.is_empty():
+				attack_card["art"] = attack_image
+				attack_card["image"] = attack_image
+			attack_card["instance_id"] = _generate_card_instance_id(attack_card)
+			deck.append(attack_card)
+	
+	if include_equipment:
+		var equipped_items = EquipmentDatabase.get_equipped_items()
+		for equip_id in equipped_items:
+			var equip_data = EquipmentDatabase.get_equipment(equip_id)
+			if not equip_data.is_empty():
+				var equip_card = equip_data.duplicate()
+				equip_card["base_id"] = equip_id
+				equip_card["id"] = equip_id + "_" + str(randi())
+				equip_card["instance_id"] = _generate_card_instance_id(equip_card)
+				deck.append(equip_card)
+	
+	shuffle_deck()
+
 func _get_attack_image_path(portrait_path: String) -> String:
 	if portrait_path.is_empty():
 		return ""
@@ -196,9 +244,15 @@ func on_hero_died(hero_id: String, hero_color: String) -> void:
 		discard_pile.erase(card)
 
 func _card_belongs_to_hero(card: Dictionary, hero_id: String, hero_color: String) -> bool:
-	var card_color = card.get("hero_color", "")
+	# Primary match: card's hero_id field (set during deck building, unique per hero)
+	var card_hero_id = card.get("hero_id", "")
+	if card_hero_id != "" and card_hero_id == hero_id:
+		return true
+	# Fallback: check if card ID contains the hero_id string (e.g. "dax_sk1" contains "dax")
 	var card_id = card.get("id", "")
-	return card_color == hero_color or card_id.find(hero_id) != -1
+	if card_id.find(hero_id) != -1:
+		return true
+	return false
 
 func on_hero_revived(hero_id: String) -> void:
 	if not dead_hero_cards.has(hero_id):
@@ -217,7 +271,8 @@ func _create_mana_card(hero_id: String, hero_color: String) -> Dictionary:
 		"name": "Manastone",
 		"cost": 0,
 		"type": "mana",
-		"hero_color": hero_color,
+		"hero_id": "",
+		"hero_color": "",
 		"from_hero_id": hero_id,
 		"description": "Gain 1 mana this turn.",
 		"image": "res://asset/Others/manastone.png"
