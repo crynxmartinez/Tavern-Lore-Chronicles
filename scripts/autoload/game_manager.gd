@@ -237,6 +237,12 @@ func build_enemy_deck(heroes: Array) -> void:
 func build_enemy_deck_from_instances(hero_instances: Array) -> void:
 	enemy_deck_manager.build_from_hero_instances(hero_instances, false)
 
+func redeck_from_instances(hero_instances: Array, include_equipment: bool = false) -> void:
+	player_deck_manager.rebuild_deck_only_from_instances(hero_instances, include_equipment)
+
+func enemy_redeck_from_instances(hero_instances: Array) -> void:
+	enemy_deck_manager.rebuild_deck_only_from_instances(hero_instances, false)
+
 func enemy_draw_cards(count: int) -> Array:
 	return enemy_deck_manager.draw_cards(count)
 

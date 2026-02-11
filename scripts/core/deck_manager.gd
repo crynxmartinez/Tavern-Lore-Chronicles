@@ -74,6 +74,54 @@ func build_from_heroes(heroes: Array, include_equipment: bool = false) -> void:
 	
 	shuffle_deck()
 
+func rebuild_deck_only_from_instances(hero_instances: Array, include_equipment: bool = false) -> void:
+	## Rebuilds ONLY the deck from hero instances, preserving hand and discard pile.
+	## Used by Redeck in practice mode so the hand isn't wiped.
+	deck.clear()
+	
+	for hero_inst in hero_instances:
+		var hero_data = hero_inst.hero_data
+		var hero_iid = hero_inst.instance_id
+		var hero_cards = HeroDatabase.get_hero_cards(hero_inst.hero_id)
+		for card in hero_cards:
+			var card_copy = card.duplicate()
+			card_copy["base_id"] = card_copy.get("id", "")
+			card_copy["id"] = id_prefix + hero_iid + "_" + card_copy.get("id", "")
+			card_copy["hero_id"] = hero_inst.hero_id
+			card_copy["hero_instance_id"] = hero_iid
+			card_copy["instance_id"] = _generate_card_instance_id(card_copy)
+			deck.append(card_copy)
+		
+		var attack_card_id = hero_data.get("attack_card", hero_inst.hero_id + "_attack")
+		var base_attack = CardDatabase.get_card(attack_card_id)
+		var portrait_path = hero_data.get("portrait", "")
+		var attack_image = _get_attack_image_path(portrait_path)
+		
+		for i in range(GameConstants.ATTACK_CARDS_PER_HERO):
+			var attack_card = base_attack.duplicate() if not base_attack.is_empty() else {}
+			attack_card["id"] = id_prefix + hero_iid + "_attack_" + str(i)
+			attack_card["base_id"] = attack_card_id
+			attack_card["hero_id"] = hero_inst.hero_id
+			attack_card["hero_instance_id"] = hero_iid
+			if not attack_image.is_empty():
+				attack_card["art"] = attack_image
+				attack_card["image"] = attack_image
+			attack_card["instance_id"] = _generate_card_instance_id(attack_card)
+			deck.append(attack_card)
+	
+	if include_equipment:
+		var equipped_items = EquipmentDatabase.get_equipped_items()
+		for equip_id in equipped_items:
+			var equip_data = EquipmentDatabase.get_equipment(equip_id)
+			if not equip_data.is_empty():
+				var equip_card = equip_data.duplicate()
+				equip_card["base_id"] = equip_id
+				equip_card["id"] = equip_id + "_" + str(randi())
+				equip_card["instance_id"] = _generate_card_instance_id(equip_card)
+				deck.append(equip_card)
+	
+	shuffle_deck()
+
 func build_from_hero_instances(hero_instances: Array, include_equipment: bool = false) -> void:
 	## Practice mode: builds deck from Hero node instances, using instance_id to
 	## make card IDs unique per copy (supports duplicate heroes like 3× Squire).

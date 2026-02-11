@@ -2584,6 +2584,7 @@ func _handle_dig_card(card_data: Dictionary, source: Hero) -> void:
 		if dig_hand.size() < GameManager.HAND_SIZE:
 			dig_hand.append(selected_card)
 			print("[" + card_name + "] Added " + selected_card.get("name", "card") + " to hand")
+			print("[DEBUG Dig] Hand size before refresh: ", dig_hand.size(), " cards: ", dig_hand.map(func(c): return c.get("name", "?")))
 			_refresh_hand()
 			_log_deck_action(card_data.get("art", card_data.get("image", "")), selected_card.get("art", selected_card.get("image", "")), "Dug → Hand")
 		else:
@@ -8437,13 +8438,13 @@ func _on_practice_draw_card() -> void:
 func _on_practice_redeck() -> void:
 	if _practice_controlling_enemy:
 		var alive_enemies = enemy_heroes.filter(func(h): return not h.is_dead)
-		GameManager.build_enemy_deck_from_instances(alive_enemies)
+		GameManager.enemy_redeck_from_instances(alive_enemies)
 		var deck_size = GameManager.enemy_deck.size()
 		_update_deck_display()
 		print("[Practice] Enemy redecked — " + str(deck_size) + " cards in deck")
 	else:
 		var alive_players = player_heroes.filter(func(h): return not h.is_dead)
-		GameManager.build_deck_from_instances(alive_players, false)
+		GameManager.redeck_from_instances(alive_players, false)
 		var deck_size = GameManager.deck.size()
 		_update_deck_display()
 		print("[Practice] Player redecked — " + str(deck_size) + " cards in deck")
