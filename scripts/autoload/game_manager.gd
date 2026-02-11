@@ -40,21 +40,37 @@ var enemy_deck_manager: DeckManager
 # Legacy accessors for backwards compatibility
 var deck: Array:
 	get: return player_deck_manager.deck if player_deck_manager else []
+	set(v):
+		if player_deck_manager: player_deck_manager.deck = v
 var hand: Array:
 	get: return player_deck_manager.hand if player_deck_manager else []
+	set(v):
+		if player_deck_manager: player_deck_manager.hand = v
 var discard_pile: Array:
 	get: return player_deck_manager.discard_pile if player_deck_manager else []
+	set(v):
+		if player_deck_manager: player_deck_manager.discard_pile = v
 var dead_hero_cards: Dictionary:
 	get: return player_deck_manager.dead_hero_cards if player_deck_manager else {}
+	set(v):
+		if player_deck_manager: player_deck_manager.dead_hero_cards = v
 
 var enemy_deck: Array:
 	get: return enemy_deck_manager.deck if enemy_deck_manager else []
+	set(v):
+		if enemy_deck_manager: enemy_deck_manager.deck = v
 var enemy_hand: Array:
 	get: return enemy_deck_manager.hand if enemy_deck_manager else []
+	set(v):
+		if enemy_deck_manager: enemy_deck_manager.hand = v
 var enemy_discard_pile: Array:
 	get: return enemy_deck_manager.discard_pile if enemy_deck_manager else []
+	set(v):
+		if enemy_deck_manager: enemy_deck_manager.discard_pile = v
 var enemy_dead_hero_cards: Dictionary:
 	get: return enemy_deck_manager.dead_hero_cards if enemy_deck_manager else {}
+	set(v):
+		if enemy_deck_manager: enemy_deck_manager.dead_hero_cards = v
 
 # Use GameConstants for these values
 const HAND_SIZE: int = GameConstants.HAND_SIZE
