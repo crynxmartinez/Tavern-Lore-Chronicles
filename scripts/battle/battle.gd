@@ -127,6 +127,7 @@ var _practice_selected_label: Label = null
 var _practice_unli_mana: bool = false
 var _practice_unli_mana_btn: Button = null
 var _practice_replace_btn: Button = null
+var _practice_replacing_hero: Hero = null
 
 func _ready() -> void:
 	GameManager.mana_changed.connect(_on_mana_changed)
@@ -8285,9 +8286,13 @@ func _create_picker_thumbnail(hero_id: String, hero_data: Dictionary, is_on_fiel
 	return container
 
 func _on_hero_picker_selected(hero_id: String) -> void:
+	# Grab the replacing ref BEFORE closing the picker (close clears it)
+	var replacing = _practice_replacing_hero
+	_practice_replacing_hero = null
 	_close_hero_picker()
-	# Check if we're replacing an existing hero
-	if _practice_selected_hero and is_instance_valid(_practice_selected_hero):
+	# Check if we're replacing an existing hero (use stored ref — _practice_selected_hero may have been cleared)
+	if replacing and is_instance_valid(replacing):
+		_practice_selected_hero = replacing
 		_practice_replace_selected_hero(hero_id)
 	else:
 		_practice_spawn_hero(hero_id, _practice_spawn_is_player)
@@ -8296,6 +8301,9 @@ func _close_hero_picker() -> void:
 	if practice_hero_picker and is_instance_valid(practice_hero_picker):
 		practice_hero_picker.queue_free()
 		practice_hero_picker = null
+	# If closing without selecting (e.g. X button), clear the replacing flag
+	# (This is safe — if a hero was selected, _on_hero_picker_selected already consumed it)
+	_practice_replacing_hero = null
 
 func _practice_spawn_hero(hero_id: String, as_player: bool) -> void:
 	if as_player:
@@ -8471,7 +8479,8 @@ func _on_practice_replace_hero() -> void:
 	if not _practice_selected_hero:
 		print("[Practice] No hero selected to replace")
 		return
-	# Store whether we're replacing a player or enemy hero
+	# Store the hero to replace so it survives even if _practice_selected_hero gets deselected
+	_practice_replacing_hero = _practice_selected_hero
 	_practice_spawn_is_player = _practice_selected_hero.is_player_hero
 	_show_hero_picker_modal("Replace: " + _practice_selected_hero.hero_data.get("name", "Hero"))
 
