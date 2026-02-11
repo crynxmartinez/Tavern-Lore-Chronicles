@@ -4772,6 +4772,18 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 				if target and not target.is_dead:
 					target.clear_all_debuffs()
 					_log_status(target.hero_data.get("portrait", ""), "Cleansed", Color(0.9, 0.95, 1.0))
+			"cleanse_all":
+				var allies_cl = player_heroes if source.is_player_hero else enemy_heroes
+				for ally in allies_cl:
+					if not ally.is_dead:
+						ally.clear_all_debuffs()
+				_log_status(source.hero_data.get("portrait", ""), "Cleanse All", Color(0.9, 0.95, 1.0))
+			"dispel_all":
+				var enemies_dp = enemy_heroes if source.is_player_hero else player_heroes
+				for enemy in enemies_dp:
+					if not enemy.is_dead:
+						enemy.clear_all_buffs()
+				_log_status(source.hero_data.get("portrait", ""), "Dispel All", Color(0.8, 0.6, 1.0))
 			"penetrate":
 				# Penetrate hits the hero behind the target (further from attacker)
 				# For player heroes: behind = lower index (pos 3 -> pos 2)
