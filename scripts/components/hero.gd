@@ -202,13 +202,15 @@ func _align_sprite_left() -> void:
 	# Align sprite to LEFT edge of hero box (player heroes)
 	if sprite and sprite.texture:
 		var tex_size = sprite.texture.get_size()
-		sprite.position = Vector2(0, 450 - tex_size.y - 50)
+		var offset_y = hero_data.get("sprite_offset_y", 0)
+		sprite.position = Vector2(0, 450 - tex_size.y - 50 + offset_y)
 
 func _align_sprite_right() -> void:
 	# Align sprite to RIGHT edge of hero box (enemy heroes)
 	if sprite and sprite.texture:
 		var tex_size = sprite.texture.get_size()
-		sprite.position = Vector2(200 - tex_size.x, 450 - tex_size.y - 50)
+		var offset_y = hero_data.get("sprite_offset_y", 0)
+		sprite.position = Vector2(200 - tex_size.x, 450 - tex_size.y - 50 + offset_y)
 
 func _update_ui() -> void:
 	# HP bar shows current HP with smooth tween

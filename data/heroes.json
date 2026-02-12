@@ -255,6 +255,7 @@
 		"name": "Raizel",
 		"color": "blue",
 		"role": "mage",
+		"sprite_offset_y": -10,
 		"base_hp": 10,
 		"hp_multiplier": 13,
 		"max_hp": 130,
