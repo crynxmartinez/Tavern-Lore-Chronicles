@@ -5107,7 +5107,17 @@ func _on_end_turn_pressed() -> void:
 			_practice_end_enemy_turn()
 			return
 		
-		# === PLAYER TURN END: Expire buffs/debuffs ===
+		# === PLAYER TURN END ===
+		# Snapshot HP for Temporal Shift (Nyra EX) BEFORE enemy acts
+		_hp_snapshot_last_turn = _hp_snapshot_this_turn.duplicate(true)
+		_hp_snapshot_this_turn.clear()
+		for hero in player_heroes:
+			_hp_snapshot_this_turn[hero.instance_id] = {
+				"hp": hero.current_hp,
+				"was_dead": hero.is_dead
+			}
+		
+		# Expire buffs/debuffs
 		# Detonate Time Bombs on PLAYER heroes (bombs placed by enemy, expire at player's own_turn_end)
 		_detonate_time_bombs(player_heroes, true)
 		
@@ -5173,14 +5183,6 @@ func _on_turn_started(is_player: bool) -> void:
 		# Reset practice enemy control flag
 		_practice_controlling_enemy = false
 		
-		# Snapshot HP for Temporal Shift (Nyra EX) — rotate snapshots
-		_hp_snapshot_last_turn = _hp_snapshot_this_turn.duplicate(true)
-		_hp_snapshot_this_turn.clear()
-		for hero in player_heroes:
-			_hp_snapshot_this_turn[hero.instance_id] = {
-				"hp": hero.current_hp,
-				"was_dead": hero.is_dead
-			}
 		
 		# Buffs/debuffs already expired at end of previous turns.
 		# Just apply start-of-turn effects (regen, cleansing charm, etc.)
