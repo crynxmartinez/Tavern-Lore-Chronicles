@@ -4885,6 +4885,7 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 				if source and not source.is_dead:
 					var current_stacks = source.active_buffs.get("crescent_moon", {}).get("stacks", 0)
 					var new_stacks = current_stacks + 1
+					print("[Crescent Moon] " + source.hero_data.get("name", "Hero") + " current_stacks=" + str(current_stacks) + " new_stacks=" + str(new_stacks))
 					if new_stacks >= 4:
 						# Consume all stacks and fill EX gauge to max
 						source.remove_buff("crescent_moon")
@@ -4893,8 +4894,14 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						print(source.hero_data.get("name", "Hero") + " Crescent Moon x4! EX gauge filled!")
 						_log_status(source.hero_data.get("portrait", ""), "Crescent Moon x4 → EX Full!", Color(1.0, 0.85, 0.3))
 					else:
-						source.apply_buff("crescent_moon", -1, 0, "permanent")
-						source.active_buffs["crescent_moon"]["stacks"] = new_stacks
+						if source.active_buffs.has("crescent_moon"):
+							# Already has buff — just update stacks (don't overwrite)
+							source.active_buffs["crescent_moon"]["stacks"] = new_stacks
+						else:
+							# First stack — create the buff
+							source.apply_buff("crescent_moon", -1, 0, "permanent")
+							source.active_buffs["crescent_moon"]["stacks"] = new_stacks
+						source._update_buff_icons()
 						print(source.hero_data.get("name", "Hero") + " gained Crescent Moon (stack " + str(new_stacks) + "/4)")
 						_log_status(source.hero_data.get("portrait", ""), "Crescent Moon " + str(new_stacks) + "/4", Color(0.8, 0.75, 1.0))
 			"eclipse_buff":

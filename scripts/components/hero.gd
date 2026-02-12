@@ -733,6 +733,18 @@ func _update_buff_icons() -> void:
 				buff_container.add_child(icon)
 			else:
 				var icon = _create_status_icon(icon_path, buff_name, true)
+				# Add stack count label for Crescent Moon
+				if buff_name == "crescent_moon":
+					var stacks = active_buffs[buff_name].get("stacks", 0)
+					if stacks > 0:
+						var stack_label = Label.new()
+						stack_label.text = str(stacks)
+						stack_label.add_theme_font_size_override("font_size", 12)
+						stack_label.add_theme_color_override("font_color", Color.WHITE)
+						stack_label.add_theme_color_override("font_outline_color", Color.BLACK)
+						stack_label.add_theme_constant_override("outline_size", 2)
+						stack_label.position = Vector2(12, 8)
+						icon.add_child(stack_label)
 				buff_container.add_child(icon)
 	
 	# Add debuff icons
