@@ -247,19 +247,39 @@ func _compute_description(data: Dictionary) -> String:
 	# Replace Shield formulas: (8 + DEF×2) -> computed shield
 	var card_base_shield = data.get("base_shield", 0)
 	var card_def_mult = data.get("def_multiplier", 0.0)
+	# Also check self_shield_def_multiplier (e.g. Kalasag SK1)
+	if card_def_mult == 0.0:
+		card_def_mult = data.get("self_shield_def_multiplier", 0.0)
 	if card_base_shield > 0 or card_def_mult > 0:
 		var shield_amount = card_base_shield + int(base_def * card_def_mult)
 		var def_int = str(int(card_def_mult))
 		var base_str = str(card_base_shield)
 		var separators = ["\u00d7", "x", "X", "*"]
+		var replaced = false
 		for sep in separators:
+			if replaced:
+				break
+			# Pattern: (base + DEF×mult)
 			var with_parens = "(" + base_str + " + DEF" + sep + def_int + ")"
 			if desc.find(with_parens) >= 0:
 				desc = desc.replace(with_parens, str(shield_amount))
+				replaced = true
 				break
 			var no_parens = base_str + " + DEF" + sep + def_int
 			if desc.find(no_parens) >= 0:
 				desc = desc.replace(no_parens, str(shield_amount))
+				replaced = true
+				break
+			# Pattern: (DEF×mult) — no base shield
+			var def_only_parens = "(DEF" + sep + def_int + ")"
+			if desc.find(def_only_parens) >= 0:
+				desc = desc.replace(def_only_parens, str(shield_amount))
+				replaced = true
+				break
+			var def_only = "DEF" + sep + def_int
+			if desc.find(def_only) >= 0:
+				desc = desc.replace(def_only, str(shield_amount))
+				replaced = true
 				break
 	
 	return desc

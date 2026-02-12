@@ -810,6 +810,7 @@ func _on_card_clicked(card: Card) -> void:
 			# Check if the source hero is stunned
 			if source_hero and source_hero.is_stunned():
 				print("Cannot play card - " + source_hero.hero_data.get("name", "Hero") + " is stunned!")
+				_log_event(source_hero.hero_data.get("name", "Hero") + " is STUNNED! Cannot play cards.", Color(1.0, 0.3, 0.3))
 				return
 			
 			# Check if card requires targeting
@@ -1587,6 +1588,11 @@ func _play_queued_buff_all(card_data: Dictionary, visual: Node) -> void:
 	if not effects.is_empty():
 		_apply_effects(effects, source_hero, null, base_atk, card_data)
 	
+	# If effects triggered card selection (e.g. Reshuffle), wait for it to finish
+	if current_phase == BattlePhase.CARD_SELECTING:
+		while current_phase == BattlePhase.CARD_SELECTING:
+			await get_tree().create_timer(0.1).timeout
+	
 	await _hide_card_display()
 	
 	await _fade_out_visual(visual)
@@ -1661,6 +1667,11 @@ func _play_queued_buff(card_data: Dictionary, visual: Node, target: Hero) -> voi
 	var effects = card_data.get("effects", [])
 	if not effects.is_empty():
 		_apply_effects(effects, source_hero, target, base_atk, card_data)
+	
+	# If effects triggered card selection (e.g. Reshuffle), wait for it to finish
+	if current_phase == BattlePhase.CARD_SELECTING:
+		while current_phase == BattlePhase.CARD_SELECTING:
+			await get_tree().create_timer(0.1).timeout
 	
 	await _hide_card_display()
 	
@@ -4253,16 +4264,18 @@ func _eh_hp_cost_pct(ctx: Dictionary, spec: Dictionary) -> Array:
 	return [op]
 
 func _eh_bleed_on_action(ctx: Dictionary, spec: Dictionary) -> Array:
-	# Phase 4: Bleed trigger (10 true self-damage) on any non-EX action.
+	# Phase 4: Bleed trigger (% of caster ATK as true self-damage) on any non-EX action.
 	var source: Hero = ctx.get("source", null)
-	print("[DEBUG Bleed] _eh_bleed_on_action called. source=", source.hero_id if source else "null", " has_debuff('bleed')=", source.has_debuff("bleed") if source else "N/A", " is_ex=", ctx.get("is_ex", false), " debuffs=", source.active_debuffs.keys() if source else [])
 	if source == null or not is_instance_valid(source) or source.is_dead:
 		return []
 	if bool(ctx.get("is_ex", false)):
 		return []
 	if not source.has_debuff("bleed"):
 		return []
-	var dmg := int(spec.get("amount", 10))
+	# Bleed damage = 50% of the caster's ATK (stored as source_atk in the debuff)
+	var bleed_data = source.active_debuffs.get("bleed", {})
+	var caster_atk = int(bleed_data.get("source_atk", 10))
+	var dmg := int(max(1, caster_atk * 0.5))
 	if dmg <= 0:
 		return []
 	var new_hp: int = int(max(0, source.current_hp - dmg))
@@ -4600,7 +4613,7 @@ func _normalize_effects(raw_effects: Array, source: Hero, primary_target: Hero) 
 					"id": "time_bomb",
 					"stacks": 1,
 					"duration": 1,
-					"expire_on": "opponent_turn_end"
+					"expire_on": "own_turn_end"
 				})
 			"reshuffle":
 				specs.append({
@@ -4680,7 +4693,6 @@ func _apply_pre_action_self_effects(card_data: Dictionary, source_hero: Hero, is
 			return false
 	_dispatch_effect_spec(ctx, {
 		"type": EFFECT_BLEED_ON_ACTION,
-		"amount": 10,
 		"target": "source"
 	})
 	return true
@@ -4909,9 +4921,9 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 						print(source.hero_data.get("name", "Hero") + " Rewind failed — discard pile is empty")
 						_log_event("Rewind failed — discard empty", Color(0.6, 0.5, 0.5))
 			"time_bomb":
-				# Nyra SK3: Apply time_bomb debuff to target (detonates at opponent turn end)
+				# Nyra SK3: Apply time_bomb debuff to target (detonates at bombed hero's own turn end)
 				if target and not target.is_dead:
-					target.apply_debuff("time_bomb", 1, source_atk, "opponent_turn_end")
+					target.apply_debuff("time_bomb", 1, source_atk, "own_turn_end")
 					print(target.hero_data.get("name", "Hero") + " has a Time Bomb! Detonates at end of opponent's turn")
 					_log_status(target.hero_data.get("portrait", ""), "Time Bomb!", Color(1.0, 0.4, 0.1))
 			"reshuffle":
@@ -5089,8 +5101,8 @@ func _on_end_turn_pressed() -> void:
 			return
 		
 		# === PLAYER TURN END: Expire buffs/debuffs ===
-		# Detonate Time Bombs on enemies before debuffs expire
-		_detonate_time_bombs(enemy_heroes, false)
+		# Detonate Time Bombs on PLAYER heroes (bombs placed by enemy, expire at player's own_turn_end)
+		_detonate_time_bombs(player_heroes, true)
 		
 		# Player's heroes: remove "own_turn_end" buffs/debuffs (empower, regen, etc.)
 		for hero in player_heroes:
@@ -5174,6 +5186,14 @@ func _on_turn_started(is_player: bool) -> void:
 					_refresh_hand()
 					print("[Regen+] " + hero.hero_data.get("name", "Hero") + " drew 1 card!")
 				_trigger_equipment_effects(hero, "on_turn_start", {})
+		
+		# Unlimited mana: refill at turn start
+		if is_practice_mode and _practice_unli_mana:
+			GameManager.current_mana = GameManager.MANA_CAP
+			GameManager.max_mana = GameManager.MANA_CAP
+			GameManager.enemy_current_mana = GameManager.MANA_CAP
+			GameManager.enemy_max_mana = GameManager.MANA_CAP
+			GameManager.mana_changed.emit(GameManager.current_mana, GameManager.max_mana)
 		
 		current_phase = BattlePhase.PLAYING
 		if turn_indicator:
@@ -5304,8 +5324,8 @@ func _do_enemy_turn() -> void:
 	_force_hide_card_display()
 	
 	# === ENEMY TURN END: Expire buffs/debuffs ===
-	# Detonate Time Bombs on player heroes before debuffs expire
-	_detonate_time_bombs(player_heroes, true)
+	# Detonate Time Bombs on ENEMY heroes (bombs placed by player, expire at enemy's own_turn_end)
+	_detonate_time_bombs(enemy_heroes, false)
 	# Enemy's heroes: remove "own_turn_end" buffs/debuffs (stun, empower, etc.)
 	for enemy in enemy_heroes:
 		if not enemy.is_dead:
@@ -7019,7 +7039,6 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					effects.append(op)
 			var bleed_ops = _dispatch_effect_spec(pre_ctx, {
 				"type": EFFECT_BLEED_ON_ACTION,
-				"amount": 10,
 				"target": "source"
 			})
 			for op in bleed_ops:
@@ -8793,8 +8812,8 @@ func _practice_end_enemy_turn() -> void:
 	# Mirror of player turn end but for enemy heroes
 	end_turn_button.disabled = true
 	
-	# Detonate Time Bombs on player heroes before debuffs expire
-	_detonate_time_bombs(player_heroes, true)
+	# Detonate Time Bombs on ENEMY heroes (bombs placed by player, expire at enemy's own_turn_end)
+	_detonate_time_bombs(enemy_heroes, false)
 	
 	# Enemy's heroes: remove "own_turn_end" buffs/debuffs
 	for enemy in enemy_heroes:
