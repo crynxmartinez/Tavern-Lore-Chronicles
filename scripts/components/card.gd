@@ -252,6 +252,7 @@ func _compute_description(data: Dictionary) -> String:
 		card_def_mult = data.get("self_shield_def_multiplier", 0.0)
 	if card_base_shield > 0 or card_def_mult > 0:
 		var shield_amount = card_base_shield + int(base_def * card_def_mult)
+		print("[SHIELD] hero_id='", hero_id, "' def=", base_def, " shield=", shield_amount, " has_DEF=", desc.find("DEF"), " desc='", desc, "'")
 		# Find "DEF" in description and replace the surrounding formula with computed value
 		var def_pos = desc.find("DEF")
 		if def_pos >= 0:
