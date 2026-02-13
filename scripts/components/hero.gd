@@ -818,7 +818,7 @@ func _create_status_icon(icon_path: String, status_name: String, is_buff: bool) 
 	if status_name == "thunder" and active_debuffs.has("thunder"):
 		var stacks = active_debuffs["thunder"].get("stacks", 1)
 		var source_atk = active_debuffs["thunder"].get("source_atk", 10)
-		var damage = stacks * int(source_atk * 2.0)
+		var damage = stacks * int(source_atk * GameConstants.THUNDER_DAMAGE_MULT)
 		tip += "\nStacks: " + str(stacks) + " (" + str(damage) + " damage)"
 	icon.tooltip_text = tip
 	

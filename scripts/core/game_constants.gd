@@ -36,7 +36,7 @@ const BREAK_DAMAGE_MULT: float = 1.5
 # BUFF/DEBUFF VALUES
 # ============================================
 const REGEN_HEAL_MULT: float = 0.5
-const THUNDER_DAMAGE_MULT: float = 1.0  # 100% ATK per stack
+const THUNDER_DAMAGE_MULT: float = 0.6  # 60% ATK per stack
 
 # ============================================
 # AI PRIORITIES
