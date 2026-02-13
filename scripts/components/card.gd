@@ -254,7 +254,8 @@ func _compute_description(data: Dictionary) -> String:
 		var shield_amount = card_base_shield + int(base_def * card_def_mult)
 		var def_int = str(int(card_def_mult))
 		var base_str = str(int(card_base_shield))
-		print("[Shield Desc] hero_id=", hero_id, " base_def=", base_def, " base_shield=", card_base_shield, " def_mult=", card_def_mult, " shield=", shield_amount, " desc=", desc)
+		print("[Shield Desc] hero_id=", hero_id, " base_def=", base_def, " base_shield=", card_base_shield, " def_mult=", card_def_mult, " shield=", shield_amount)
+		print("[Shield Desc] desc bytes: ", desc.to_utf8_buffer().hex_encode())
 		# Try all separator variants × x X *
 		var seps = ["\u00d7", "x", "X", "*"]
 		var replaced_shield = false
@@ -271,9 +272,12 @@ func _compute_description(data: Dictionary) -> String:
 				"DEF" + sep + def_int
 			]
 			for formula in formulas:
-				if desc.find(formula) >= 0:
+				var found = desc.find(formula)
+				print("[Shield Desc] trying: '", formula, "' -> found=", found)
+				if found >= 0:
 					desc = desc.replace(formula, str(shield_amount))
 					replaced_shield = true
+					print("[Shield Desc] REPLACED with ", shield_amount)
 					break
 	
 	return desc
