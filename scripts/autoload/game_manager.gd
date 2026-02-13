@@ -84,11 +84,18 @@ func _ready() -> void:
 
 func start_game() -> void:
 	turn_number = 1
+	is_player_turn = true
 	current_mana = STARTING_MANA
 	max_mana = STARTING_MANA
 	enemy_current_mana = STARTING_MANA
 	enemy_max_mana = STARTING_MANA
 	current_phase = GamePhase.MULLIGAN
+	# Clear stale deck/hand/discard from previous battle
+	player_deck_manager.clear()
+	enemy_deck_manager.clear()
+	# Clear stale hero references
+	player_heroes.clear()
+	enemy_heroes.clear()
 	phase_changed.emit(current_phase)
 
 func start_mulligan() -> void:

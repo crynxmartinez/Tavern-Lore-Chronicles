@@ -361,6 +361,9 @@ func _on_opponent_team_received(team: Array) -> void:
 	print("Battle: Opponent team received via signal: ", team)
 
 func _finalize_battle_setup(player_team: Array, enemy_team: Array) -> void:
+	# Reset all GameManager state (mana, turn, decks, heroes) to prevent leaks from previous battles
+	GameManager.start_game()
+	
 	var role = "[HOST]" if is_host else "[GUEST]"
 	print("Battle: ", role, " _finalize_battle_setup called")
 	print("  player_team (MY heroes): ", player_team)
