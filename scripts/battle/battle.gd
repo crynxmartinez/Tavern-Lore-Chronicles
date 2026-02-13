@@ -3936,50 +3936,56 @@ func _apply_temporal_shift(allies: Array) -> void:
 			print("[Temporal Shift] " + ally.hero_data.get("name", "Hero") + " HP unchanged (already >= snapshot)")
 
 func _detonate_time_bombs(heroes: Array, is_player_team: bool) -> void:
-	# Detonate time_bomb debuffs: 10 flat damage + remove 1 random card of that hero from opponent's hand
+	# Detonate time_bomb debuffs: stacked damage + remove stacked number of random cards from hand
 	for hero in heroes:
 		if hero.is_dead:
 			continue
 		if not hero.has_debuff("time_bomb"):
 			continue
-		# Deal 10 flat damage
-		_apply_true_damage(hero, 10)
+		var bomb_data = hero.active_debuffs.get("time_bomb", {})
+		var total_damage = int(bomb_data.get("total_damage", 10))
+		var discard_count = int(bomb_data.get("discard_count", 1))
+		var stacks = int(bomb_data.get("stacks", 1))
+		# Deal stacked damage
+		_apply_true_damage(hero, total_damage)
 		hero.play_hit_anim()
-		print("[Time Bomb] " + hero.hero_data.get("name", "Hero") + " took 10 damage!")
-		_log_status(hero.hero_data.get("portrait", ""), "Time Bomb: 10 DMG!", Color(1.0, 0.4, 0.1))
-		# Remove 1 random card belonging to this hero from the opponent's hand
-		# If bomb is on enemy hero → remove from enemy hand; if on player hero → remove from player hand
+		var stack_str = " (x" + str(stacks) + ")" if stacks > 1 else ""
+		print("[Time Bomb] " + hero.hero_data.get("name", "Hero") + " took " + str(total_damage) + " damage!" + stack_str)
+		_log_status(hero.hero_data.get("portrait", ""), "Time Bomb" + stack_str + ": " + str(total_damage) + " DMG!", Color(1.0, 0.4, 0.1))
+		# Remove stacked number of random cards belonging to this hero from the hand
 		if is_player_team:
-			# Bomb on player hero: remove from player's hand
-			var matching_cards: Array = []
-			for i in range(GameManager.hand.size()):
-				var card = GameManager.hand[i]
-				if card.get("hero_id", "") == hero.hero_id or card.get("id", "").begins_with(hero.hero_id):
-					matching_cards.append(i)
-			if matching_cards.size() > 0:
-				var rand_idx = matching_cards[randi() % matching_cards.size()]
-				var removed = GameManager.hand[rand_idx]
-				GameManager.hand.remove_at(rand_idx)
-				_refresh_hand()
-				print("[Time Bomb] Removed " + removed.get("name", "card") + " from player hand!")
-			else:
-				print("[Time Bomb] No matching cards in player hand to remove")
+			for _d in range(discard_count):
+				var matching_cards: Array = []
+				for i in range(GameManager.hand.size()):
+					var card = GameManager.hand[i]
+					if card.get("hero_id", "") == hero.hero_id or card.get("id", "").begins_with(hero.hero_id):
+						matching_cards.append(i)
+				if matching_cards.size() > 0:
+					var rand_idx = matching_cards[randi() % matching_cards.size()]
+					var removed = GameManager.hand[rand_idx]
+					GameManager.hand.remove_at(rand_idx)
+					print("[Time Bomb] Removed " + removed.get("name", "card") + " from player hand!")
+				else:
+					print("[Time Bomb] No matching cards in player hand to remove")
+					break
+			_refresh_hand()
 		else:
-			# Bomb on enemy hero: remove from enemy hand
 			var e_hand = GameManager.enemy_hand
-			var matching_cards: Array = []
-			for i in range(e_hand.size()):
-				var card = e_hand[i]
-				if card.get("hero_id", "") == hero.hero_id or card.get("id", "").begins_with(hero.hero_id):
-					matching_cards.append(i)
-			if matching_cards.size() > 0:
-				var rand_idx = matching_cards[randi() % matching_cards.size()]
-				var removed = e_hand[rand_idx]
-				GameManager.enemy_deck_manager.hand.remove_at(rand_idx)
-				_refresh_enemy_hand_display()
-				print("[Time Bomb] Removed " + removed.get("name", "card") + " from enemy hand!")
-			else:
-				print("[Time Bomb] No matching cards in enemy hand to remove")
+			for _d in range(discard_count):
+				var matching_cards: Array = []
+				for i in range(e_hand.size()):
+					var card = e_hand[i]
+					if card.get("hero_id", "") == hero.hero_id or card.get("id", "").begins_with(hero.hero_id):
+						matching_cards.append(i)
+				if matching_cards.size() > 0:
+					var rand_idx = matching_cards[randi() % matching_cards.size()]
+					var removed = e_hand[rand_idx]
+					GameManager.enemy_deck_manager.hand.remove_at(rand_idx)
+					print("[Time Bomb] Removed " + removed.get("name", "card") + " from enemy hand!")
+				else:
+					print("[Time Bomb] No matching cards in enemy hand to remove")
+					break
+			_refresh_enemy_hand_display()
 
 func _generate_temporary_cards(card_id: String, count: int, source_hero: Hero) -> void:
 	# Load the card template from cards.json and create temporary copies

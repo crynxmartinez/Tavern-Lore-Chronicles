@@ -109,7 +109,7 @@ const DEBUFF_DESCRIPTIONS = {
 	"bomb": {"name": "Bomb", "effect": "Explodes after duration."},
 	"thunder": {"name": "Thunder", "effect": "Lightning strikes at turn end. Stacks."},
 	"marked": {"name": "Marked", "effect": "Takes increased damage."},
-	"time_bomb": {"name": "Time Bomb", "effect": "Detonates at end of turn: 10 damage + removes 1 card from hand."}
+	"time_bomb": {"name": "Time Bomb", "effect": "Detonates at end of turn. Damage and discards stack."}
 }
 
 @onready var sprite: TextureRect = $Sprite
@@ -559,6 +559,30 @@ func apply_debuff(debuff_name: String, duration: int = 1, source_atk: int = 10, 
 		print(hero_data.get("name", "Hero") + " gained Thunder stack (total: " + str(active_debuffs["thunder"]["stacks"]) + ")")
 		return
 	
+	# Time Bomb stacks: damage and discard count accumulate
+	if debuff_name == "time_bomb":
+		var bomb_dmg := int(max(1, source_atk * 0.5))
+		if active_debuffs.has("time_bomb"):
+			active_debuffs["time_bomb"]["stacks"] += 1
+			active_debuffs["time_bomb"]["total_damage"] += bomb_dmg
+			active_debuffs["time_bomb"]["discard_count"] += 1
+			# Reset expiry so stacked bomb detonates together
+			active_debuffs["time_bomb"]["expire_on"] = expire_on if not expire_on.is_empty() else "own_turn_end"
+		else:
+			active_debuffs["time_bomb"] = {
+				"duration": duration,
+				"expire_on": expire_on if not expire_on.is_empty() else "own_turn_end",
+				"source_atk": source_atk,
+				"stacks": 1,
+				"total_damage": bomb_dmg,
+				"discard_count": 1,
+				"instance_id": _generate_buff_instance_id("time_bomb")
+			}
+		_update_buff_icons()
+		var bomb_data = active_debuffs["time_bomb"]
+		print(hero_data.get("name", "Hero") + " gained Time Bomb stack (x" + str(bomb_data["stacks"]) + ": " + str(bomb_data["total_damage"]) + " dmg, discard " + str(bomb_data["discard_count"]) + ")")
+		return
+	
 	var resolved_expire = expire_on
 	if resolved_expire.is_empty() and duration < 0:
 		resolved_expire = "permanent"
@@ -769,6 +793,18 @@ func _update_buff_icons() -> void:
 					stack_label.add_theme_constant_override("outline_size", 2)
 					stack_label.position = Vector2(12, 8)
 					icon.add_child(stack_label)
+			# Add stack count label for Time Bomb
+			if debuff_name == "time_bomb":
+				var bomb_stacks = int(active_debuffs.get("time_bomb", {}).get("stacks", 1))
+				if bomb_stacks > 1:
+					var stack_label = Label.new()
+					stack_label.text = str(bomb_stacks)
+					stack_label.add_theme_font_size_override("font_size", 12)
+					stack_label.add_theme_color_override("font_color", Color.WHITE)
+					stack_label.add_theme_color_override("font_outline_color", Color.BLACK)
+					stack_label.add_theme_constant_override("outline_size", 2)
+					stack_label.position = Vector2(12, 8)
+					icon.add_child(stack_label)
 			buff_container.add_child(icon)
 	
 	# Show/hide thunder cloud based on Thunder debuff
@@ -820,6 +856,15 @@ func _create_status_icon(icon_path: String, status_name: String, is_buff: bool) 
 		var source_atk = active_debuffs["thunder"].get("source_atk", 10)
 		var damage = stacks * int(source_atk * GameConstants.THUNDER_DAMAGE_MULT)
 		tip += "\nStacks: " + str(stacks) + " (" + str(damage) + " damage)"
+	# Show Time Bomb stacked values in tooltip
+	if status_name == "time_bomb" and active_debuffs.has("time_bomb"):
+		var bomb = active_debuffs["time_bomb"]
+		var bomb_stacks = int(bomb.get("stacks", 1))
+		var bomb_dmg = int(bomb.get("total_damage", 10))
+		var bomb_discard = int(bomb.get("discard_count", 1))
+		if bomb_stacks > 1:
+			tip += "\nStacks: x" + str(bomb_stacks)
+		tip += "\n" + str(bomb_dmg) + " damage, discards " + str(bomb_discard) + " card(s)"
 	# Show Bleed damage in tooltip
 	if status_name == "bleed" and active_debuffs.has("bleed"):
 		var bleed_atk = active_debuffs["bleed"].get("source_atk", 10)
