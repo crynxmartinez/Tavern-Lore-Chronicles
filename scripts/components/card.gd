@@ -215,12 +215,25 @@ func _compute_description(data: Dictionary) -> String:
 	
 	# Get hero stats for computation
 	var hero_id = data.get("hero_id", "")
-	var hero_data = HeroDatabase.get_hero(hero_id) if not hero_id.is_empty() else {}
-	var base_atk = hero_data.get("base_attack", 10)
-	var base_hp = hero_data.get("base_hp", 10)
-	var hp_mult = hero_data.get("hp_multiplier", 10)
-	var max_hp = hero_data.get("max_hp", base_hp * hp_mult)
-	var base_def = hero_data.get("base_def", 0)
+	var hero_data: Dictionary = {}
+	if not hero_id.is_empty():
+		hero_data = HeroDatabase.get_hero(hero_id)
+	if hero_data.is_empty():
+		# Collection view: no hero_id set. Find hero by checking who owns this card.
+		var card_id = data.get("id", "")
+		for hid in HeroDatabase.get_all_heroes():
+			var hd = HeroDatabase.get_hero(hid)
+			var hero_cards = hd.get("cards", [])
+			var ex_card = hd.get("ex_card", "")
+			var atk_card = hd.get("attack_card", "")
+			if card_id in hero_cards or card_id == ex_card or card_id == atk_card:
+				hero_data = hd
+				break
+	var base_atk = int(hero_data.get("base_attack", 10))
+	var base_hp = int(hero_data.get("base_hp", 10))
+	var hp_mult = int(hero_data.get("hp_multiplier", 10))
+	var max_hp = int(hero_data.get("max_hp", base_hp * hp_mult))
+	var base_def = int(hero_data.get("base_def", 0))
 	
 	# Replace ATK multiplier formulas: (150% ATK) -> computed damage
 	var atk_multiplier = data.get("atk_multiplier", 0.0)
@@ -251,8 +264,7 @@ func _compute_description(data: Dictionary) -> String:
 	if card_def_mult == 0.0:
 		card_def_mult = data.get("self_shield_def_multiplier", 0.0)
 	if card_base_shield > 0 or card_def_mult > 0:
-		var shield_amount = card_base_shield + int(base_def * card_def_mult)
-		print("[SHIELD] hero_id='", hero_id, "' def=", base_def, " shield=", shield_amount, " has_DEF=", desc.find("DEF"), " desc='", desc, "'")
+		var shield_amount = int(card_base_shield) + int(base_def * card_def_mult)
 		# Find "DEF" in description and replace the surrounding formula with computed value
 		var def_pos = desc.find("DEF")
 		if def_pos >= 0:
