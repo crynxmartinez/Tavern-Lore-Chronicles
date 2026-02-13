@@ -686,6 +686,13 @@ func _do_enemy_mulligan() -> void:
 		turn_indicator.text = "YOUR TURN"
 	_update_ui()
 
+func _refresh_hand_descriptions() -> void:
+	## Lightweight: update card descriptions in-place to reflect current empower/weak state
+	for card_instance in hand_container.get_children():
+		if is_instance_valid(card_instance) and card_instance.has_method("refresh_description"):
+			var source_hero = _get_source_hero(card_instance.card_data)
+			card_instance.refresh_description(source_hero)
+
 func _refresh_hand(animate: bool = false) -> void:
 	# In practice enemy control, show enemy hand instead
 	if _practice_controlling_enemy:
@@ -702,6 +709,10 @@ func _refresh_hand(animate: bool = false) -> void:
 		hand_container.add_child(card_instance)
 		card_instance.setup(card_data)
 		card_instance.card_clicked.connect(_on_card_clicked)
+		
+		# Apply empower/weak state to description
+		var source_hero_emp = _get_source_hero(card_data)
+		card_instance.refresh_description(source_hero_emp)
 		
 		# Apply frost cost modifier
 		var source_hero_frost = _get_source_hero(card_data)
@@ -740,6 +751,10 @@ func _deal_hand_animated() -> void:
 		card_instance.setup(card_data)
 		card_instance.card_clicked.connect(_on_card_clicked)
 		card_instance.modulate.a = 0
+		
+		# Apply empower/weak state to description
+		var source_hero_emp = _get_source_hero(card_data)
+		card_instance.refresh_description(source_hero_emp)
 		
 		# Apply frost cost modifier
 		var source_hero_frost = _get_source_hero(card_data)
@@ -2199,6 +2214,7 @@ func _resolve_card_effect(card_data: Dictionary, source: Hero, target: Hero) -> 
 			if empower_if_equipped and target.has_equipment():
 				target.apply_buff("empower", 1, base_atk, "own_turn_end")
 				print("[Repair] Target has equipment - applying Empower!")
+				_refresh_hand_descriptions()
 		"buff":
 			# Play cast animation for buffs
 			if source:
@@ -2352,6 +2368,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 						ally.apply_buff("empower", 1, 0, "own_turn_end")
 				print("[Equipment] " + equip_name + ": Empowered all allies!")
 				_log_status(hero.hero_data.get("portrait", ""), equip_name + ": Empower All", Color(1.0, 0.87, 0.4))
+				_refresh_hand_descriptions()
 			
 			"auto_revive":
 				# Phoenix Feather: Revive with % HP on death (one-time use)
@@ -2376,6 +2393,7 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 						hero.apply_buff("empower", 1, 0, "own_turn_end")
 						print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " gained Empower (low HP)!")
 						_log_status(hero.hero_data.get("portrait", ""), equip_name + ": Empower", Color(1.0, 0.87, 0.4))
+						_refresh_hand_descriptions()
 			
 			"cleanse":
 				# Cleansing Charm: Remove debuffs at turn start
@@ -4960,6 +4978,8 @@ func _apply_effects(effects: Array, source: Hero, target: Hero, source_atk: int,
 							source._show_shield_effect()
 							print(source.hero_data.get("name", "Hero") + " gained " + str(shield_amount) + " Shield (self)")
 							_log_status(source.hero_data.get("portrait", ""), "+" + str(shield_amount) + " Shield", Color(0.6, 0.85, 1.0))
+	# Refresh hand card descriptions to reflect empower/weak changes
+	_refresh_hand_descriptions()
 
 func _apply_upgrade_shuffle(card_data: Dictionary) -> void:
 	# Upgrade the card's atk_multiplier and shuffle back into deck
@@ -5132,6 +5152,8 @@ func _on_end_turn_pressed() -> void:
 		for enemy in enemy_heroes:
 			if not enemy.is_dead:
 				enemy.on_opponent_turn_end()
+		# Refresh hand descriptions after buffs expire
+		_refresh_hand_descriptions()
 		
 		# Trigger Thunder damage on ALL heroes at end of player turn
 		await _trigger_thunder_damage(enemy_heroes)
@@ -5346,6 +5368,8 @@ func _do_enemy_turn() -> void:
 	for hero in player_heroes:
 		if not hero.is_dead:
 			hero.on_opponent_turn_end()
+	# Refresh hand descriptions after buffs expire
+	_refresh_hand_descriptions()
 	
 	# Trigger Thunder damage on ALL heroes at end of enemy turn
 	await _trigger_thunder_damage(player_heroes)
@@ -8835,6 +8859,8 @@ func _practice_end_enemy_turn() -> void:
 	for hero in player_heroes:
 		if not hero.is_dead:
 			hero.on_opponent_turn_end()
+	# Refresh hand descriptions after buffs expire
+	_refresh_hand_descriptions()
 	
 	# Trigger Thunder damage on ALL heroes at end of enemy turn
 	await _trigger_thunder_damage(player_heroes)

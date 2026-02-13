@@ -208,7 +208,27 @@ func _apply_text_style(style: Dictionary) -> void:
 		name_label.add_theme_constant_override("shadow_offset_x", 1)
 		name_label.add_theme_constant_override("shadow_offset_y", 1)
 
-func _compute_description(data: Dictionary) -> String:
+func refresh_description(source_hero = null) -> void:
+	## Re-compute description with current empower state from source hero
+	if card_data.is_empty():
+		return
+	var dmg_mult := 1.0
+	var heal_mult := 1.0
+	var shield_mult := 1.0
+	if source_hero and is_instance_valid(source_hero):
+		if source_hero.has_buff("empower"):
+			dmg_mult = GameConstants.EMPOWER_DAMAGE_MULT
+		if source_hero.has_buff("empower_heal"):
+			heal_mult = GameConstants.EMPOWER_HEAL_MULT
+		if source_hero.has_buff("empower_shield"):
+			shield_mult = GameConstants.EMPOWER_SHIELD_MULT
+		if source_hero.has_debuff("weak"):
+			dmg_mult *= GameConstants.WEAK_DAMAGE_MULT
+	var description = _compute_description(card_data, dmg_mult, heal_mult, shield_mult)
+	if description_label:
+		description_label.text = _highlight_keywords(description)
+
+func _compute_description(data: Dictionary, empower_dmg: float = 1.0, empower_heal: float = 1.0, empower_shield: float = 1.0) -> String:
 	var desc = data.get("description", "")
 	if desc.is_empty():
 		return desc
@@ -238,7 +258,7 @@ func _compute_description(data: Dictionary) -> String:
 	# Replace ATK multiplier formulas: (150% ATK) -> computed damage
 	var atk_multiplier = data.get("atk_multiplier", 0.0)
 	if atk_multiplier > 0:
-		var damage = int(base_atk * atk_multiplier)
+		var damage = int(base_atk * atk_multiplier * empower_dmg)
 		var pct_str = str(int(atk_multiplier * 100))
 		var patterns = ["(" + pct_str + "% ATK)", pct_str + "% ATK"]
 		for pattern in patterns:
@@ -249,7 +269,7 @@ func _compute_description(data: Dictionary) -> String:
 	# Replace HP multiplier formulas: (8% max HP) -> computed heal
 	var card_hp_mult = data.get("hp_multiplier", 0.0)
 	if card_hp_mult > 0:
-		var heal_amount = int(max_hp * card_hp_mult)
+		var heal_amount = int(max_hp * card_hp_mult * empower_heal)
 		var pct_str = str(int(card_hp_mult * 100))
 		var patterns = ["(" + pct_str + "% max HP)", pct_str + "% max HP"]
 		for pattern in patterns:
@@ -264,7 +284,7 @@ func _compute_description(data: Dictionary) -> String:
 	if card_def_mult == 0.0:
 		card_def_mult = data.get("self_shield_def_multiplier", 0.0)
 	if card_base_shield > 0 or card_def_mult > 0:
-		var shield_amount = int(card_base_shield) + int(base_def * card_def_mult)
+		var shield_amount = int((int(card_base_shield) + int(base_def * card_def_mult)) * empower_shield)
 		# Find "DEF" in description and replace the surrounding formula with computed value
 		var def_pos = desc.find("DEF")
 		if def_pos >= 0:
