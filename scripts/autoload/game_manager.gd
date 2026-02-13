@@ -86,6 +86,8 @@ func start_game() -> void:
 	turn_number = 1
 	current_mana = STARTING_MANA
 	max_mana = STARTING_MANA
+	enemy_current_mana = STARTING_MANA
+	enemy_max_mana = STARTING_MANA
 	current_phase = GamePhase.MULLIGAN
 	phase_changed.emit(current_phase)
 
