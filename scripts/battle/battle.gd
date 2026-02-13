@@ -3117,15 +3117,30 @@ func _play_buff_on_all_allies(card: Card) -> void:
 	
 	_finish_card_play()
 
+func _trigger_bleed_damage(hero: Hero) -> void:
+	## Direct bleed damage — no await, safe to call from _finish_card_play
+	if hero == null or not is_instance_valid(hero) or hero.is_dead:
+		return
+	if not hero.has_debuff("bleed"):
+		return
+	var bleed_data = hero.active_debuffs.get("bleed", {})
+	var caster_atk = int(bleed_data.get("source_atk", 10))
+	var dmg := int(max(1, caster_atk * 0.5))
+	if dmg <= 0:
+		return
+	_apply_true_damage(hero, dmg, true)
+	_log_status(hero.hero_data.get("portrait", ""), "Bleed: " + str(dmg) + " DMG", Color(0.9, 0.2, 0.2))
+	print("[Bleed] " + hero.hero_data.get("name", "Hero") + " took " + str(dmg) + " bleed damage!")
+
 func _battle_play_card(card_data: Dictionary, source_hero, target) -> bool:
 	if _practice_controlling_enemy:
 		return GameManager.practice_play_enemy_card(card_data, source_hero, target)
 	return GameManager.play_card(card_data, source_hero, target)
 
 func _finish_card_play() -> void:
-	# Post-action bleed: card resolved, now bleed damages the hero
+	# Post-action bleed: card resolved, now bleed damages the source hero
 	if _last_played_source_hero and is_instance_valid(_last_played_source_hero):
-		await _apply_post_action_bleed(_last_played_source_hero, _last_played_card_data, false)
+		_trigger_bleed_damage(_last_played_source_hero)
 	_last_played_source_hero = null
 	_last_played_card_data = {}
 	
@@ -5527,7 +5542,7 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 	if card_type == "mana":
 		GameManager.enemy_play_card(card, attacker, null)
 		_apply_pre_action_self_effects(card, attacker, false)
-		await _apply_post_action_bleed(attacker, card, false)
+		_trigger_bleed_damage(attacker)
 		result.taken = true
 		result.cost = 0
 	elif card_type == "energy":
@@ -5540,7 +5555,7 @@ func _ai_take_action(alive_enemies: Array, alive_players: Array, mana: int) -> D
 		var energy_gain = card.get("energy_gain", 0)
 		attacker.add_energy(energy_gain)
 		await _hide_card_display()
-		await _apply_post_action_bleed(attacker, card, false)
+		_trigger_bleed_damage(attacker)
 		result.taken = true
 		result.cost = card.get("cost", 0)
 	elif card_type == "attack" or card_type == "basic_attack":
@@ -5895,7 +5910,7 @@ func _ai_play_attack(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	var energy_gain = int(card.get("energy_on_hit", GameConstants.ENERGY_ON_ATTACK))
 	attacker.add_energy(energy_gain)
 	await _hide_card_display()
-	await _apply_post_action_bleed(attacker, card, false)
+	_trigger_bleed_damage(attacker)
 
 func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	# Remove card from enemy hand
@@ -5948,7 +5963,7 @@ func _ai_play_heal(attacker: Hero, target: Hero, card: Dictionary) -> void:
 		_apply_effects(effects, attacker, target, base_atk, card)
 	
 	await _hide_card_display()
-	await _apply_post_action_bleed(attacker, card, false)
+	_trigger_bleed_damage(attacker)
 
 func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	# Remove card from enemy hand
@@ -5998,7 +6013,7 @@ func _ai_play_buff(attacker: Hero, target: Hero, card: Dictionary) -> void:
 	_log_buff(attacker.hero_data.get("name", "Enemy"), card.get("name", "Buff"), buff_target_name, buff_text, false, card.get("art", card.get("image", "")), buff_target_portrait)
 	
 	await _hide_card_display()
-	await _apply_post_action_bleed(attacker, card, false)
+	_trigger_bleed_damage(attacker)
 
 func _on_counter_triggered(defender: Hero, attacker: Hero, reflect_damage: int) -> void:
 	# Counter (Reflect): apply reflect damage to the attacker as true damage (ignores DEF/shield)
@@ -7116,12 +7131,7 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					return {"success": false, "effects": []}
 				for op in hp_ops:
 					effects.append(op)
-			var bleed_ops = _dispatch_effect_spec(pre_ctx, {
-				"type": EFFECT_BLEED_ON_ACTION,
-				"target": "source"
-			})
-			for op in bleed_ops:
-				effects.append(op)
+			# Bleed is now post-action — handled after card resolves
 	
 	# ========================================
 	# PRE-COMPUTE: Calculate all effect values (NO animations, NO state changes yet)
@@ -7436,6 +7446,10 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 				await _animate_cast_buff(source, source)
 	
 	await _hide_card_display()
+	
+	# Post-action bleed: card resolved, now bleed damages the source hero
+	if source:
+		_trigger_bleed_damage(source)
 	
 	return result
 
