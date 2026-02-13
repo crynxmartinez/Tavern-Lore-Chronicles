@@ -252,33 +252,14 @@ func _compute_description(data: Dictionary) -> String:
 		card_def_mult = data.get("self_shield_def_multiplier", 0.0)
 	if card_base_shield > 0 or card_def_mult > 0:
 		var shield_amount = card_base_shield + int(base_def * card_def_mult)
-		var def_int = str(int(card_def_mult))
-		var base_str = str(int(card_base_shield))
-		print("[Shield Desc] hero_id=", hero_id, " base_def=", base_def, " base_shield=", card_base_shield, " def_mult=", card_def_mult, " shield=", shield_amount)
-		print("[Shield Desc] desc bytes: ", desc.to_utf8_buffer().hex_encode())
-		# Try all separator variants × x X *
-		var seps = ["\u00d7", "x", "X", "*"]
-		var replaced_shield = false
-		for sep in seps:
-			if replaced_shield:
-				break
-			# Build all possible formula strings and try each
-			var formulas = [
-				"(" + base_str + " + DEF" + sep + def_int + ")",
-				"(" + base_str + " +DEF" + sep + def_int + ")",
-				"(" + base_str + "+DEF" + sep + def_int + ")",
-				base_str + " + DEF" + sep + def_int,
-				"(DEF" + sep + def_int + ")",
-				"DEF" + sep + def_int
-			]
-			for formula in formulas:
-				var found = desc.find(formula)
-				print("[Shield Desc] trying: '", formula, "' -> found=", found)
-				if found >= 0:
-					desc = desc.replace(formula, str(shield_amount))
-					replaced_shield = true
-					print("[Shield Desc] REPLACED with ", shield_amount)
-					break
+		# Use regex to find and replace any shield formula containing DEF
+		# Matches: (N + DEF×M), (DEF×M), or bare DEF×M with any multiplication symbol
+		var shield_regex = RegEx.new()
+		# Match optional opening paren, optional "number + ", then DEF followed by any mult symbol and digits, optional closing paren
+		shield_regex.compile("\\(?\\d*\\s*\\+?\\s*DEF.\\d+\\)?")
+		var m = shield_regex.search(desc)
+		if m:
+			desc = desc.replace(m.get_string(), str(shield_amount))
 	
 	return desc
 
