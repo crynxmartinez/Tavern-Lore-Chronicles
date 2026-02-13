@@ -4281,7 +4281,7 @@ func _eh_hp_cost_pct(ctx: Dictionary, spec: Dictionary) -> Array:
 	op["amount"] = hp_cost
 	op["new_hp"] = new_hp
 	op["new_block"] = source.block
-	_apply_true_damage(source, hp_cost)
+	_apply_true_damage(source, hp_cost, false)
 	return [op]
 
 func _eh_bleed_on_action(ctx: Dictionary, spec: Dictionary) -> Array:
@@ -4668,12 +4668,15 @@ func _get_hp_cost(card_data: Dictionary, source_hero: Hero) -> int:
 		return 0
 	return int(source_hero.max_hp * hp_cost_pct)
 
-func _apply_true_damage(hero: Hero, amount: int) -> void:
+func _apply_true_damage(hero: Hero, amount: int, show_vfx: bool = true) -> void:
 	if hero == null or not is_instance_valid(hero):
 		return
 	if amount <= 0:
 		return
 	hero.current_hp = max(0, hero.current_hp - amount)
+	if show_vfx:
+		hero._spawn_floating_number(amount, Color(0.9, 0.2, 0.2))
+		hero.play_hit_anim()
 	hero._update_ui()
 	if hero.current_hp <= 0:
 		hero.die()

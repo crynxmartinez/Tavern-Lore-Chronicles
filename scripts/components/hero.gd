@@ -101,7 +101,7 @@ const DEBUFF_DESCRIPTIONS = {
 	"weak": {"name": "Weak", "effect": "-50% damage dealt."},
 	"burn": {"name": "Burn", "effect": "Takes damage at turn end."},
 	"poison": {"name": "Poison", "effect": "Takes damage at turn start."},
-	"bleed": {"name": "Bleed", "effect": "Takes damage when acting."},
+	"bleed": {"name": "Bleed", "effect": "Takes damage when playing a card."},
 	"frost": {"name": "Frost", "effect": "+1 mana cost to all cards."},
 	"chain": {"name": "Chain", "effect": "Cannot use skills."},
 	"entangle": {"name": "Entangle", "effect": "Cannot move or dodge."},
@@ -820,6 +820,11 @@ func _create_status_icon(icon_path: String, status_name: String, is_buff: bool) 
 		var source_atk = active_debuffs["thunder"].get("source_atk", 10)
 		var damage = stacks * int(source_atk * GameConstants.THUNDER_DAMAGE_MULT)
 		tip += "\nStacks: " + str(stacks) + " (" + str(damage) + " damage)"
+	# Show Bleed damage in tooltip
+	if status_name == "bleed" and active_debuffs.has("bleed"):
+		var bleed_atk = active_debuffs["bleed"].get("source_atk", 10)
+		var bleed_dmg = int(max(1, bleed_atk * 0.5))
+		tip += "\n" + str(bleed_dmg) + " damage per card played"
 	icon.tooltip_text = tip
 	
 	return icon
