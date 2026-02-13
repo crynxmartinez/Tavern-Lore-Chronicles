@@ -244,7 +244,7 @@ func _compute_description(data: Dictionary) -> String:
 				desc = desc.replace(pattern, str(heal_amount) + " HP")
 				break
 	
-	# Replace Shield formulas: (8 + DEF×2) -> computed shield
+	# Replace Shield formulas: (N + DEF×M) or (DEF×M) -> computed shield
 	var card_base_shield = data.get("base_shield", 0)
 	var card_def_mult = data.get("def_multiplier", 0.0)
 	# Also check self_shield_def_multiplier (e.g. Kalasag SK1)
@@ -253,34 +253,28 @@ func _compute_description(data: Dictionary) -> String:
 	if card_base_shield > 0 or card_def_mult > 0:
 		var shield_amount = card_base_shield + int(base_def * card_def_mult)
 		var def_int = str(int(card_def_mult))
-		var base_str = str(card_base_shield)
-		var separators = ["\u00d7", "x", "X", "*"]
-		var replaced = false
-		for sep in separators:
-			if replaced:
+		var base_str = str(int(card_base_shield))
+		print("[Shield Desc] hero_id=", hero_id, " base_def=", base_def, " base_shield=", card_base_shield, " def_mult=", card_def_mult, " shield=", shield_amount, " desc=", desc)
+		# Try all separator variants × x X *
+		var seps = ["\u00d7", "x", "X", "*"]
+		var replaced_shield = false
+		for sep in seps:
+			if replaced_shield:
 				break
-			# Pattern: (base + DEF×mult)
-			var with_parens = "(" + base_str + " + DEF" + sep + def_int + ")"
-			if desc.find(with_parens) >= 0:
-				desc = desc.replace(with_parens, str(shield_amount))
-				replaced = true
-				break
-			var no_parens = base_str + " + DEF" + sep + def_int
-			if desc.find(no_parens) >= 0:
-				desc = desc.replace(no_parens, str(shield_amount))
-				replaced = true
-				break
-			# Pattern: (DEF×mult) — no base shield
-			var def_only_parens = "(DEF" + sep + def_int + ")"
-			if desc.find(def_only_parens) >= 0:
-				desc = desc.replace(def_only_parens, str(shield_amount))
-				replaced = true
-				break
-			var def_only = "DEF" + sep + def_int
-			if desc.find(def_only) >= 0:
-				desc = desc.replace(def_only, str(shield_amount))
-				replaced = true
-				break
+			# Build all possible formula strings and try each
+			var formulas = [
+				"(" + base_str + " + DEF" + sep + def_int + ")",
+				"(" + base_str + " +DEF" + sep + def_int + ")",
+				"(" + base_str + "+DEF" + sep + def_int + ")",
+				base_str + " + DEF" + sep + def_int,
+				"(DEF" + sep + def_int + ")",
+				"DEF" + sep + def_int
+			]
+			for formula in formulas:
+				if desc.find(formula) >= 0:
+					desc = desc.replace(formula, str(shield_amount))
+					replaced_shield = true
+					break
 	
 	return desc
 
