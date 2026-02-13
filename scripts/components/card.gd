@@ -252,14 +252,38 @@ func _compute_description(data: Dictionary) -> String:
 		card_def_mult = data.get("self_shield_def_multiplier", 0.0)
 	if card_base_shield > 0 or card_def_mult > 0:
 		var shield_amount = card_base_shield + int(base_def * card_def_mult)
-		# Use regex to find and replace any shield formula containing DEF
-		# Matches: (N + DEF×M), (DEF×M), or bare DEF×M with any multiplication symbol
-		var shield_regex = RegEx.new()
-		# Match optional opening paren, optional "number + ", then DEF followed by any mult symbol and digits, optional closing paren
-		shield_regex.compile("\\(?\\d*\\s*\\+?\\s*DEF.\\d+\\)?")
-		var m = shield_regex.search(desc)
-		if m:
-			desc = desc.replace(m.get_string(), str(shield_amount))
+		# Find "DEF" in description and replace the surrounding formula with computed value
+		var def_pos = desc.find("DEF")
+		if def_pos >= 0:
+			# Scan backwards to find start of formula (opening paren or digits before "+ ")
+			var start = def_pos
+			# Check for "N + " before DEF
+			if start >= 4:
+				var before = desc.substr(0, start)
+				var plus_idx = before.rfind("+ ")
+				if plus_idx >= 0 and plus_idx >= start - 10:
+					var num_s = plus_idx - 1
+					while num_s >= 0 and desc[num_s] == " ":
+						num_s -= 1
+					while num_s >= 0 and desc[num_s].is_valid_int():
+						num_s -= 1
+					num_s += 1
+					if num_s < plus_idx:
+						start = num_s
+			# Check for opening paren
+			if start > 0 and desc[start - 1] == "(":
+				start -= 1
+			# Scan forward past DEF + separator + digits
+			var end = def_pos + 3  # past "DEF"
+			if end < desc.length():
+				end += 1  # skip the multiplication symbol (×, x, X, *)
+			while end < desc.length() and desc[end].is_valid_int():
+				end += 1
+			# Check for closing paren
+			if end < desc.length() and desc[end] == ")":
+				end += 1
+			var formula = desc.substr(start, end - start)
+			desc = desc.replace(formula, str(shield_amount))
 	
 	return desc
 
