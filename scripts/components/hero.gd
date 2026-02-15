@@ -963,6 +963,11 @@ func _update_thunder_cloud(show: bool) -> void:
 
 func die() -> void:
 	is_dead = true
+	# Hide HP bar and energy bar
+	if hp_bar:
+		hp_bar.visible = false
+	if energy_bar:
+		energy_bar.visible = false
 	# Clear all buffs and debuffs on death
 	clear_all_buffs_and_debuffs()
 	# VFX Library: death particles on hero sprite
@@ -1016,6 +1021,11 @@ func revive(heal_amount: int) -> void:
 	is_dead = false
 	current_hp = min(max_hp, heal_amount)
 	modulate.a = 1.0
+	# Show HP bar and energy bar again
+	if hp_bar:
+		hp_bar.visible = true
+	if energy_bar:
+		energy_bar.visible = true
 	
 	# Reset sprite properties that were changed during death
 	sprite.scale = Vector2(1, 1)

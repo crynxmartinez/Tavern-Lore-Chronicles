@@ -2399,6 +2399,10 @@ func _trigger_equipment_effects(hero: Hero, trigger_type: String, context: Dicti
 				hero.current_hp = revive_hp
 				hero._update_hp_display()
 				hero.modulate = Color(1, 1, 1, 1)
+				if hero.hp_bar:
+					hero.hp_bar.visible = true
+				if hero.energy_bar:
+					hero.energy_bar.visible = true
 				# Remove the equipment after use (one-time)
 				hero.remove_equipment(equip.get("id", ""))
 				print("[Equipment] " + equip_name + ": " + hero.hero_data.get("name", "") + " revived with " + str(revive_hp) + " HP!")
@@ -8538,6 +8542,10 @@ func _on_practice_reset_hp() -> void:
 		_practice_selected_hero.is_dead = false
 		_practice_selected_hero.visible = true
 		_practice_selected_hero.modulate.a = 1.0
+		if _practice_selected_hero.hp_bar:
+			_practice_selected_hero.hp_bar.visible = true
+		if _practice_selected_hero.energy_bar:
+			_practice_selected_hero.energy_bar.visible = true
 		_practice_selected_hero._update_ui()
 		print("[Practice] HP reset: ", _practice_selected_hero.hero_data.get("name", "Hero"))
 	else:
@@ -8548,6 +8556,10 @@ func _on_practice_reset_hp() -> void:
 			hero.is_dead = false
 			hero.visible = true
 			hero.modulate.a = 1.0
+			if hero.hp_bar:
+				hero.hp_bar.visible = true
+			if hero.energy_bar:
+				hero.energy_bar.visible = true
 			hero._update_ui()
 		var side = "enemy" if _practice_controlling_enemy else "player"
 		print("[Practice] All ", side, " heroes HP reset")
