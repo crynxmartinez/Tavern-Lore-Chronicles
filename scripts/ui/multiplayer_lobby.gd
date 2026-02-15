@@ -48,7 +48,8 @@ func _on_host_pressed() -> void:
 func _on_join_pressed() -> void:
 	var ip = ip_input.text.strip_edges()
 	if ip.is_empty():
-		ip = "127.0.0.1"
+		status_label.text = "Please enter the host's IP address."
+		return
 	
 	status_label.text = "Connecting to " + ip + "..."
 	host_button.disabled = true
