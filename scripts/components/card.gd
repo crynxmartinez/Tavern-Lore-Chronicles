@@ -24,7 +24,9 @@ const ANIM_DURATION: float = 0.15
 @onready var description_label: RichTextLabel = $DescriptionLabel
 @onready var highlight: Control = $Highlight
 
-var current_template_id: String = "default"
+var current_template_id: String = ""
+var is_stunned_card: bool = false
+var stun_overlay: TextureRect = null
 
 var hover_timer: float = 0.0
 var is_hovered: bool = false
@@ -462,3 +464,25 @@ func get_heal_multiplier() -> float:
 
 func get_shield_multiplier() -> float:
 	return card_data.get("shield_multiplier", 0.0)
+
+func set_stunned(stunned: bool) -> void:
+	is_stunned_card = stunned
+	if stunned:
+		if stun_overlay == null:
+			stun_overlay = TextureRect.new()
+			stun_overlay.name = "StunOverlay"
+			var tex = load("res://asset/buff debuff/Stun - Card.png")
+			if tex:
+				stun_overlay.texture = tex
+			stun_overlay.anchors_preset = Control.PRESET_FULL_RECT
+			stun_overlay.anchor_right = 1.0
+			stun_overlay.anchor_bottom = 1.0
+			stun_overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			stun_overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			stun_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			stun_overlay.modulate = Color(1, 1, 1, 0.7)
+			add_child(stun_overlay)
+		stun_overlay.visible = true
+	else:
+		if stun_overlay:
+			stun_overlay.visible = false

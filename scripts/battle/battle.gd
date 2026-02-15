@@ -694,6 +694,9 @@ func _refresh_hand_descriptions() -> void:
 		if is_instance_valid(card_instance) and card_instance.has_method("refresh_description"):
 			var source_hero = _get_source_hero(card_instance.card_data)
 			card_instance.refresh_description(source_hero)
+			# Update stun overlay
+			if source_hero and card_instance.has_method("set_stunned"):
+				card_instance.set_stunned(source_hero.is_stunned())
 
 func _refresh_hand(animate: bool = false) -> void:
 	# In practice enemy control, show enemy hand instead
@@ -727,6 +730,9 @@ func _refresh_hand(animate: bool = false) -> void:
 			var source_hero = _get_source_hero(card_data)
 			var can_play = card_instance.can_play(GameManager.current_mana) and _can_pay_hp_cost(card_data, source_hero)
 			card_instance.set_playable(can_play)
+			# Show stun overlay if source hero is stunned
+			if source_hero and source_hero.is_stunned():
+				card_instance.set_stunned(true)
 		
 		if animate:
 			card_instance.modulate.a = 0
@@ -769,6 +775,9 @@ func _deal_hand_animated() -> void:
 			var source_hero = _get_source_hero(card_data)
 			var can_play = card_instance.can_play(GameManager.current_mana) and _can_pay_hp_cost(card_data, source_hero)
 			card_instance.set_playable(can_play)
+			# Show stun overlay if source hero is stunned
+			if source_hero and source_hero.is_stunned():
+				card_instance.set_stunned(true)
 		cards_to_animate.append(card_instance)
 	
 	# Wait for layout to complete
@@ -8904,6 +8913,9 @@ func _practice_show_enemy_hand() -> void:
 		var source_hero = _get_source_hero(card_data)
 		var can_play = card_instance.can_play(GameManager.enemy_current_mana) and _can_pay_hp_cost(card_data, source_hero)
 		card_instance.set_playable(can_play)
+		# Show stun overlay if source hero is stunned
+		if source_hero and source_hero.is_stunned():
+			card_instance.set_stunned(true)
 	
 	_update_deck_display()
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://dashboard001"]
+[gd_scene format=3 uid="uid://dashboard001"]
 
 [ext_resource type="Script" uid="uid://beo1snnxe60cr" path="res://scenes/dashboard/dashboard.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://c60j25cfdakja" path="res://asset/Others/Dashboard/dashboard UI.png" id="2_bg"]
@@ -16,7 +16,7 @@ font_color = Color(1, 0.9, 0.5, 1)
 outline_size = 3
 outline_color = Color(0.2, 0.1, 0, 1)
 
-[node name="Dashboard" type="Control"]
+[node name="Dashboard" type="Control" unique_id=1244920966]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -25,7 +25,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_script")
 
-[node name="Background" type="TextureRect" parent="."]
+[node name="Background" type="TextureRect" parent="." unique_id=1869457298]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -36,7 +36,7 @@ texture = ExtResource("2_bg")
 expand_mode = 1
 stretch_mode = 6
 
-[node name="ProfileContainer" type="Control" parent="."]
+[node name="ProfileContainer" type="Control" parent="." unique_id=1722404823]
 clip_contents = true
 layout_mode = 1
 anchors_preset = 5
@@ -48,7 +48,7 @@ offset_right = -451.0
 offset_bottom = 78.0
 grow_horizontal = 2
 
-[node name="ProfilePic" type="TextureRect" parent="ProfileContainer"]
+[node name="ProfilePic" type="TextureRect" parent="ProfileContainer" unique_id=1413673569]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -59,7 +59,7 @@ texture = ExtResource("9_profile_pic")
 expand_mode = 1
 stretch_mode = 6
 
-[node name="TopNavigation" type="TextureRect" parent="."]
+[node name="TopNavigation" type="TextureRect" parent="." unique_id=1730233862]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -72,7 +72,7 @@ texture = ExtResource("3_topnav")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="UsernameLabel" type="Label" parent="."]
+[node name="UsernameLabel" type="Label" parent="." unique_id=2079961871]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -86,7 +86,7 @@ theme_override_colors/font_color = Color(1, 0.95, 0.8, 1)
 theme_override_font_sizes/font_size = 16
 text = "Player"
 
-[node name="StatsLabel" type="Label" parent="."]
+[node name="StatsLabel" type="Label" parent="." unique_id=691237598]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -100,7 +100,7 @@ theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 12
 text = "W: 0 | L: 0 | 0%"
 
-[node name="ModeDiamond" type="TextureButton" parent="."]
+[node name="ModeDiamond" type="TextureButton" parent="." unique_id=1452426149]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -118,7 +118,7 @@ texture_normal = ExtResource("4_vs_ai")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="FindMatchButton" type="TextureButton" parent="."]
+[node name="FindMatchButton" type="TextureButton" parent="." unique_id=1207345913]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -135,7 +135,7 @@ texture_normal = ExtResource("5_start")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="ModeLabel" type="Label" parent="FindMatchButton"]
+[node name="ModeLabel" type="Label" parent="FindMatchButton" unique_id=647467429]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -147,7 +147,7 @@ label_settings = SubResource("LabelSettings_mode")
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="LeftMenu" type="VBoxContainer" parent="."]
+[node name="LeftMenu" type="VBoxContainer" parent="." unique_id=901859928]
 layout_mode = 1
 anchors_preset = 4
 anchor_top = 0.5
@@ -159,28 +159,28 @@ offset_bottom = 330.0
 grow_vertical = 2
 theme_override_constants/separation = -20
 
-[node name="ShopButton" type="TextureButton" parent="LeftMenu"]
+[node name="ShopButton" type="TextureButton" parent="LeftMenu" unique_id=2085094709]
 layout_mode = 2
 size_flags_vertical = 3
 texture_normal = ExtResource("6_shop")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="TeamButton" type="TextureButton" parent="LeftMenu"]
+[node name="TeamButton" type="TextureButton" parent="LeftMenu" unique_id=2115860025]
 layout_mode = 2
 size_flags_vertical = 3
 texture_normal = ExtResource("7_team")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="CollectionButton" type="TextureButton" parent="LeftMenu"]
+[node name="CollectionButton" type="TextureButton" parent="LeftMenu" unique_id=1354042662]
 layout_mode = 2
 size_flags_vertical = 3
 texture_normal = ExtResource("8_collection")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="LogoutButton" type="Button" parent="."]
+[node name="LogoutButton" type="Button" parent="." unique_id=260997056]
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
@@ -194,7 +194,7 @@ theme_override_colors/font_color = Color(1, 0.6, 0.6, 1)
 theme_override_font_sizes/font_size = 14
 text = "Logout"
 
-[node name="MatchmakingOverlay" type="ColorRect" parent="."]
+[node name="MatchmakingOverlay" type="ColorRect" parent="." unique_id=1774971270]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -204,7 +204,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.7)
 
-[node name="CenterContainer" type="CenterContainer" parent="MatchmakingOverlay"]
+[node name="CenterContainer" type="CenterContainer" parent="MatchmakingOverlay" unique_id=234517868]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -212,37 +212,37 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="PanelContainer" parent="MatchmakingOverlay/CenterContainer"]
+[node name="Panel" type="PanelContainer" parent="MatchmakingOverlay/CenterContainer" unique_id=2013078152]
 custom_minimum_size = Vector2(400, 200)
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MatchmakingOverlay/CenterContainer/Panel"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MatchmakingOverlay/CenterContainer/Panel" unique_id=1053698392]
 layout_mode = 2
 theme_override_constants/separation = 20
 alignment = 1
 
-[node name="SearchingLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+[node name="SearchingLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer" unique_id=1089226197]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.9, 0.5, 1)
 theme_override_font_sizes/font_size = 24
 text = "Searching for opponent..."
 horizontal_alignment = 1
 
-[node name="TimerLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+[node name="TimerLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer" unique_id=607341614]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 16
 text = "0:00"
 horizontal_alignment = 1
 
-[node name="StatusLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+[node name="StatusLabel" type="Label" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer" unique_id=1025514850]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.8, 1, 1)
 theme_override_font_sizes/font_size = 14
 text = "Looking for available matches..."
 horizontal_alignment = 1
 
-[node name="CancelButton" type="Button" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer"]
+[node name="CancelButton" type="Button" parent="MatchmakingOverlay/CenterContainer/Panel/VBoxContainer" unique_id=1724457904]
 custom_minimum_size = Vector2(150, 40)
 layout_mode = 2
 size_flags_horizontal = 4
