@@ -7208,6 +7208,30 @@ func _execute_card_and_collect_results(card_data: Dictionary, source: Hero, targ
 					"new_hp": new_hp,
 					"new_block": sim_block
 				})
+				
+				# Energy gain for target when hit (if damage > 0)
+				if actual_damage > 0 and not t.is_dead:
+					var target_energy_gain = GameConstants.ENERGY_ON_HIT
+					effects.append({
+						"type": "energy",
+						"hero_id": t.hero_id,
+						"instance_id": t.instance_id,
+						"is_host_hero": t.is_player_hero,
+						"amount": target_energy_gain,
+						"new_energy": min(t.max_energy, t.energy + target_energy_gain)
+					})
+			
+			# Energy gain for attacker
+			if source and not source.is_dead:
+				var attacker_energy_gain = int(card_data.get("energy_on_hit", GameConstants.ENERGY_ON_ATTACK))
+				effects.append({
+					"type": "energy",
+					"hero_id": source.hero_id,
+					"instance_id": source.instance_id,
+					"is_host_hero": source.is_player_hero,
+					"amount": attacker_energy_gain,
+					"new_energy": min(source.max_energy, source.energy + attacker_energy_gain)
+				})
 			
 			# Pre-compute card effects
 			if card_effects.size() > 0 and source:

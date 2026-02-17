@@ -889,7 +889,7 @@ func _create_equipment_icon(icon_path: String, equipped_items: Array) -> Texture
 		var item_name = item.get("name", "Unknown")
 		var item_effect = item.get("effect", "")
 		var item_trigger = item.get("trigger", "")
-		var item_value = item.get("value", 0)
+		var item_value = item.get("effect_value", 0)
 		tip += item_name + "\n"
 		# Add effect description based on effect type
 		match item_effect:
