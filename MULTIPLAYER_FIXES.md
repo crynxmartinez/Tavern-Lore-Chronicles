@@ -32,29 +32,25 @@
 **Fix Applied:**
 - Changed line 7026 in `battle.gd` from `hero._die()` to `hero.die()`
 
-### 4. Time Bomb Not Detonating ⚠️ NEEDS MULTIPLAYER SYNC
-**Root Cause:** Time Bomb detonation happens during turn end on host, but the damage/discard operations are not sent to guest.
+### 4. Time Bomb Not Detonating ✅ FIXED
+**Root Cause:** Time Bomb detonation happened during turn end on host, but the damage/discard operations were not sent to guest.
 
-**Current State:**
-- `_detonate_time_bombs()` function works correctly in singleplayer
-- Detonation happens at lines 5217, 5434, 8963
-- Operations are not synced to guest
+**Fix Applied:**
+- Modified `_detonate_time_bombs()` to support operation collection mode
+- When `operations` array is provided, damage and debuff removal are collected instead of applied
+- Host collects all time bomb operations during turn end and sends to guest
+- Guest applies operations via `_apply_ops()`
+- Lines 3965-4007 in `battle.gd`
 
-**Fix Needed:**
-- Turn end operations need to be collected and sent to guest
-- Requires adding turn end sync mechanism similar to card/EX sync
+### 5. Empower Heal Not Expiring ✅ FIXED
+**Root Cause:** Buff expiration was not synced in multiplayer - buffs were removed on host but guest never received the removal operations.
 
-### 5. Empower Heal Not Expiring ⚠️ NEEDS INVESTIGATION
-**Root Cause:** Unknown - configuration looks correct.
-
-**Current State:**
-- `_get_buff_expire_on("empower_heal")` returns `"own_turn_end"` (line 4026)
-- Buff expiration logic should work via `hero.on_own_turn_end()`
-- May be a multiplayer sync issue where buffs aren't being removed on guest
-
-**Fix Needed:**
-- Verify buff expiration is synced in multiplayer
-- Check if `on_own_turn_end()` is being called on guest heroes
+**Fix Applied:**
+- Turn-end sync now collects all buff/debuff removals
+- Host iterates through all heroes' active buffs/debuffs and checks `expire_on` condition
+- Removal operations are sent to guest as part of turn-end effects
+- Added `remove_debuff` case to `_apply_effect()` function
+- Lines 5233-5292 in `battle.gd`
 
 ### 6. Scrapyard Overflow ⚠️ NEEDS INVESTIGATION
 **Root Cause:** User reports it draws instead of discards.
@@ -69,22 +65,38 @@
 - Verify discard mode is working correctly
 - May be a UI issue or multiplayer sync issue
 
-## Fundamental Multiplayer Architecture Issue
+## Turn-End Sync Implementation ✅ COMPLETED
 
-The current multiplayer system only syncs:
-- Card play results
-- EX skill results
-- Damage/heal/buff/debuff from cards
+**Problem:** The original multiplayer system only synced card/EX actions but not turn-end effects.
 
-**Not synced:**
-- Turn end effects (Time Bomb detonation, Thunder damage, Burn, Poison)
-- Buff/debuff expiration
-- Shield clearing
-- Energy gains from passive sources
-- Equipment triggers
+**Solution Implemented:**
+A comprehensive turn-end sync mechanism where the host collects all turn-end state changes and sends them to the guest as a batch of operations.
 
-**Solution Needed:**
-A comprehensive turn end sync mechanism where the host collects all turn-end state changes and sends them to the guest as a batch of operations.
+**How It Works:**
+1. **Host Turn End** (lines 5216-5335):
+   - Collects `turn_end_ops` array
+   - Calls `_detonate_time_bombs()` with operations array to collect damage/debuff removal
+   - Iterates all heroes' buffs/debuffs, checks `expire_on` condition, collects removal operations
+   - Calls `_trigger_thunder_damage()` with operations array to collect thunder damage
+   - Collects shield clearing operations
+   - Sends all operations to guest via `network_manager.send_action_result()`
+
+2. **Guest Receives** (lines 7075-7099):
+   - `_guest_apply_end_turn_result()` receives turn-end result with `turn_end_effects` array
+   - Calls `_apply_ops(turn_end_effects)` to apply all operations
+   - Refreshes UI to reflect changes
+
+3. **Operation Collection Mode:**
+   - `_trigger_thunder_damage(heroes, operations)` - if operations array provided, collects instead of applies
+   - `_detonate_time_bombs(heroes, is_player_team, operations)` - same pattern
+
+**Now Synced:**
+- ✅ Thunder damage
+- ✅ Time Bomb detonation
+- ✅ Burn/Poison damage (via same pattern)
+- ✅ Buff/debuff expiration
+- ✅ Shield clearing
+- ✅ Energy gains from attacks/hits
 
 ## Testing Checklist
 
