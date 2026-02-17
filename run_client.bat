@@ -1,3 +1,3 @@
 @echo off
 echo Launching second Godot instance (Client)...
-start "" "D:\HighGames\Godot_v4.5.1-stable_win64.exe\Godot_v4.5.1-stable_win64.exe" --path "D:\Codes\myturn"
+start "" "D:\HighGames\Godot_v4.6-stable_win64.exe\Godot_v4.6-stable_win64.exe" --path "D:\Codes\myturn"
