@@ -7023,7 +7023,7 @@ func _apply_effect(effect: Dictionary) -> void:
 			hero.current_hp = new_hp
 			hero._update_ui()
 			if new_hp <= 0:
-				hero._die()
+				hero.die()
 		"heal":
 			var new_hp = effect.get("new_hp", hero.current_hp)
 			hero.current_hp = min(new_hp, hero.max_hp)
