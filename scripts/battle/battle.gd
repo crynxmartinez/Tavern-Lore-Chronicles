@@ -2925,12 +2925,15 @@ func _on_card_selection_cancel() -> void:
 	_card_selection_result = {}
 	_card_selection_done = true
 
-func _trigger_thunder_damage(heroes: Array) -> void:
+func _trigger_thunder_damage(heroes: Array, operations: Array = []) -> void:
 	# Tick Thunder debuff on all heroes - triggers after 2 turns
+	# If operations array is provided, collect state changes instead of applying directly (for multiplayer sync)
 	var thunder_targets = heroes.filter(func(h): return not h.is_dead and h.get_thunder_stacks() > 0)
 	
 	if thunder_targets.is_empty():
 		return
+	
+	var collect_ops = not operations.is_empty()
 	
 	# Tick down and check if any should trigger
 	for hero in thunder_targets:
@@ -2940,19 +2943,30 @@ func _trigger_thunder_damage(heroes: Array) -> void:
 		print("[Thunder] tick_thunder returned damage: " + str(damage))
 		
 		if damage > 0:
-			# Thunder is ready to strike!
-			# Spawn lightning explosion VFX on the target hero
-			hero._spawn_thunder_explode_effect()
-			
-			# Deal damage
-			hero.take_damage(damage)
-			hero.play_hit_anim()
-			print("[Thunder] " + hero.hero_data.get("name", "Hero") + " struck by lightning for " + str(damage) + " damage (" + str(stacks) + " stacks)")
-			_log_status(hero.hero_data.get("portrait", ""), "Thunder: " + str(damage) + " DMG!", Color(0.6, 0.7, 1.0))
-			
-			await get_tree().create_timer(0.3).timeout
+			if collect_ops:
+				# Multiplayer: collect operation instead of applying
+				var new_hp = max(0, hero.current_hp - damage)
+				operations.append({
+					"type": "damage",
+					"hero_id": hero.hero_id,
+					"instance_id": hero.instance_id,
+					"is_host_hero": hero.is_player_hero,
+					"amount": damage,
+					"new_hp": new_hp,
+					"new_block": hero.block,
+					"source": "thunder"
+				})
+			else:
+				# Singleplayer or Host: apply directly
+				hero._spawn_thunder_explode_effect()
+				hero.take_damage(damage)
+				hero.play_hit_anim()
+				print("[Thunder] " + hero.hero_data.get("name", "Hero") + " struck by lightning for " + str(damage) + " damage (" + str(stacks) + " stacks)")
+				_log_status(hero.hero_data.get("portrait", ""), "Thunder: " + str(damage) + " DMG!", Color(0.6, 0.7, 1.0))
+				await get_tree().create_timer(0.3).timeout
 	
-	await get_tree().create_timer(0.2).timeout
+	if not collect_ops:
+		await get_tree().create_timer(0.2).timeout
 
 func _get_hero_by_id(hero_id: String) -> Hero:
 	for hero in player_heroes:
@@ -3948,8 +3962,11 @@ func _apply_temporal_shift(allies: Array) -> void:
 		else:
 			print("[Temporal Shift] " + ally.hero_data.get("name", "Hero") + " HP unchanged (already >= snapshot)")
 
-func _detonate_time_bombs(heroes: Array, is_player_team: bool) -> void:
+func _detonate_time_bombs(heroes: Array, is_player_team: bool, operations: Array = []) -> void:
 	# Detonate time_bomb debuffs: stacked damage + remove stacked number of random cards from hand
+	# If operations array is provided, collect state changes instead of applying directly (for multiplayer sync)
+	var collect_ops = not operations.is_empty()
+	
 	for hero in heroes:
 		if hero.is_dead:
 			continue
@@ -3959,12 +3976,35 @@ func _detonate_time_bombs(heroes: Array, is_player_team: bool) -> void:
 		var total_damage = int(bomb_data.get("total_damage", 10))
 		var discard_count = int(bomb_data.get("discard_count", 1))
 		var stacks = int(bomb_data.get("stacks", 1))
-		# Deal stacked damage
-		_apply_true_damage(hero, total_damage)
-		hero.play_hit_anim()
-		var stack_str = " (x" + str(stacks) + ")" if stacks > 1 else ""
-		print("[Time Bomb] " + hero.hero_data.get("name", "Hero") + " took " + str(total_damage) + " damage!" + stack_str)
-		_log_status(hero.hero_data.get("portrait", ""), "Time Bomb" + stack_str + ": " + str(total_damage) + " DMG!", Color(1.0, 0.4, 0.1))
+		
+		if collect_ops:
+			# Multiplayer: collect operation
+			var new_hp = max(0, hero.current_hp - total_damage)
+			operations.append({
+				"type": "damage",
+				"hero_id": hero.hero_id,
+				"instance_id": hero.instance_id,
+				"is_host_hero": hero.is_player_hero,
+				"amount": total_damage,
+				"new_hp": new_hp,
+				"new_block": hero.block,
+				"source": "time_bomb"
+			})
+			# Remove debuff
+			operations.append({
+				"type": "remove_debuff",
+				"hero_id": hero.hero_id,
+				"instance_id": hero.instance_id,
+				"is_host_hero": hero.is_player_hero,
+				"debuff_type": "time_bomb"
+			})
+		else:
+			# Singleplayer or Host: apply directly
+			_apply_true_damage(hero, total_damage)
+			hero.play_hit_anim()
+			var stack_str = " (x" + str(stacks) + ")" if stacks > 1 else ""
+			print("[Time Bomb] " + hero.hero_data.get("name", "Hero") + " took " + str(total_damage) + " damage!" + stack_str)
+			_log_status(hero.hero_data.get("portrait", ""), "Time Bomb" + stack_str + ": " + str(total_damage) + " DMG!", Color(1.0, 0.4, 0.1))
 		# Remove stacked number of random cards belonging to this hero from the hand
 		if is_player_team:
 			for _d in range(discard_count):
@@ -5174,14 +5214,125 @@ func _on_end_turn_pressed() -> void:
 			print("  GameManager.turn_number: ", GameManager.turn_number)
 			
 			if is_host:
-				# Host ending turn: notify Guest via result
-				print("  → HOST sending end_turn result to Guest")
+				# Host: collect all turn-end operations and send to guest
+				print("  → HOST collecting turn-end operations...")
+				var turn_end_ops: Array = []
+				
+				# Snapshot HP for Temporal Shift
+				_hp_snapshot_last_turn = _hp_snapshot_this_turn.duplicate(true)
+				_hp_snapshot_this_turn.clear()
+				for hero in player_heroes:
+					_hp_snapshot_this_turn[hero.instance_id] = {
+						"hp": hero.current_hp,
+						"was_dead": hero.is_dead
+					}
+				
+				# Detonate Time Bombs (collect ops)
+				_detonate_time_bombs(player_heroes, true, turn_end_ops)
+				
+				# Buff/debuff expiration (collect before removing)
+				for hero in player_heroes:
+					if not hero.is_dead:
+						var buffs_to_remove = []
+						var debuffs_to_remove = []
+						for buff_name in hero.active_buffs:
+							var buff_data = hero.active_buffs[buff_name]
+							if buff_data.get("expire_on", "") == "own_turn_end":
+								buffs_to_remove.append(buff_name)
+						for debuff_name in hero.active_debuffs:
+							var debuff_data = hero.active_debuffs[debuff_name]
+							if debuff_data.get("expire_on", "") == "own_turn_end":
+								debuffs_to_remove.append(debuff_name)
+						for buff_name in buffs_to_remove:
+							turn_end_ops.append({
+								"type": "remove_buff",
+								"hero_id": hero.hero_id,
+								"instance_id": hero.instance_id,
+								"is_host_hero": hero.is_player_hero,
+								"buff_type": buff_name
+							})
+						for debuff_name in debuffs_to_remove:
+							turn_end_ops.append({
+								"type": "remove_debuff",
+								"hero_id": hero.hero_id,
+								"instance_id": hero.instance_id,
+								"is_host_hero": hero.is_player_hero,
+								"debuff_type": debuff_name
+							})
+						hero.on_own_turn_end()
+				
+				for enemy in enemy_heroes:
+					if not enemy.is_dead:
+						var buffs_to_remove = []
+						var debuffs_to_remove = []
+						for buff_name in enemy.active_buffs:
+							var buff_data = enemy.active_buffs[buff_name]
+							if buff_data.get("expire_on", "") == "opponent_turn_end":
+								buffs_to_remove.append(buff_name)
+						for debuff_name in enemy.active_debuffs:
+							var debuff_data = enemy.active_debuffs[debuff_name]
+							if debuff_data.get("expire_on", "") == "opponent_turn_end":
+								debuffs_to_remove.append(debuff_name)
+						for buff_name in buffs_to_remove:
+							turn_end_ops.append({
+								"type": "remove_buff",
+								"hero_id": enemy.hero_id,
+								"instance_id": enemy.instance_id,
+								"is_host_hero": enemy.is_player_hero,
+								"buff_type": buff_name
+							})
+						for debuff_name in debuffs_to_remove:
+							turn_end_ops.append({
+								"type": "remove_debuff",
+								"hero_id": enemy.hero_id,
+								"instance_id": enemy.instance_id,
+								"is_host_hero": enemy.is_player_hero,
+								"debuff_type": debuff_name
+							})
+						enemy.on_opponent_turn_end()
+				
+				# Thunder damage (collect ops)
+				_trigger_thunder_damage(enemy_heroes, turn_end_ops)
+				_trigger_thunder_damage(player_heroes, turn_end_ops)
+				
+				# Shield clearing
+				for enemy in enemy_heroes:
+					if enemy.block > 0:
+						turn_end_ops.append({
+							"type": "block",
+							"hero_id": enemy.hero_id,
+							"instance_id": enemy.instance_id,
+							"is_host_hero": enemy.is_player_hero,
+							"amount": 0,
+							"new_block": 0
+						})
+						if enemy.has_buff("dana_shield_draw"):
+							turn_end_ops.append({
+								"type": "remove_buff",
+								"hero_id": enemy.hero_id,
+								"instance_id": enemy.instance_id,
+								"is_host_hero": enemy.is_player_hero,
+								"buff_type": "dana_shield_draw"
+							})
+							GameManager.enemy_draw_cards(1)
+							_refresh_enemy_hand_display()
+						enemy.block = 0
+						enemy._update_ui()
+						enemy._hide_shield_effect()
+				
+				# Send turn-end operations to guest
+				print("  → HOST sending end_turn result with ", turn_end_ops.size(), " operations to Guest")
 				var result = {
 					"action_type": "end_turn",
 					"success": true,
-					"whose_turn_ended": "host"
+					"whose_turn_ended": "host",
+					"turn_end_effects": turn_end_ops
 				}
 				network_manager.send_action_result(result)
+				
+				_refresh_hand_descriptions()
+				await _trigger_thunder_damage(enemy_heroes)
+				await _trigger_thunder_damage(player_heroes)
 			else:
 				# Guest ending turn: send request to Host
 				print("  → GUEST sending end_turn request to Host")
@@ -5202,7 +5353,7 @@ func _on_end_turn_pressed() -> void:
 			_practice_end_enemy_turn()
 			return
 		
-		# === PLAYER TURN END ===
+		# === SINGLEPLAYER TURN END ===
 		# Snapshot HP for Temporal Shift (Nyra EX) BEFORE enemy acts
 		_hp_snapshot_last_turn = _hp_snapshot_this_turn.duplicate(true)
 		_hp_snapshot_this_turn.clear()
@@ -5213,28 +5364,23 @@ func _on_end_turn_pressed() -> void:
 			}
 		
 		# Expire buffs/debuffs
-		# Detonate Time Bombs on PLAYER heroes (bombs placed by enemy, expire at player's own_turn_end)
 		_detonate_time_bombs(player_heroes, true)
 		
-		# Player's heroes: remove "own_turn_end" buffs/debuffs (empower, regen, etc.)
 		for hero in player_heroes:
 			if not hero.is_dead:
 				hero.on_own_turn_end()
-		# Enemy's heroes: remove "opponent_turn_end" buffs/debuffs (their shields, taunt, etc.)
 		for enemy in enemy_heroes:
 			if not enemy.is_dead:
 				enemy.on_opponent_turn_end()
-		# Refresh hand descriptions after buffs expire
 		_refresh_hand_descriptions()
 		
 		# Trigger Thunder damage on ALL heroes at end of player turn
 		await _trigger_thunder_damage(enemy_heroes)
 		await _trigger_thunder_damage(player_heroes)
 		
-		# Clear ENEMY shields at end of player turn (enemy used them last turn, now they expire)
+		# Clear ENEMY shields at end of player turn
 		for enemy in enemy_heroes:
 			if enemy.block > 0:
-				# Dana's Smart Shield: trigger draw before clearing shield
 				if enemy.has_buff("dana_shield_draw"):
 					enemy.remove_buff("dana_shield_draw")
 					GameManager.enemy_draw_cards(1)
@@ -6929,6 +7075,15 @@ func _guest_apply_ex_skill_result(result: Dictionary) -> void:
 func _guest_apply_end_turn_result(result: Dictionary) -> void:
 	## GUEST: Received end_turn result from Host
 	var whose_turn_ended = result.get("whose_turn_ended", "")
+	var turn_end_effects = result.get("turn_end_effects", [])
+	
+	# Apply turn-end operations from host
+	if turn_end_effects.size() > 0:
+		print("Battle: [GUEST] Applying ", turn_end_effects.size(), " turn-end operations from Host")
+		_apply_ops(turn_end_effects)
+		_refresh_hand()
+		_refresh_enemy_hand_display()
+		_update_ui()
 	
 	if whose_turn_ended == "host":
 		# Host ended their turn -> Now it's Guest's turn
@@ -7043,6 +7198,10 @@ func _apply_effect(effect: Dictionary) -> void:
 			var buff_type = effect.get("buff_type", "")
 			if not buff_type.is_empty():
 				hero.remove_buff(buff_type)
+		"remove_debuff":
+			var debuff_type = effect.get("debuff_type", "")
+			if not debuff_type.is_empty():
+				hero.remove_debuff(debuff_type)
 		"debuff":
 			var debuff_type = effect.get("debuff_type", "")
 			var duration = effect.get("duration", 1)
